@@ -7,7 +7,7 @@ then
 fi
 
 echo "EXP_DIR: $EXP_DIR"
-cd $EXP_DIR/Montreal/on-policy/
+cd $EXP_DIR/Montreal/MPPO-ATTENTIOAN
 
 mkdir 3rdparty
 cd 3rdparty
@@ -34,8 +34,8 @@ fi
 
 cd ..
 wget https://github.com/oxwhirl/smac/releases/download/v0.1-beta1/SMAC_Maps.zip
-unzip SMAC_Maps.zip
-mv SMAC_Maps $MAP_DIR
+unzip SMAC_Maps.zip -d ~/Montreal/MPPO-ATTENTIOAN/3rdparty/StarCraftII/Maps/
+
 rm -rf SMAC_Maps.zip
 
 echo 'StarCraft II and SMAC are installed.' $PWD
