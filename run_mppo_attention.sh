@@ -12,26 +12,24 @@
 #SBATCH --mail-user=sheikhbahaee@gmail.com              # notification for job conditions
 #SBATCH --mail-type=END
 #SBATCH --mail-type=FAIL
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-module load python/3.10
-module load gcc
-module load opencv
+
+module load gcc python/3.10 opencv/4.7
 module load scipy-stack
 #virtualenv --no-download --clear ~/Montreal/marl_envs
-
+cd /scratch/memole
 DIR=/scratch/memole/MPPO-ATTENTIOAN
 
-virtualenv --no-download --clear ENV
-source ENV/bin/activate
+virtualenv --no-download --clear $SLURM_TMPDIR/ENV
+source $SLURM_TMPDIR/ENV/bin/activate
 
-cd $DIR
+
 CURRENT_PATH=`pwd`
-echo "current path :$CURRENT_PATH"
+echo "current path ---> $CURRENT_PATH"
 pip install --no-index --upgrade pip
 pip install --no-index --no-cache-dir numpy 
 pip install --no-index torch torchvision torchtext torchaudio
 pip install --no-index wandb
-pip install -r requirements.txt
+pip install -r $DIR/requirements.txt
 python -m pip install git+https://github.com/mpi4py/mpi4py
 pip install --no-cache-dir mpyq
 pip install --no-cache-dir mujoco-py
@@ -43,26 +41,26 @@ pip install 'git+https://github.com/IntelPython/mkl_random.git'
 wandb login $API_KEY
 # install this package first
 
-
-
 #install starcraft
 export SC2PATH='/home/memole/Montreal/StarCraftII'
 #Hanabi
 
-
-cd $CURRENT_PATH/onpolicy/envs/hanabi/
+echo "Install Hanabi...."
+cd $DIR/onpolicy/envs/hanabi/
 cmake -B _build -S .
 cmake --build _build
 python -c 'import pyhanabi'
 
 # install on-policy package
+echo "Install MPPO ...."
 cd $DIR
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 pip install -e .
 ##install this package first
 ##football environment
 #python3 -m pip install --upgrade pip setuptools psutil wheel
 #python3 -m pip install gfootball
-echo "Starting the train_mpe_comm.sh code ..."
-cd $CURRENT_PATH/onpolicy/scripts/train_mpe_scripts
+echo "Start running the train_mpe_comm.sh script ..."
+cd $DIR/onpolicy/scripts/train_mpe_scripts
 chmod +x train_mpe_comm.sh
 bash train_mpe_comm.sh
