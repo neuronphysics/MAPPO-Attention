@@ -47,6 +47,7 @@ class R_Actor(nn.Module):
                                                
         else:
             base = CNNBase if len(obs_shape) == 3 else MLPBase
+            logging.info('Not using any attention module, input width: %d and number of dimensions of observation space is %d', obs_space[1], len(obs_shape)) 
             self.base = base(args, obs_shape)
 
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
