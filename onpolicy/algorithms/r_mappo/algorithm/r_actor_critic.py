@@ -8,7 +8,7 @@ from onpolicy.algorithms.utils.rnn import RNNLayer
 from onpolicy.algorithms.utils.act import ACTLayer
 from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
-
+from absl import logging
 
 class R_Actor(nn.Module):
     """
@@ -18,7 +18,7 @@ class R_Actor(nn.Module):
     :param action_space: (gym.Space) action space.
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
-    def __init__(self, args, obs_space, action_space, use_attention=True, attention_module ='SCOFF', device=torch.device("cpu")):
+    def __init__(self, args, obs_space, action_space, use_attention=True, attention_module ='SCOFF', device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super(R_Actor, self).__init__()
         self.hidden_size = args.hidden_size
         
@@ -33,7 +33,8 @@ class R_Actor(nn.Module):
         self.use_attention = use_attention
         self._attention_module = attention_module
         obs_shape = get_shape_from_obs_space(obs_space)
-        if self.use_attention:
+        if self.use_attention and len(obs_shape) == 3:
+           logging.info('Using attention module %s: input width: %d', attention_module, obs_space[1]) 
            input_channel = obs_space[0]
            input_width = obs_space[1]
            self.base = Encoder(input_channel, input_width, self.hidden_size, max_filters=256, num_layers=3)
