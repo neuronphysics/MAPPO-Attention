@@ -33,21 +33,27 @@ class R_Actor(nn.Module):
         self.use_attention = use_attention
         self._attention_module = attention_module
         obs_shape = get_shape_from_obs_space(obs_space)
-        if self.use_attention and len(obs_shape) == 3:
-           logging.info('Using attention module %s: input width: %d', attention_module, obs_space[1]) 
-           input_channel = obs_space[0]
-           input_width = obs_space[1]
-           self.base = Encoder(input_channel, input_width, self.hidden_size, max_filters=256, num_layers=3)
+        self._obs_shape = obs_shape
+        if self.use_attention and len(self._obs_shape) == 3:
+           
+           logging.info('Using attention module %s: input width: %d', attention_module, obs_shape[1]) 
+           print("we are using both CNN and attention module....")
+           input_channel = obs_shape[0]
+           input_width = obs_shape[1]
+           
+           self.base = Encoder(input_channel, input_width, self.hidden_size, device, max_filters=256, num_layers=3)
            if self._attention_module == "RIM": 
-               
-                self.rnn =  RIM('cuda', 2 * self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
+                print("We are using RIM...")
+                self.rnn =  RIM(device, 2 * self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
            elif self._attention_module == "SCOFF":
-                
-                self.rnn =  SCOFF('cuda', 2 * self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
+                print("We are using SCOFF...")
+                self.rnn =  SCOFF(device, 2 * self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
                                                
         else:
             base = CNNBase if len(obs_shape) == 3 else MLPBase
-            logging.info('Not using any attention module, input width: %d and number of dimensions of observation space is %d', obs_space[1], len(obs_shape)) 
+            logging.info("observation space %s number of dimensions of observation space is %d", str(obs_space.shape), len(obs_shape))
+            if len(obs_shape) == 3: 
+               logging.info('Not using any attention module, input width: %d ', obs_shape[1]) 
             self.base = base(args, obs_shape)
 
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
@@ -76,10 +82,10 @@ class R_Actor(nn.Module):
         masks = check(masks).to(**self.tpdv)
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
-        if self.use_attention:
+        if self.use_attention and len(self._obs_shape) == 3:
             actor_features = self.base(obs)
             
-            actor_features, rnn_states = self.transition_nets(actor_features, rnn_states)
+            actor_features, rnn_states = self.rnn(actor_features, rnn_states)
         else:
 
             actor_features = self.base(obs)
@@ -137,7 +143,7 @@ class R_Critic(nn.Module):
     :param cent_obs_space: (gym.Space) (centralized) observation space.
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
-    def __init__(self, args, cent_obs_space, use_attention=True, attention_module ='SCOFF', device=torch.device("cpu")):
+    def __init__(self, args, cent_obs_space, use_attention=True, attention_module ='SCOFF', device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super(R_Critic, self).__init__()
         self.hidden_size = args.hidden_size
         self._use_orthogonal = args.use_orthogonal
@@ -152,17 +158,18 @@ class R_Critic(nn.Module):
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self._use_orthogonal]
 
         cent_obs_shape = get_shape_from_obs_space(cent_obs_space)
-        if self.use_attention:
+        self._obs_shape = cent_obs_shape
+        if self.use_attention and len(self._obs_shape) == 3:
            input_channel = cent_obs_shape[0]
            input_width = cent_obs_shape[1]
-           self.base = Encoder(input_channel, input_width, self.hidden_size, max_filters=256, num_layers=3)
+           self.base = Encoder(input_channel, input_width, self.hidden_size, device, max_filters=256, num_layers=3)
            if self._attention_module == "RIM": 
                
-                self.rnn = RIM('cuda', 2 * self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
+                self.rnn = RIM(device, 2 * self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
                                               
            elif self._attention_module == "SCOFF":
                 
-                self.rnn = SCOFF('cuda', 2 * self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
+                self.rnn = SCOFF(device, 2 * self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
         else:
             base = CNNBase if len(cent_obs_shape) == 3 else MLPBase
             self.base = base(args, cent_obs_shape)
@@ -194,7 +201,7 @@ class R_Critic(nn.Module):
         cent_obs = check(cent_obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
-        if self.use_attention:
+        if self.use_attention and len(self._obs_shape) == 3:
             critic_features = self.base(cent_obs)
            
             critic_features, rnn_states = self.rnn(critic_features, rnn_states)
