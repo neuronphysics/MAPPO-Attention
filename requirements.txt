@@ -61,6 +61,7 @@ kiwisolver
 lockfile
 Markdown
 matplotlib
+ml-collections
 mock
 monotonic
 more-itertools

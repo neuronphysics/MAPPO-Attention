@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch
-
+import sys
+import pathlib 
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from SCOFF.rnn_models_scoff import RNNModel as RNNModelScoff
 from SCOFFv2.rnn_models_scoffv2 import RNNModel as RNNModelScoffv2
 from RIMs.rnn_models_rim import RNNModel as RNNModelRim

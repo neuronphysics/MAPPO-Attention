@@ -163,11 +163,12 @@ class ResidualBlock(nn.Module):
         return out
 
 class Encoder(nn.Module):
-    def __init__(self, in_channel, img_width, hidden_dim, max_filters=512, num_layers=4, small_conv=False, norm_type = 'batch', num_groups=1, activation = nn.PReLU()):
+    def __init__(self, in_channel, img_width, hidden_dim, device, max_filters=512, num_layers=4, small_conv=False, norm_type = 'batch', num_groups=1, activation = nn.PReLU()):
         super(Encoder,self).__init__()
         self.nchannel    = in_channel
         self.hidden_dim  = hidden_dim
         self.img_width   = img_width
+        self.device      = device
         self.enc_kernel  = 4
         self.enc_stride  = 2
         self.enc_padding = 0
@@ -250,7 +251,6 @@ class Encoder(nn.Module):
 
         self.linear_layers = nn.Sequential( *layers)
         
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.to(device=self.device)
 
     def forward(self,X):
