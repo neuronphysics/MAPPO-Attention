@@ -81,7 +81,7 @@ class MeltingpotRunner(Runner):
 
     def warmup(self):
         # reset env
-        obs = self.envs.reset()
+        obs, _ = self.envs.reset()
 
         share_obs = []
         for o in obs:
