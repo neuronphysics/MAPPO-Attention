@@ -1,1 +1,1 @@
-# multi agent reinforcement learning algorithm MPPO-ATTENTIOAN
+# multi agent reinforcement learning algorithm with RIM: MAPPO-ATTENTIOAN
