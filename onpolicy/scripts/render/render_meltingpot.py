@@ -12,20 +12,24 @@ import torch
 
 # code repository sub-packages
 from onpolicy.config import get_config
-from onpolicy.envs.meltingpot.MeltingPot_Env import MeltingpotEnvWrapper, EnvironmentFactory
+from onpolicy.envs.meltingpot.MeltingPot_Env import env_creator
 from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
-
+from meltingpot import substrate
 
 def make_train_env(all_args):
     def get_env_fn(rank):
         def init_env():
             if all_args.env_name == "Meltingpot":
-                env = MeltingpotEnvWrapper(all_args)
+                
+                player_roles = substrate.get_config(all_args.substrate_name).default_player_roles
+                env_config = {"substrate": all_args.substrate_name, "roles": player_roles}
+                env = env_creator(env_config)
+                
             else:
                 print("Can not support the " +
                       all_args.env_name + " environment.")
                 raise NotImplementedError
-            env.seed(all_args.seed + rank * 1000)
+            env.reset(all_args.seed + rank * 1000)
             return env
         return init_env
     if all_args.n_rollout_threads == 1:
@@ -36,6 +40,7 @@ def make_train_env(all_args):
 
 
 def parse_args(args, parser):
+    parser.add_argument("--substrate_name", type=str, default='collaborative_cooking', help= "a physical environment which is paired with different scenarios" )
     parser.add_argument("--scenario_name", type=str,
                         default='collaborative_cooking__circuit_0', 
                         help="Which scenario to run on [SC 0: killed chef, SC 1: semi-skilled apprentice chef, SC 2:an unhelpful partner ]")
@@ -147,6 +152,7 @@ def main(args):
         from onpolicy.runner.shared.meltingpot_runner import MeltingpotRunner as Runner
     else:
         from onpolicy.runner.separated.meltingpot_runner import MeltingpotRunner as Runner
+
 
     runner = Runner(config)
     runner.render()
