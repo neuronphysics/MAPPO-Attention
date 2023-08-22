@@ -9,7 +9,8 @@ from pathlib import Path
 import torch
 from onpolicy.config import get_config
 from onpolicy.envs.meltingpot.MeltingPot_Env import MeltingpotEnvWrapper as MeltingpotEnv
-from onpolicy.envs.meltingpot.MeltingPot_Env import EnvironmentFactory
+from onpolicy.envs.meltingpot.MeltingPot_Env import env_creator
+from meltingpot import substrate
 from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
 from meltingpot.python.substrate import Substrate
 
@@ -19,13 +20,17 @@ def make_train_env(all_args):
     def get_env_fn(rank):
         def init_env():
             if all_args.env_name == "Meltingpot":
-                env = MeltingpotEnv(all_args)
+                
+                player_roles = substrate.get_config(all_args.substrate_name).default_player_roles
+                env_config = {"substrate": all_args.substrate_name, "roles": player_roles}
+                env = env_creator(env_config)
             else:
                 print("Can not support the " +
                       all_args.env_name + "environment.")
                 raise NotImplementedError
-            env.seed(all_args.seed + rank * 1000)
+            env.reset(all_args.seed + rank * 1000)
             return env
+        
         return init_env
     if all_args.n_rollout_threads == 1:
         return DummyVecEnv([get_env_fn(0)])
@@ -37,12 +42,14 @@ def make_eval_env(all_args):
     def get_env_fn(rank):
         def init_env():
             if all_args.env_name == "Meltingpot":
-                env = MeltingpotEnv(all_args)
+                player_roles = substrate.get_config(all_args.substrate_name).default_player_roles
+                env_config = {"substrate": all_args.substrate_name, "roles": player_roles}
+                env = env_creator(env_config)
             else:
                 print("Can not support the " +
                       all_args.env_name + "environment.")
                 raise NotImplementedError
-            env.seed(all_args.seed * 50000 + rank * 10000)
+            env.reset(all_args.seed * 50000 + rank * 10000)
             return env
         return init_env
     if all_args.n_eval_rollout_threads == 1:
@@ -82,10 +89,8 @@ def main(args):
     else:
         raise NotImplementedError
 
-    assert (all_args.share_policy == True and all_args.scenario_name == 'simple_speaker_listener') == False, (
-        "The simple_speaker_listener scenario can not use shared policy. Please check the config.py.")
     if all_args.substrate_name == 'collaborative_cooking':
-       Substrate.get_config(all_args.substrate_name).cooking_pot_pseudoreward = 1.0 
+       substrate.get_config(all_args.substrate_name).cooking_pot_pseudoreward = 1.0 
 
     # cuda
     if all_args.cuda and torch.cuda.is_available():
@@ -116,7 +121,6 @@ def main(args):
                          str(all_args.experiment_name) +
                          "_seed" + str(all_args.seed),
                          group=all_args.scenario_name,
-
                          dir=str(run_dir),
                          job_type="training",
                          reinit=True)
@@ -157,9 +161,9 @@ def main(args):
 
     # run experiments
     if all_args.share_policy:
-        from onpolicy.runner.shared.mpe_runner import MPERunner as Runner
+        from onpolicy.runner.shared.meltingpot_runner import MeltingpotRunner as Runner
     else:
-        from onpolicy.runner.separated.mpe_runner import MPERunner as Runner
+        from onpolicy.runner.separated.meltingpot_runner import MeltingpotRunner as Runner
 
     runner = Runner(config)
     runner.run()
