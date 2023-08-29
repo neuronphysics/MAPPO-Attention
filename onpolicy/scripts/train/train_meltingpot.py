@@ -8,11 +8,10 @@ import numpy as np
 from pathlib import Path
 import torch
 from onpolicy.config import get_config
-from onpolicy.envs.meltingpot.MeltingPot_Env import MeltingpotEnvWrapper as MeltingpotEnv
 from onpolicy.envs.meltingpot.MeltingPot_Env import env_creator
 from meltingpot import substrate
 from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
-from meltingpot.python.substrate import Substrate
+
 
 """Train script for MPEs."""
 
