@@ -84,8 +84,13 @@ class Runner(object):
 
         self.policy = []
         for agent_id in range(self.num_agents):
-            share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
+            if not self.env_name== "Meltingpot": 
+               share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
+            else:
+               agent_key=f'player_{agent_id}'
+               share_observation_space = self.envs.share_observation_space[agent_key] if self.use_centralized_V else self.envs.observation_space[agent_key]
             # policy network
+            print(f"Observation space keys :{self.envs.observation_space.spaces.keys()}") #debug
             po = Policy(self.all_args,
                         self.envs.observation_space[agent_id],
                         share_observation_space,
