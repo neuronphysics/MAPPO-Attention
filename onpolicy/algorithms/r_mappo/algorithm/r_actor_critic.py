@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from onpolicy.algorithms.utils.util import init, check
+from onpolicy.algorithms.utils.util import init, check, calculate_conv_params
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
 from onpolicy.algorithms.utils.modularity import RIM, SCOFF
 from onpolicy.algorithms.utils.mlp import MLPBase
@@ -40,8 +40,10 @@ class R_Actor(nn.Module):
            print("we are using both CNN and attention module....")
            input_channel = obs_shape[0]
            input_width = obs_shape[1]
+           #making parametrs of encoder for CNN compatible with different image sizes
+           kernel, stride, padding = calculate_conv_params((input_width,input_width,input_channel))
            
-           self.base = Encoder(input_channel, input_width, self.hidden_size, device, max_filters=256, num_layers=3)
+           self.base = Encoder(input_channel, input_width, self.hidden_size, device, max_filters=256, num_layers=3, kernel_size= kernel, stride_size=stride, padding_size=padding)
            if self._attention_module == "RIM": 
                 print("We are using RIM...")
                 self.rnn =  RIM(device, 2 * self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)

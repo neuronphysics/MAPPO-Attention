@@ -86,16 +86,24 @@ class Runner(object):
         for agent_id in range(self.num_agents):
             if not self.env_name== "Meltingpot": 
                share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
-            else:
-               agent_key=f'player_{agent_id}'
-               share_observation_space = self.envs.share_observation_space[agent_key] if self.use_centralized_V else self.envs.observation_space[agent_key]
-            # policy network
-            print(f"Observation space keys :{self.envs.observation_space.spaces.keys()}") #debug
-            po = Policy(self.all_args,
+               po = Policy(self.all_args,
                         self.envs.observation_space[agent_id],
                         share_observation_space,
                         self.envs.action_space[agent_id],
                         device = self.device)
+            else:
+               player_key = f"player_{agent_id}"
+               rgb_value = self.envs.observation_space[player_key]['RGB']
+               print(f"{player_key} RGB: ", rgb_value)
+               share_observation_space = self.envs.share_observation_space[0]['RGB'] if self.use_centralized_V else self.envs.observation_space[0]['RGB']
+               po = Policy(self.all_args,
+                           self.envs.observation_space[player_key]['RGB'],
+                           share_observation_space,
+                           self.envs.action_space[player_key],
+                           device = self.device)
+            # policy network
+            print(f"Observation space keys :{self.envs.observation_space.spaces.keys()} and its value {share_observation_space}") #debug
+            
             self.policy.append(po)
 
         if self.model_dir is not None:
@@ -107,11 +115,20 @@ class Runner(object):
             # algorithm
             tr = TrainAlgo(self.all_args, self.policy[agent_id], device = self.device)
             # buffer
-            share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
-            bu = SeparatedReplayBuffer(self.all_args,
-                                       self.envs.observation_space[agent_id],
-                                       share_observation_space,
-                                       self.envs.action_space[agent_id])
+            if not self.env_name== "Meltingpot": 
+               share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
+               bu = SeparatedReplayBuffer(self.all_args,
+                                          self.envs.observation_space[agent_id],
+                                          share_observation_space,
+                                          self.envs.action_space[agent_id])
+            else:
+               player_key = f"player_{agent_id}" 
+               share_observation_space = self.envs.share_observation_space[0]['RGB'] if self.use_centralized_V else self.envs.observation_space[0]['RGB']
+               bu = SeparatedReplayBuffer(self.all_args,
+                                          self.envs.observation_space[player_key]['RGB'],
+                                          share_observation_space,
+                                          self.envs.action_space[player_key])
+               
             self.buffer.append(bu)
             self.trainer.append(tr)
             
