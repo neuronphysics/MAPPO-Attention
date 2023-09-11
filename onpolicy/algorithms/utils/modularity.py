@@ -425,7 +425,7 @@ class SCOFF(nn.Module):
 		if c is not None:
 			hs_ = hs.reshape(batch_size, -1)
 			cs_ = cs.reshape(batch_size, -1)
-
+			print(f"modularity layer outputs {outputs.shape} hs size {hs_.shape} cs {cs_.shape}")
 			return outputs, hs_, cs_, entropy #.view(batch_size, -1)
 		else:
 			hs_ = hs.reshape(batch_size, -1)
@@ -458,13 +458,22 @@ class SCOFF(nn.Module):
 		#cs_new = []
 		new_hs = torch.zeros(hs.size()).to(hs.device)
 		new_cs = torch.zeros(cs.size()).to(cs.device)
+		#Debug
+		new_hs = new_hs.unsqueeze(-1)
+		new_cs = new_cs.unsqueeze(-1)
 		entropy = 0
 		for n in range(self.n_layers):
 			idx = n * self.num_directions
+			#debug
+			print("x shape:", x.shape)
+			print("hs[idx].unsqueeze(0) shape:", hs[idx].unsqueeze(0).shape)
+			print("cs[idx].unsqueeze(0) shape:", cs[idx].unsqueeze(0).shape)
+			print(f"new_hs[idx] shape:{new_hs[idx].shape} , new_cs [idx] {new_cs[idx].shape}")
 			x_fw, new_hs[idx], new_cs[idx], entropy_ = self.layer(self.rimcell[idx], x, hs[idx].unsqueeze(0), cs[idx].unsqueeze(0), message_to_rule_network = message_to_rule_network)
 			entropy += entropy_
 			if self.num_directions == 2:
 				idx = n * self.num_directions + 1
+
 				x_bw, new_hs[idx], new_cs[idx], entropy_ = self.layer(self.rimcell[idx], x, hs[idx], cs[idx], direction = 1, message_to_rule_network = message_to_rule_network)
 				entropy += entropy_
 				x = torch.cat((x_fw, x_bw), dim = 2)
@@ -473,7 +482,7 @@ class SCOFF(nn.Module):
 
 		#hs = torch.stack(hs, dim = 0)
 		#cs = torch.stack(cs, dim = 0)
-		
+		print(f"SCOFF X {x_fw.shape}, h shape {new_hs.shape} c shape {new_cs.shape}")
 
 		if self.batch_first:
 			x = x.transpose(0, 1)

@@ -18,9 +18,9 @@ def calculate_channel_sizes( image_channels, max_filters, num_layers):
         return channel_sizes
 
 def calculate_layer_size( input_size, kernel_size, stride, padding=0):
-        numerator = input_size - kernel_size + (2 * padding)
-        denominator = stride
-        return (numerator // denominator) + 1
+        return ((input_size - kernel_size + 2*padding) // stride) + 1
+
+
 
 class CNNLayer(nn.Module):
     def __init__(self, obs_shape, hidden_size, use_orthogonal, use_ReLU, kernel_size=3, stride=1):
@@ -162,16 +162,38 @@ class ResidualBlock(nn.Module):
         # as the next block implement ReLU as the first layer
         return out
 
+class PrintLayer(nn.Module):
+    def __init__(self):
+        super(PrintLayer, self).__init__()
+    
+    def forward(self, x):
+        print(x.shape)
+        return x
+    
 class Encoder(nn.Module):
-    def __init__(self, in_channel, img_width, hidden_dim, device, max_filters=512, num_layers=4, small_conv=False, norm_type = 'batch', num_groups=1, activation = nn.PReLU()):
+    def __init__(self, 
+                 in_channel, 
+                 img_width, 
+                 hidden_dim, 
+                 device, 
+                 max_filters=512, 
+                 num_layers=4, 
+                 small_conv=False, 
+                 norm_type = 'batch', 
+                 num_groups=1, 
+                 kernel_size=4, 
+                 stride_size=2, 
+                 padding_size=1, 
+                 activation = nn.PReLU()
+                 ):
         super(Encoder,self).__init__()
         self.nchannel    = in_channel
         self.hidden_dim  = hidden_dim
         self.img_width   = img_width
         self.device      = device
-        self.enc_kernel  = 4
-        self.enc_stride  = 2
-        self.enc_padding = 0
+        self.enc_kernel  = kernel_size
+        self.enc_stride  = stride_size
+        self.enc_padding = padding_size
         self.res_kernel  = 3
         self.res_stride  = 1
         self.res_padding = 1
@@ -197,6 +219,7 @@ class Encoder(nn.Module):
                         stride=self.enc_stride,
                         padding=self.enc_padding,
                 ))
+                encoder_layers.append(PrintLayer())
             else:
                 encoder_layers.append( nn.Conv2d(
                         in_channels=in_channels,
@@ -206,6 +229,7 @@ class Encoder(nn.Module):
                         padding=self.enc_padding,
                         bias=False,
                     ))
+                encoder_layers.append(PrintLayer())
             # Batch Norm
             if norm_type == 'batch':
                 encoder_layers.append(nn.BatchNorm2d(out_channels))
@@ -225,14 +249,18 @@ class Encoder(nn.Module):
                         norm_type=norm_type,
                         nonlinearity=self.activation
                     ))
+                encoder_layers.append(PrintLayer())
 
         # Flatten Encoder Output
         encoder_layers.append(nn.Flatten())
 
         self.encoder = nn.Sequential(*encoder_layers)
+        
 
         # Calculate shape of the flattened image
         self.h_dim, self.h_image_dim = self.get_flattened_size(self.img_width)
+        
+        
         #linear layers
         layers = []
         layers.append(nn.Linear(self.h_dim, hidden_dim, bias=False))
@@ -254,10 +282,15 @@ class Encoder(nn.Module):
         self.to(device=self.device)
 
     def forward(self,X):
-            # Encode
-            h = self.encoder(X)
-            # Get latent variables
-            return self.linear_layers(h)
+        # Encode (note ensure input tensor has the shape [batch_size, channels, height, width])    
+        print(f"CNN module : check the size of input {X.shape}")
+        if X.shape[1] != self.nchannel:
+           X = X.permute(0, 3, 1, 2)
+    
+        h = self.encoder(X)
+        print (f"size of output of ecoder {h.shape}")
+        # Get latent variables
+        return self.linear_layers(h)
             
     def get_flattened_size( self, image_size ):
         #for param in self.encoder.parameters():
@@ -265,12 +298,16 @@ class Encoder(nn.Module):
 
         for layer in self.encoder.modules():
             if isinstance(layer, nn.Conv2d):
+
                 kernel_size = layer.kernel_size[0]
                 stride = layer.stride[0]
                 padding = layer.padding[0]
                 filters = layer.out_channels
+
                 image_size = calculate_layer_size(
                     image_size, kernel_size, stride, padding
                 )
+               
         return filters * image_size * image_size, image_size
+    
 

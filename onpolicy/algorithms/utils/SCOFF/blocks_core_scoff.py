@@ -211,7 +211,9 @@ class BlocksCore(nn.Module):
         sz_b = inp.shape[0]
         batch_size = inp.shape[0]
 
-        inp_use = inp #layer_input[idx_step]
+        #inp_use = inp #layer_input[idx_step]
+        # Reshape inp to have two dimensions
+        inp_use = inp.unsqueeze(0)
         def _process_input(_input):
              _input = _input.unsqueeze(1)
 
@@ -220,10 +222,15 @@ class BlocksCore(nn.Module):
              )
 
         if self.version:
+             #print(f"inside block core {inp_use.shape} {self.num_blocks_out}")
              input_to_attention = [_process_input(_input) for _input in
                           torch.chunk(inp_use, chunks=self.num_blocks_out, dim=1)
                          ]
+             print(f"In block core scoff hx shape: {hx.shape}")
+             if hx.shape[0] != 1:
+                hx = hx.unsqueeze(0)
 
+             
              split_hx = [chunk.unsqueeze(1) for chunk in
                          torch.chunk(hx, chunks=self.num_blocks_out, dim=1)]
 
@@ -334,6 +341,7 @@ class BlocksCore(nn.Module):
              hx = self.set(hx).reshape((batch_size, self.num_blocks_out, self.block_size_out)).reshape(batch_size, self.nhid)
         
         #hx = Identity().apply(hx)
+        print(f"block core scoff output hx {hx.shape} cx: {cx.shape}, mask {mask.shape}, block_mask {block_mask.shape}")
         return hx, cx, mask, block_mask, temp_attention, entropy
 
     def reset_relational_memory(self, batch_size: int):

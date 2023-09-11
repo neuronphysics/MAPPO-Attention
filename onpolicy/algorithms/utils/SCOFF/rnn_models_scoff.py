@@ -195,7 +195,9 @@ class RNNModel(nn.Module):
 
         #input_to_blocks = input.reshape(batch_size, self.block_size * self.num_blocks)
         emb = self.drop(self.encoder(input))
-        timesteps, batch_size, _ = emb.shape
+        #input inside SCOFF  embedding batch_size, hidden
+        #comment the next line for MARL
+        #timesteps, batch_size, _ = emb.shape
 
 
         hx, cx = hidden[0], hidden[1]
@@ -238,7 +240,9 @@ class RNNModel(nn.Module):
             new_hidden[1] = torch.stack(new_hidden[1])
             hidden = tuple(new_hidden)
         block_mask = bmask.squeeze(0)
-        assert input.shape[1] == hx.shape[0]
+        print(f"input shape {input.shape}, hidden size {hx.shape}") # torch.Size([256, 64]), torch.Size([1, 64])
+        hx=hx.squeeze()
+        assert input.shape[1] == hx.shape[0] #Note: removed this line to check the reults
         #if self.use_dropout:
         output = self.drop(output)
         dec = output.view(output.size(0) * output.size(1), self.nhid)
