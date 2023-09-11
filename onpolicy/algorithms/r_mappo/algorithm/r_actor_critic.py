@@ -34,22 +34,29 @@ class R_Actor(nn.Module):
         self._attention_module = attention_module
         obs_shape = get_shape_from_obs_space(obs_space)
         self._obs_shape = obs_shape
-        if self.use_attention and len(self._obs_shape) == 3:
+        if self.use_attention and len(self._obs_shape) >= 3:
            
            logging.info('Using attention module %s: input width: %d', attention_module, obs_shape[1]) 
-           print("we are using both CNN and attention module....")
-           input_channel = obs_shape[0]
-           input_width = obs_shape[1]
+           #print(f"we are using both CNN and attention module.... {obs_shape} {len(self._obs_shape)}")
+           if obs_shape[0]==3:
+               input_channel = obs_shape[0]
+               input_width = obs_shape[1]
+               input_height = obs_shape[2]
+           elif obs_shape[2]==3:
+               input_channel = obs_shape[2]
+               input_width = obs_shape[0]
+               input_height = obs_shape[1]          
            #making parametrs of encoder for CNN compatible with different image sizes
+           print(f"input channel and input image width in actor network {input_channel} {input_width} {input_height}")
            kernel, stride, padding = calculate_conv_params((input_width,input_width,input_channel))
            
            self.base = Encoder(input_channel, input_width, self.hidden_size, device, max_filters=256, num_layers=3, kernel_size= kernel, stride_size=stride, padding_size=padding)
            if self._attention_module == "RIM": 
                 print("We are using RIM...")
-                self.rnn =  RIM(device, 2 * self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
+                self.rnn =  RIM(device, self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
            elif self._attention_module == "SCOFF":
                 print("We are using SCOFF...")
-                self.rnn =  SCOFF(device, 2 * self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
+                self.rnn =  SCOFF(device, self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
                                                
         else:
             base = CNNBase if len(obs_shape) == 3 else MLPBase
@@ -164,14 +171,29 @@ class R_Critic(nn.Module):
         if self.use_attention and len(self._obs_shape) == 3:
            input_channel = cent_obs_shape[0]
            input_width = cent_obs_shape[1]
+
            self.base = Encoder(input_channel, input_width, self.hidden_size, device, max_filters=256, num_layers=3)
+
+           if self._obs_shape[0]==3:
+               input_channel = cent_obs_shape[0]
+               input_width   = cent_obs_shape[1]
+               input_height  = cent_obs_shape[2]
+           elif self._obs_shape[2]==3:
+               input_channel = cent_obs_shape[2]
+               input_width = cent_obs_shape[0]
+               input_height = cent_obs_shape[1]          
+           #making parametrs of encoder for CNN compatible with different image sizes
+           print(f"input channel and input image width in critic network {input_channel} {input_width} {input_height} observation: {cent_obs_shape}")
+           kernel, stride, padding = calculate_conv_params((input_width,input_width,input_channel))
+           
+           self.base = Encoder(input_channel, input_width, self.hidden_size, device, max_filters=256, num_layers=3, kernel_size= kernel, stride_size=stride, padding_size=padding)           
            if self._attention_module == "RIM": 
                
-                self.rnn = RIM(device, 2 * self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
+                self.rnn = RIM(device, self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
                                               
            elif self._attention_module == "SCOFF":
                 
-                self.rnn = SCOFF(device, 2 * self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
+                self.rnn = SCOFF(device,  self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
         else:
             base = CNNBase if len(cent_obs_shape) == 3 else MLPBase
             self.base = base(args, cent_obs_shape)
