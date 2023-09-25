@@ -6,7 +6,7 @@ import torch
 from multiprocessing import Process, Pipe
 from abc import ABC, abstractmethod
 from onpolicy.utils.util import tile_images
-
+import logging
 class CloudpickleWrapper(object):
     """
     Uses cloudpickle to serialize contents (otherwise multiprocessing tries to use pickle)
@@ -136,13 +136,14 @@ class ShareVecEnv(ABC):
             self.viewer = rendering.SimpleImageViewer()
         return self.viewer
 
-
+"""
 def worker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
     env = env_fn_wrapper.x()
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
+            print(f"env worker {data}")
             ob, reward, done, info = env.step(data)
             if 'bool' in done.__class__.__name__:
                 if done:
@@ -172,6 +173,52 @@ def worker(remote, parent_remote, env_fn_wrapper):
             remote.send((env.observation_space, env.share_observation_space, env.action_space))
         else:
             raise NotImplementedError
+"""
+def worker(remote, parent_remote, env_fn_wrapper):
+    try:
+        print("Worker started.")
+        parent_remote.close()
+        env = env_fn_wrapper.x()
+        while True:
+            print("Waiting for command...")
+            cmd, data = remote.recv()
+            print(f"Received command: {cmd}")
+            if cmd == 'step':
+                print(f"env worker step {data}")
+                ob, reward, done, info = env.step(data)
+                if 'bool' in done.__class__.__name__:
+                    if done:
+                        ob = env.reset()
+                else:
+                    if np.all(done):
+                        ob = env.reset()
+
+                remote.send((ob, reward, done, info))
+            elif cmd == 'reset':
+                ob = env.reset()
+                remote.send((ob))
+            elif cmd == 'render':
+                if data == "rgb_array":
+                    fr = env.render(mode=data)
+                    remote.send(fr)
+                elif data == "human":
+                    env.render(mode=data)
+            elif cmd == 'reset_task':
+                ob = env.reset_task()
+                remote.send(ob)
+            elif cmd == 'close':
+                print("Closing worker.")
+                env.close()
+                remote.close()
+                break
+            elif cmd == 'get_spaces':
+                remote.send((env.observation_space, env.share_observation_space, env.action_space))
+            else:
+                print(f"Unknown command: {cmd}")
+                raise NotImplementedError
+    except Exception as e:
+        logging.error(f"Error in child process of env_wrappers: {e}")
+        
 
 
 class GuardSubprocVecEnv(ShareVecEnv):
