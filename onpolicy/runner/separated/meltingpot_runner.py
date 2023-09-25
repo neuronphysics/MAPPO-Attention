@@ -14,7 +14,21 @@ def _t2n(x):
     return x.detach().cpu().numpy()
 
 
-
+def flatten_list(data):
+    # Check if the first element of data is a list containing numpy arrays
+    if isinstance(data[0], list) and all(isinstance(arr, np.ndarray) for arr in data[0]):
+        a = []
+        for j in range(len(data[0])):
+           r = []
+           for i in range(len(data)):
+               r.append(data[i][j])
+           a.append(np.array(r).squeeze())
+        return a
+    
+    # Check if all elements of data are numpy arrays
+    elif all(isinstance(arr, np.ndarray) for arr in data):
+        return data
+    
 class MeltingpotRunner(Runner):
     def __init__(self, config):
         super(MeltingpotRunner, self).__init__(config)
@@ -33,10 +47,12 @@ class MeltingpotRunner(Runner):
             for step in range(self.episode_length):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
-                    
+                #actions_env = flatten_list(actions_env)
+                print(f"meltingpot runner separate ......")
+                print(f"actions of meltingpot  {actions_env}")    
                 # Obser reward and next obs
                 obs, rewards, dones, truncations, infos = self.envs.step(actions_env)
-
+                print(f"still in run {obs}")
                 data = obs, rewards, dones, truncations, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                 
                 # insert data into buffer
@@ -146,26 +162,30 @@ class MeltingpotRunner(Runner):
                                                             self.buffer[agent_id].rnn_states_critic[step],
                                                             self.buffer[agent_id].masks[step])
             # [agents, envs, dim]
+            #value: torch.tensor, action: torch.tensor, action_log_prob :torch.tensor, rnn_states_actor: tuple(torch.tensor, torch.tensor), rnn_state_critic: tuple(torch.tensor, torch.tensor)
             values.append(_t2n(value))
             action = _t2n(action)
             # rearrange action
-            if self.envs.action_space[agent_id].__class__.__name__ == 'MultiDiscrete':
-                for i in range(self.envs.action_space[agent_id].shape):
-                    uc_action_env = np.eye(self.envs.action_space[agent_id].high[i]+1)[action[:, i]]
+            player= f"player_{agent_id}"
+            
+            if self.envs.action_space[player].__class__.__name__ == 'MultiDiscrete':
+                for i in range(self.envs.action_space[player].shape):
+                    uc_action_env = np.eye(self.envs.action_space[player].high[i]+1)[action[:, i]]
                     if i == 0:
                         action_env = uc_action_env
                     else:
                         action_env = np.concatenate((action_env, uc_action_env), axis=1)
-            elif self.envs.action_space[agent_id].__class__.__name__ == 'Discrete':
-                action_env = np.squeeze(np.eye(self.envs.action_space[agent_id].n)[action], 1)
+            elif self.envs.action_space[player].__class__.__name__ == 'Discrete':
+                action_env = np.squeeze(np.eye(self.envs.action_space[player].n)[action], 1)
             else:
                 raise NotImplementedError
 
             actions.append(action)
             temp_actions_env.append(action_env)
             action_log_probs.append(_t2n(action_log_prob))
-            rnn_states.append(_t2n(rnn_states_actor))
-            rnn_states_critic.append( _t2n(rnn_state_critic))
+            
+            rnn_states.append({f"player_{agent_id}": _t2n(tensor) for agent_id, tensor in enumerate(rnn_states_actor)})
+            rnn_states_critic.append({f"player_{agent_id}": _t2n(tensor) for agent_id, tensor in enumerate(rnn_state_critic)})
 
         # [envs, agents, dim]
         actions_env = []
@@ -174,13 +194,30 @@ class MeltingpotRunner(Runner):
             for temp_action_env in temp_actions_env:
                 one_hot_action_env.append(temp_action_env[i])
             actions_env.append(one_hot_action_env)
-
-        values = np.array(values).transpose(1, 0, 2)
-        actions = np.array(actions).transpose(1, 0, 2)
+        
+        values = np.array([v.squeeze(-1) for v in values]).transpose(1, 0, 2)
+        actions = np.array([a.squeeze(-1) for a in actions]).transpose(1, 0, 2)
+        # values (256, 2, 1) actions (256, 2, 1)
         action_log_probs = np.array(action_log_probs).transpose(1, 0, 2)
-        rnn_states = np.array(rnn_states).transpose(1, 0, 2, 3)
-        rnn_states_critic = np.array(rnn_states_critic).transpose(1, 0, 2, 3)
-
+        #action log probability (256, 2, 1)
+        #rnn_states (64, 9, 1) rnn_states_critic (64, 9, 1)
+       
+        rnn_states ={key: np.concatenate([d[key] for d in rnn_states]).transpose(1, 0, 2) for key in rnn_states[0]}
+        
+        rnn_states_critic={key: np.concatenate([d[key] for d in rnn_states_critic]).transpose(1, 0, 2) for key in rnn_states_critic[0]}
+        #change for debug
+        
+        #actions_dict = {}
+        #for agent_id in range(self.num_agents):
+        #    agent_actions = [actions_pair[agent_id] for actions_pair in actions_env]
+        #    stacked_actions = np.vstack(agent_actions)
+        #    actions_dict[f"player_{agent_id}"] = stacked_actions
+        #action_env = actions_dict
+        #actions_dict shape : (256, 8)
+        #removed
+        #rnn_states = np.array(rnn_states).transpose(1, 0, 2, 3)
+        #rnn_states_critic = np.array(rnn_states_critic).transpose(1, 0, 2, 3)
+        #rnn state shape (1, 2, 64, 2) rnn state of critic (1, 2, 64, 2)
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
     def insert(self, data):
@@ -230,6 +267,7 @@ class MeltingpotRunner(Runner):
 
                 eval_action = eval_action.detach().cpu().numpy()
                 # rearrange action
+                
                 if self.eval_envs.action_space[agent_id].__class__.__name__ == 'MultiDiscrete':
                     for i in range(self.eval_envs.action_space[agent_id].shape):
                         eval_uc_action_env = np.eye(self.eval_envs.action_space[agent_id].high[i]+1)[eval_action[:, i]]

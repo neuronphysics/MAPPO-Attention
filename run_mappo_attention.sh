@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --gres=gpu:v100:4
 #SBATCH --mem=95000M   
-#SBATCH --time=1-10:00:00
+#SBATCH --time=02:00:00
 #SBATCH --account=def-gdumas85
 #SBATCH --output=/home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/logs/MAPPO-attention-meltingpot-seed-1_%N-%j.out
 #SBATCH --error=/home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/logs/MAPPO-attention-meltingpot-seed-1_%N-%j.err
@@ -13,7 +13,7 @@
 #SBATCH --mail-type=END
 #SBATCH --mail-type=FAIL
 
-module load gcc python/3.10 opencv/4.7 mujoco mpi4py
+module load gcc python/3.10 opencv/4.7 mujoco mpi4py arrow/11
 module load scipy-stack
 module load rust/1.65.0
 DIR=/home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN
@@ -26,13 +26,15 @@ CURRENT_PATH=`pwd`
 echo "current path ---> $CURRENT_PATH"
 pip install --no-index --upgrade pip
 #pip install --no-index --no-cache-dir numpy 
+#pip install --no-index --no-cache-dir opencv-python
 #pip install --no-index --no-cache-dir ml-collections
 #pip install --no-index torch torchvision torchtext torchaudio
 #pip install --no-index wandb
 #pip install --no-cache-dir -r ~/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/requirements.txt
 #python -m pip install git+https://github.com/mpi4py/mpi4py
 #pip install --no-cache-dir mpyq
-
+#pip install -U "ray[rllib]"
+#
 
 #pip install 'git+https://github.com/lcswillems/torch-ac.git'
 #pip install 'git+https://github.com/IntelPython/mkl_fft.git'
@@ -41,7 +43,8 @@ pip install --no-index --upgrade pip
 
 # install this package first
 # install on-policy package
-
+WANDB_CREDENTIALS_PATH='/home/memole/projects/def-gdumas85/memole/wandb_credentials.txt'
+export WANDB_API_KEY=$(cat $WANDB_CREDENTIALS_PATH)
 cd /home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/
 pip install -e .
 #install starcraft
@@ -89,16 +92,22 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 #cd meltingpot
 #pip install --editable .[dev]
 #pip install  --no-index --no-cache-dir dm-acme
-wandb login a2a1bab96ebbc3869c65e3632485e02fcae9cc42
-echo "Start running the train_mpe_comm.sh script ..."
+#pip install -U pip
+#pip install "ray[cpp]" --no-index
+#python -c 'from ray import cpp'
+wandb login $WANDB_API_KEY
+echo "Start running the train meltingpot script ..."
 
 
-#cd $DIR/onpolicy/scripts/train
+cd $DIR/onpolicy/scripts/train
 
 #CUDA_VISIBLE_DEVICES=0,1 python train_mpe.py --use_valuenorm --use_popart --env_name "MPE" --algorithm_name "mappo" --experiment_name "check" \
 #    --scenario_name "simple_speaker_listener" --num_agents 2 --num_landmarks 3 --seed 1 --use_render \
 #    --n_training_threads 1 --n_rollout_threads 128 --num_mini_batch 1 --episode_length 25 --num_env_steps 2000000 \
 #    --ppo_epoch 15 --gain 0.01 --lr 7e-4 --critic_lr 7e-4 --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy
 #test meltingpot environment 
-CUDA_VISIBLE_DEVICES=0,1 /home/memole/MAPPO/bin/python3 -m meltingpot.examples.pettingzoo.sb3_train
+#CUDA_VISIBLE_DEVICES=0,1 /home/memole/MAPPO/bin/python3 -m meltingpot.examples.pettingzoo.sb3_train
+CUDA_VISIBLE_DEVICES=0,1 python train_meltingpot.py --use_valuenorm --use_popart --env_name "Meltingpot" --algorithm_name "mappo" --experiment_name "check" \
+    --substrate_name "territory__rooms" --num_agents 9 --seed 1 --use_render \
+    --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy
 
