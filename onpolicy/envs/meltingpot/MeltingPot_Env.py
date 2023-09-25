@@ -93,6 +93,9 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     self.observation_space = self._convert_spaces_tuple_to_dict(
         spec_to_space(self._env.observation_spec()),
         remove_world_observations=True)
+
+    self.share_observation_space = list(self.observation_space.values())
+
     self.action_space = self._convert_spaces_tuple_to_dict(
         spec_to_space(self._env.action_spec()))
     self.max_cycles = max_cycles
@@ -108,7 +111,11 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
   def step(self, action_dict):
     """See base class."""
-    actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
+    print(f"inside step in meltingpot env {action_dict} {type (action_dict)} {self._ordered_agent_ids}")
+
+    #actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
+    actions = [action_dict[agent_id] for agent_id, _ in enumerate(self._ordered_agent_ids)]
+    print(f"actions enter meltingpot step func. {actions}")
     timestep = self._env.step(actions)
     rewards = {
         agent_id: timestep.reward[index]
@@ -116,7 +123,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     }
     self.num_cycles += 1
     termination = timestep.last()
-    done = { agent_id:termination for agent_id in self._ordered_agent_ids}
+    done = { '__all__': termination}
     truncation = self.num_cycles >= self.max_cycles
     truncations = {agent_id: truncation for agent_id in self._ordered_agent_ids}
     info = {}
@@ -127,6 +134,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
   def close(self):
     """See base class."""
     self._env.close()
+  
 
   def get_dmlab2d_env(self):
     """Returns the underlying DM Lab2D environment."""
@@ -168,7 +176,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
                    if remove_world_observations else input_tuple[i])
         for i, agent_id in enumerate(self._ordered_agent_ids)
     })
-
+  
 
 def env_creator(env_config):
   """Outputs an environment for registering."""
