@@ -14,21 +14,26 @@ def _t2n(x):
     return x.detach().cpu().numpy()
 
 
-def flatten_list(data):
-    # Check if the first element of data is a list containing numpy arrays
-    if isinstance(data[0], list) and all(isinstance(arr, np.ndarray) for arr in data[0]):
-        a = []
-        for j in range(len(data[0])):
-           r = []
-           for i in range(len(data)):
-               r.append(data[i][j])
-           a.append(np.array(r).squeeze())
-        return a
+
     
-    # Check if all elements of data are numpy arrays
-    elif all(isinstance(arr, np.ndarray) for arr in data):
-        return data
-    
+def flatten_lists(input_list):
+    # Check if input is a list
+    if not isinstance(input_list, list):
+        raise ValueError("Input is not a list")
+
+    # Check if each element of the list is also a list
+    for inner_list in input_list:
+        if not isinstance(inner_list, list):
+        
+           # Check if each element of the inner list is a numpy array
+           for item in inner_list:
+               if not isinstance(item, np.ndarray):
+                   raise ValueError("Inner list does not contain only numpy arrays")
+
+    # Convert to a list of concatenated numpy arrays
+    concatenated_arrays = [np.concatenate(inner_list) for inner_list in input_list]
+    return concatenated_arrays
+
 class MeltingpotRunner(Runner):
     def __init__(self, config):
         super(MeltingpotRunner, self).__init__(config)
@@ -47,9 +52,9 @@ class MeltingpotRunner(Runner):
             for step in range(self.episode_length):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
-                #actions_env = flatten_list(actions_env)
+                
                 print(f"meltingpot runner separate ......")
-                print(f"actions of meltingpot  {actions_env}")    
+                print(f"actions of meltingpot ... {actions_env}")    
                 # Obser reward and next obs
                 obs, rewards, dones, truncations, infos = self.envs.step(actions_env)
                 print(f"still in run {obs}")

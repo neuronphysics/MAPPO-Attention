@@ -184,7 +184,7 @@ def worker(remote, parent_remote, env_fn_wrapper):
             cmd, data = remote.recv()
             print(f"Received command: {cmd}")
             if cmd == 'step':
-                print(f"env worker step {data}")
+                print(f"Action data passed to step in env wrapper: {data}, Type: {type(data)}")
                 ob, reward, done, info = env.step(data)
                 if 'bool' in done.__class__.__name__:
                     if done:
@@ -214,12 +214,14 @@ def worker(remote, parent_remote, env_fn_wrapper):
             elif cmd == 'get_spaces':
                 remote.send((env.observation_space, env.share_observation_space, env.action_space))
             else:
-                print(f"Unknown command: {cmd}")
-                raise NotImplementedError
+                
+                raise NotImplementedError("`{}` is not implemented in the worker".format(cmd))
     except Exception as e:
-        logging.error(f"Error in child process of env_wrappers: {e}")
         
-
+        logging.error(f"Error in child process of env_wrappers: {e}")
+        remote.send(('error', str(e)))
+    finally:
+        remote.close()
 
 class GuardSubprocVecEnv(ShareVecEnv):
     def __init__(self, env_fns, spaces=None):
@@ -305,9 +307,18 @@ class SubprocVecEnv(ShareVecEnv):
         for remote, action in zip(self.remotes, actions):
             remote.send(('step', action))
         self.waiting = True
-
+   
     def step_wait(self):
-        results = [remote.recv() for remote in self.remotes]
+        #results = [remote.recv() for remote in self.remotes]
+        results = []
+        for remote in self.remotes:
+            msg, data = remote.recv()
+            if msg == 'error':
+                raise ValueError(f"Error in step processing of environment: {data}")
+            else:
+                print(f"message {msg} output {data}")
+                results.append(data)
+
         self.waiting = False
         obs, rews, dones, infos = zip(*results)
         return np.stack(obs), np.stack(rews), np.stack(dones), infos

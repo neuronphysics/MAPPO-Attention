@@ -14,8 +14,11 @@ from meltingpot import substrate
 from ml_collections import config_dict
 import numpy as np
 from ray.rllib.env import multi_agent_env
-import os
 import tree
+from onpolicy.runner.separated.meltingpot_runner import flatten_lists
+from gym.vector import VectorEnv
+from ray import cloudpickle
+from ray.util.iter import ParallelIteratorWorker
 
 PLAYER_STR_FORMAT = 'player_{index}'
 _WORLD_PREFIX = 'WORLD.'
@@ -115,8 +118,9 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
     #actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
     actions = [action_dict[agent_id] for agent_id, _ in enumerate(self._ordered_agent_ids)]
-    print(f"actions enter meltingpot step func. {actions}")
+    print(f"actions enter meltingpot step func. (Meltingpot Env) {actions}")
     timestep = self._env.step(actions)
+    print(f"reward in env {timestep.reward[0]}")
     rewards = {
         agent_id: timestep.reward[index]
         for index, agent_id in enumerate(self._ordered_agent_ids)
