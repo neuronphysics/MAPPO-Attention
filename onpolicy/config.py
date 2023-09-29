@@ -188,6 +188,8 @@ def get_config():
                         default=200, help="Max length for any episode")
 
     # network parameters
+    parser.add_argument("--use_attention", action='store_false',
+                        default=True, help='Whether agent use the attention module or not')
     parser.add_argument("--share_policy", action='store_false',
                         default=True, help='Whether agent share the same policy')
     parser.add_argument("--use_centralized_V", action='store_false',

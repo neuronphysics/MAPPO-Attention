@@ -21,7 +21,7 @@ class Runner(object):
         self.eval_envs = config['eval_envs']
         self.device = config['device']
         self.num_agents = config['num_agents']
-
+        print(f"base runner environment: {self.envs.__dict__}")
         # parameters
         self.env_name = self.all_args.env_name
         self.algorithm_name = self.all_args.algorithm_name
@@ -78,9 +78,9 @@ class Runner(object):
             from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
 
-        print("share_observation_space: ", self.envs.share_observation_space)
-        print("observation_space: ", self.envs.observation_space)
-        print("action_space: ", self.envs.action_space)
+        print("runner separated share_observation_space: ", self.envs.share_observation_space)
+        print("runner separated observation_space: ", self.envs.observation_space)
+        print("runner separated action_space: ", self.envs.action_space)
 
         self.policy = []
         for agent_id in range(self.num_agents):
@@ -101,9 +101,9 @@ class Runner(object):
                            share_observation_space,
                            self.envs.action_space[player_key],
                            device = self.device)
-            # policy network
-            print(f"Observation space keys :{self.envs.observation_space.spaces.keys()} and its value {share_observation_space}") #debug
-            
+               # policy network
+               print(f"Observation space share value {share_observation_space}") #debug
+               print(f"runner space keys :{self.envs.action_space.keys()}") 
             self.policy.append(po)
 
         if self.model_dir is not None:

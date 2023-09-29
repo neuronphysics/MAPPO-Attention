@@ -18,7 +18,7 @@ class R_Actor(nn.Module):
     :param action_space: (gym.Space) action space.
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
-    def __init__(self, args, obs_space, action_space, use_attention=True, attention_module ='SCOFF', device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+    def __init__(self, args, obs_space, action_space, attention_module ='SCOFF', device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super(R_Actor, self).__init__()
         self.hidden_size = args.hidden_size
         
@@ -30,7 +30,7 @@ class R_Actor(nn.Module):
         self._recurrent_N = args.recurrent_N
         self.tpdv = dict(dtype=torch.float32, device=device)
         ##
-        self.use_attention = use_attention
+        self.use_attention = args.use_attention
         self._attention_module = attention_module
         obs_shape = get_shape_from_obs_space(obs_space)
         self._obs_shape = obs_shape
@@ -152,7 +152,7 @@ class R_Critic(nn.Module):
     :param cent_obs_space: (gym.Space) (centralized) observation space.
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
-    def __init__(self, args, cent_obs_space, use_attention=True, attention_module ='SCOFF', device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+    def __init__(self, args, cent_obs_space, attention_module ='SCOFF', device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super(R_Critic, self).__init__()
         self.hidden_size = args.hidden_size
         self._use_orthogonal = args.use_orthogonal
@@ -162,7 +162,7 @@ class R_Critic(nn.Module):
         self._use_popart = args.use_popart
         self.tpdv = dict(dtype=torch.float32, device=device)
         ##
-        self.use_attention = use_attention
+        self.use_attention = args.use_attention
         self._attention_module = attention_module
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self._use_orthogonal]
 
