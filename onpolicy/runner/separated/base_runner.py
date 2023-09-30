@@ -50,6 +50,9 @@ class Runner(object):
         if self.use_render:
             import imageio
             self.run_dir = config["run_dir"]
+            self.save_dir = str(self.run_dir / 'models')
+            if not os.path.exists(self.save_dir):
+                os.makedirs(self.save_dir)
             self.gif_dir = str(self.run_dir / 'gifs')
             if not os.path.exists(self.gif_dir):
                 os.makedirs(self.gif_dir)
