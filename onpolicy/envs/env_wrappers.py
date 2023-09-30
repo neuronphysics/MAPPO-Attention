@@ -307,22 +307,65 @@ class SubprocVecEnv(ShareVecEnv):
         for remote, action in zip(self.remotes, actions):
             remote.send(('step', action))
         self.waiting = True
-   
+
+    def step_wait(self):
+        results = []
+        for remote in self.remotes:
+            received = remote.recv()
+            try:
+                if len(received) == 2:  # assuming msg, data format
+                   msg, data = received
+                   if msg == 'error':
+                     raise ValueError(f"Error in step processing of environment: {data}")
+                   else:
+                     print(f"message {msg} output {data}")
+                     results.append(data)
+                elif len(received) == 4:  # assuming obs, rews, dones, infos format
+                    obs, rews, dones, infos = received
+                    #print(f"Observations: {obs}, Rewards: {rews}, Dones: {dones}, Infos: {infos}")
+                    results.append((obs, rews, dones, infos))
+                else:
+                    raise ValueError(f"Unexpected number of values in received data: {received}")
+            except ValueError as e:
+                 print(f"Error: {str(e)}, received: {received}")
+                 # Handle or log the error appropriately for your use case
+                 continue  # Skip to the next iteration
+    
+        if not results:
+          raise RuntimeError("No results were successfully processed from the worker environments.")
+    
+        self.waiting = False
+        obs, rews, dones, infos = zip(*results)
+        return np.stack(obs), np.stack(rews), np.stack(dones), infos
+    
+    """
+    #old version
     def step_wait(self):
         #results = [remote.recv() for remote in self.remotes]
         results = []
         for remote in self.remotes:
-            msg, data = remote.recv()
+            received = remote.recv()
+            try:
+                 msg, data = received
+            except ValueError as e:
+                 print(f"Error: {str(e)}, received: {received}")
+                 # Handle or log the error in a manner appropriate for your use case
+                 # Then, continue to the next iteration to avoid processing this result
+                 continue
             if msg == 'error':
                 raise ValueError(f"Error in step processing of environment: {data}")
             else:
                 print(f"message {msg} output {data}")
                 results.append(data)
-
+        if not results:
+            # Handle the case where no results were successfully processed
+            # This may involve raising an error, or returning a default value
+            raise RuntimeError("No results were successfully processed from the worker environments.")
+        
         self.waiting = False
         obs, rews, dones, infos = zip(*results)
         return np.stack(obs), np.stack(rews), np.stack(dones), infos
-
+    """
     def reset(self):
         for remote in self.remotes:
             remote.send(('reset', None))

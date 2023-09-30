@@ -57,6 +57,9 @@ class SeparatedReplayBuffer(object):
         self.active_masks = np.ones_like(self.masks)
 
         self.step = 0
+        
+    def update_factor(self, factor):
+        self.factor = factor.copy()
 
     def insert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
                value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
