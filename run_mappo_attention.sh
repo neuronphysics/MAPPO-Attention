@@ -101,20 +101,16 @@ echo "Start running the train meltingpot script ..."
 
 cd $DIR/onpolicy/scripts/train
 
-CUDA_VISIBLE_DEVICES=0,1 python train_mpe.py --use_valuenorm --use_popart --env_name "MPE" --algorithm_name "mappo" --experiment_name "check" --use_render True \
-    --scenario_name "simple_spread" --num_agents 2 --num_landmarks 3 --seed 1 --use_attention True --use_obs_instead_of_state True \
-    --n_training_threads 1 --n_rollout_threads 128 --num_mini_batch 1 --episode_length 25 --num_env_steps 20000000 \
-    --ppo_epoch 20 --gain 0.01 --lr 7e-4 --critic_lr 7e-4 --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy False --save_videos
+#CUDA_VISIBLE_DEVICES=0,1 python train_mpe.py --use_valuenorm --use_popart --env_name "MPE" --algorithm_name "mappo" --experiment_name "check" --use_render True \
+#    --scenario_name "simple_spread" --num_agents 2 --num_landmarks 3 --seed 1 --use_attention True --use_obs_instead_of_state True \
+#    --n_training_threads 1 --n_rollout_threads 128 --num_mini_batch 1 --episode_length 25 --num_env_steps 20000000 \
+#    --ppo_epoch 20 --gain 0.01 --lr 7e-4 --critic_lr 7e-4 --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy False --save_videos
 
-#cd $DIR/onpolicy/scripts/render   
-#CUDA_VISIBLE_DEVICES=0 python render_mpe.py --save_gifs --share_policy --env_name "MPE" --algorithm_name "mappo" \
-#    --experiment_name "check" --scenario_name "simple_spread" --num_agents 2 --num_landmarks 3 --seed 1 \
-#    --n_training_threads 1 --n_rollout_threads 1 --use_render --episode_length 25 --render_episodes 25 \
-#    --save_gifs True
+
 
 #test meltingpot environment 
 #CUDA_VISIBLE_DEVICES=0,1 /home/memole/MAPPO/bin/python3 -m meltingpot.examples.pettingzoo.sb3_train
-#CUDA_VISIBLE_DEVICES=0,1 python train_meltingpot.py --use_valuenorm --use_popart --env_name "Meltingpot" --algorithm_name "mappo" --experiment_name "check" \
-#    --substrate_name "territory__rooms" --num_agents 9 --seed 1 --use_render --n_rollout_threads 16\
-#    --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy False
+CUDA_VISIBLE_DEVICES=0,1 python train_meltingpot.py --use_valuenorm --use_popart --env_name "Meltingpot" --algorithm_name "mappo" --experiment_name "check" \
+    --substrate_name "territory__rooms" --num_agents 9 --seed 1 --use_render --n_rollout_threads 16\
+    --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy False
 
