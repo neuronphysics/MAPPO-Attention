@@ -54,9 +54,10 @@ class MeltingpotRunner(Runner):
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
                 
                 print(f"meltingpot runner separate ......")
-                print(f"actions of meltingpot ... {actions_env}")    
+                print(f"actions of meltingpot ... {actions_env} input of step {actions}")    
                 # Obser reward and next obs
-                obs, rewards, dones, truncations, infos = self.envs.step(actions_env)
+                #obs, rewards, dones, truncations, infos = self.envs.step(actions_env)
+                obs, rewards, dones, truncations, infos = self.envs.step(actions)
                 print(f"still in run {obs}")
                 data = obs, rewards, dones, truncations, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                 
@@ -160,7 +161,7 @@ class MeltingpotRunner(Runner):
 
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
-            value, action, action_log_prob, rnn_states_actor, rnn_state_critic \
+            value, action, action_log_prob, rnn_state, rnn_state_critic \
                 = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
                                                             self.buffer[agent_id].obs[step],
                                                             self.buffer[agent_id].rnn_states[step],
@@ -174,6 +175,7 @@ class MeltingpotRunner(Runner):
             player= f"player_{agent_id}"
             
             if self.envs.action_space[player].__class__.__name__ == 'MultiDiscrete':
+                print(f"meltingpot_runner action type {self.envs.action_space[player].__class__.__name__}")
                 for i in range(self.envs.action_space[player].shape):
                     uc_action_env = np.eye(self.envs.action_space[player].high[i]+1)[action[:, i]]
                     if i == 0:
@@ -181,16 +183,19 @@ class MeltingpotRunner(Runner):
                     else:
                         action_env = np.concatenate((action_env, uc_action_env), axis=1)
             elif self.envs.action_space[player].__class__.__name__ == 'Discrete':
+                print(f"meltingpot_runner action type {self.envs.action_space[player].__class__.__name__}")
                 action_env = np.squeeze(np.eye(self.envs.action_space[player].n)[action], 1)
             else:
                 raise NotImplementedError
 
+            
+            #print(f"runner player {player} action : {action},  {action_env} and values {value} {value.shape} rnn {rnn_state.shape} ")
             actions.append(action)
             temp_actions_env.append(action_env)
             action_log_probs.append(_t2n(action_log_prob))
+            rnn_states.append(_t2n(rnn_state))
+            rnn_states_critic.append( _t2n(rnn_state_critic))
             
-            rnn_states.append({f"player_{agent_id}": _t2n(tensor) for agent_id, tensor in enumerate(rnn_states_actor)})
-            rnn_states_critic.append({f"player_{agent_id}": _t2n(tensor) for agent_id, tensor in enumerate(rnn_state_critic)})
 
         # [envs, agents, dim]
         actions_env = []
@@ -200,29 +205,22 @@ class MeltingpotRunner(Runner):
                 one_hot_action_env.append(temp_action_env[i])
             actions_env.append(one_hot_action_env)
         
-        values = np.array([v.squeeze(-1) for v in values]).transpose(1, 0, 2)
-        actions = np.array([a.squeeze(-1) for a in actions]).transpose(1, 0, 2)
-        # values (256, 2, 1) actions (256, 2, 1)
+        values = np.array(values).transpose(1, 0, 2)
+        actions = np.array(actions).transpose(1, 0, 2)
         action_log_probs = np.array(action_log_probs).transpose(1, 0, 2)
-        #action log probability (256, 2, 1)
-        #rnn_states (64, 9, 1) rnn_states_critic (64, 9, 1)
-       
-        rnn_states ={key: np.concatenate([d[key] for d in rnn_states]).transpose(1, 0, 2) for key in rnn_states[0]}
+        rnn_states = np.array(rnn_states).transpose(1, 0, 2, 3)
+        rnn_states_critic = np.array(rnn_states_critic).transpose(1, 0, 2, 3)
+        #print(f"size of values {values.shape}")
         
-        rnn_states_critic={key: np.concatenate([d[key] for d in rnn_states_critic]).transpose(1, 0, 2) for key in rnn_states_critic[0]}
-        #change for debug
-        
-        #actions_dict = {}
-        #for agent_id in range(self.num_agents):
-        #    agent_actions = [actions_pair[agent_id] for actions_pair in actions_env]
-        #    stacked_actions = np.vstack(agent_actions)
-        #    actions_dict[f"player_{agent_id}"] = stacked_actions
-        #action_env = actions_dict
-        #actions_dict shape : (256, 8)
+        #print(f"size of actions {actions.shape}")
+
+        #print(f"rnn states {rnn_states.shape}")
+        #print(f"rnn_states_critic {rnn_states_critic.shape}")
         #removed
-        #rnn_states = np.array(rnn_states).transpose(1, 0, 2, 3)
-        #rnn_states_critic = np.array(rnn_states_critic).transpose(1, 0, 2, 3)
-        #rnn state shape (1, 2, 64, 2) rnn state of critic (1, 2, 64, 2)
+        #size of values (16, 9, 1)
+        #size of actions (16, 9, 1)
+        #rnn states (16, 9, 1, 64)
+        #rnn_states_critic (16, 9, 1, 64)
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
     def insert(self, data):
