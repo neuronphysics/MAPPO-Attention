@@ -136,44 +136,42 @@ class ShareVecEnv(ABC):
             self.viewer = rendering.SimpleImageViewer()
         return self.viewer
 
-"""
-def worker(remote, parent_remote, env_fn_wrapper):
-    parent_remote.close()
-    env = env_fn_wrapper.x()
-    while True:
-        cmd, data = remote.recv()
-        if cmd == 'step':
-            print(f"env worker {data}")
-            ob, reward, done, info = env.step(data)
-            if 'bool' in done.__class__.__name__:
-                if done:
-                    ob = env.reset()
-            else:
-                if np.all(done):
-                    ob = env.reset()
 
-            remote.send((ob, reward, done, info))
-        elif cmd == 'reset':
-            ob = env.reset()
-            remote.send((ob))
-        elif cmd == 'render':
-            if data == "rgb_array":
-                fr = env.render(mode=data)
-                remote.send(fr)
-            elif data == "human":
-                env.render(mode=data)
-        elif cmd == 'reset_task':
-            ob = env.reset_task()
-            remote.send(ob)
-        elif cmd == 'close':
-            env.close()
-            remote.close()
-            break
-        elif cmd == 'get_spaces':
-            remote.send((env.observation_space, env.share_observation_space, env.action_space))
-        else:
-            raise NotImplementedError
-"""
+class VecEnvWrapper(ShareVecEnv):
+    """
+    An environment wrapper that applies to an entire batch
+    of environments at once.
+    """
+
+    def __init__(self, venv, observation_space=None, action_space=None):
+        self.venv = venv
+        ShareVecEnv.__init__(
+            self,
+            num_envs=venv.num_envs,
+            observation_space=observation_space or venv.observation_space,
+            action_space=action_space or venv.action_space,
+        )
+
+    def step_async(self, actions):
+        self.venv.step_async(actions)
+
+    @abstractmethod
+    def reset(self):
+        pass
+
+    @abstractmethod
+    def step_wait(self):
+        pass
+
+    def close(self):
+        return self.venv.close()
+
+    def render(self, mode="human"):
+        return self.venv.render(mode=mode)
+
+    def get_images(self):
+        return self.venv.get_images()
+
 def worker(remote, parent_remote, env_fn_wrapper):
     try:
         print("Worker started.")
@@ -293,15 +291,31 @@ class SubprocVecEnv(ShareVecEnv):
         self.ps = [Process(target=worker, args=(work_remote, remote, CloudpickleWrapper(env_fn)))
                    for (work_remote, remote, env_fn) in zip(self.work_remotes, self.remotes, env_fns)]
         for p in self.ps:
-            p.daemon = True  # if the main process crashes, we should not cause things to hang
+            p.daemon = (
+                True  # if the main process crashes, we should not cause things to hang
+            )
             p.start()
         for remote in self.work_remotes:
             remote.close()
 
         self.remotes[0].send(('get_spaces', None))
-        observation_space, share_observation_space, action_space = self.remotes[0].recv()
-        ShareVecEnv.__init__(self, len(env_fns), observation_space,
-                             share_observation_space, action_space)
+        received_data = self.remotes[0].recv()
+        if len(received_data) == 3:
+            observation_space, share_observation_space, action_space = received_data
+            
+            ShareVecEnv.__init__(self, len(env_fns), observation_space, share_observation_space, action_space)
+            
+        elif len(received_data) == 2:
+           # Handle the case when only two elements are received
+           # This might involve assigning default values or altering the logic to manage the situation
+           observation_space, action_space = received_data
+           
+           ShareVecEnv.__init__(self, len(env_fns), observation_space, action_space)
+        else:
+           raise ValueError("Unexpected number of values received: {}".format(len(received_data)))
+
+        #observation_space, share_observation_space, action_space = self.remotes[0].recv()
+        
 
     def step_async(self, actions):
         for remote, action in zip(self.remotes, actions):
@@ -338,40 +352,18 @@ class SubprocVecEnv(ShareVecEnv):
         obs, rews, dones, infos = zip(*results)
         return np.stack(obs), np.stack(rews), np.stack(dones), infos
     
-    """
-    #old version
-    def step_wait(self):
-        #results = [remote.recv() for remote in self.remotes]
-        results = []
-        for remote in self.remotes:
-            received = remote.recv()
-            try:
-                 msg, data = received
-            except ValueError as e:
-                 print(f"Error: {str(e)}, received: {received}")
-                 # Handle or log the error in a manner appropriate for your use case
-                 # Then, continue to the next iteration to avoid processing this result
-                 continue
-            if msg == 'error':
-                raise ValueError(f"Error in step processing of environment: {data}")
-            else:
-                print(f"message {msg} output {data}")
-                results.append(data)
-        if not results:
-            # Handle the case where no results were successfully processed
-            # This may involve raising an error, or returning a default value
-            raise RuntimeError("No results were successfully processed from the worker environments.")
-        
-        self.waiting = False
-        obs, rews, dones, infos = zip(*results)
-        return np.stack(obs), np.stack(rews), np.stack(dones), infos
-    """
     def reset(self):
         for remote in self.remotes:
             remote.send(('reset', None))
         obs = [remote.recv() for remote in self.remotes]
         return np.stack(obs)
 
+
+    def sample(self):
+        self._assert_not_closed()
+        for remote in self.remotes:
+            remote.send(("sample", None))
+        return np.stack([remote.recv() for remote in self.remotes])
 
     def reset_task(self):
         for remote in self.remotes:
