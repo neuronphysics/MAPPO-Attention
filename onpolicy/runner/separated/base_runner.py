@@ -100,9 +100,13 @@ class Runner(object):
                         device = self.device)
             else:
                player_key = f"player_{agent_id}"
+               rgb_shape = self.envs.observation_space[player_key]["RGB"].shape
+               sprite_x = rgb_shape[0]
+               sprite_y = rgb_shape[1]
+
                rgb_value = self.envs.observation_space[player_key]['RGB']
-               print(f"{player_key} RGB: ", rgb_value)
-               share_observation_space = self.envs.share_observation_space[0]['RGB'] if self.use_centralized_V else self.envs.observation_space[0]['RGB']
+               print(f"base runner {player_key} RGB: {rgb_value}, shape: {rgb_shape} spritr_x, {sprite_x} world RGB {self.envs.observation[0]['WORLD.RGB']}")
+               share_observation_space = self.envs.observation[0]['WORLD.RGB'] if self.use_centralized_V else self.envs.observation_space[player_key]['RGB']
                po = Policy(self.all_args,
                            self.envs.observation_space[player_key]['RGB'],
                            share_observation_space,
