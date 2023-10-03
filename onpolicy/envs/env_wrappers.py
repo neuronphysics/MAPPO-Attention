@@ -7,6 +7,7 @@ from multiprocessing import Process, Pipe
 from abc import ABC, abstractmethod
 from onpolicy.utils.util import tile_images
 import logging
+
 class CloudpickleWrapper(object):
     """
     Uses cloudpickle to serialize contents (otherwise multiprocessing tries to use pickle)
@@ -143,12 +144,13 @@ class VecEnvWrapper(ShareVecEnv):
     of environments at once.
     """
 
-    def __init__(self, venv, observation_space=None, action_space=None):
+    def __init__(self, venv, observation_space=None, shared_observation_space=None, action_space=None):
         self.venv = venv
         ShareVecEnv.__init__(
             self,
             num_envs=venv.num_envs,
             observation_space=observation_space or venv.observation_space,
+            shared_observation_space=shared_observation_space or venv.share_observation_space,
             action_space=action_space or venv.action_space,
         )
 
@@ -169,8 +171,8 @@ class VecEnvWrapper(ShareVecEnv):
     def render(self, mode="human"):
         return self.venv.render(mode=mode)
 
-    def get_images(self):
-        return self.venv.get_images()
+    def reset_task(self):
+        pass
 
 def worker(remote, parent_remote, env_fn_wrapper):
     try:
@@ -305,12 +307,6 @@ class SubprocVecEnv(ShareVecEnv):
             
             ShareVecEnv.__init__(self, len(env_fns), observation_space, share_observation_space, action_space)
             
-        elif len(received_data) == 2:
-           # Handle the case when only two elements are received
-           # This might involve assigning default values or altering the logic to manage the situation
-           observation_space, action_space = received_data
-           
-           ShareVecEnv.__init__(self, len(env_fns), observation_space, action_space)
         else:
            raise ValueError("Unexpected number of values received: {}".format(len(received_data)))
 

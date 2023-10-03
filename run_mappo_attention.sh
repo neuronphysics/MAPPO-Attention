@@ -111,5 +111,5 @@ cd $DIR/onpolicy/scripts/train
 #test meltingpot environment 
 #CUDA_VISIBLE_DEVICES=0,1 /home/memole/MAPPO/bin/python3 -m meltingpot.examples.pettingzoo.sb3_train
 CUDA_VISIBLE_DEVICES=0,1 python train_meltingpot.py --use_valuenorm --use_popart True --env_name "Meltingpot" --algorithm_name "mappo" --experiment_name "check" \
-    --substrate_name "territory__rooms" --num_agents 9 --seed 1 --n_rollout_threads 16\
-    --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy False 
+    --substrate_name "territory__rooms" --num_agents 9 --seed 1 --n_rollout_threads 16 \
+    --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy False --use_centralized_V False --use_attention True 
