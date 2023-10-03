@@ -10,7 +10,7 @@ import dmlab2d
 import gymnasium as gym
 from matplotlib import pyplot as plt
 from gymnasium import spaces
-from meltingpot import substrate
+from meltingpot import substrate as meltingpot_substrate
 from ml_collections import config_dict
 import numpy as np
 from ray.rllib.env import multi_agent_env
@@ -19,9 +19,12 @@ from onpolicy.runner.separated.meltingpot_runner import flatten_lists
 from gym.vector import VectorEnv
 from ray import cloudpickle
 from ray.util.iter import ParallelIteratorWorker
-
+from collections.abc import Mapping, Sequence
+from meltingpot.utils.substrates.wrappers import observables
+import cv2
+from meltingpot.utils.substrates import substrate
 PLAYER_STR_FORMAT = 'player_{index}'
-_WORLD_PREFIX = 'WORLD.'
+_WORLD_PREFIX = 'WORLD.RGB', 'INTERACTION_INVENTORIES', 'NUM_OTHERS_WHO_CLEANED_THIS_STEP'
 MAX_CYCLES = 1000
 
 def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
@@ -116,8 +119,8 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     """See base class."""
     print(f"inside step in meltingpot env {action_dict} {type (action_dict)} {self._ordered_agent_ids}")
 
-    #actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
-    actions = [action_dict[agent_id] for agent_id, _ in enumerate(self._ordered_agent_ids)]
+    actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
+    
     print(f"actions enter meltingpot step func. (Meltingpot Env) {actions}")
     timestep = self._env.step(actions)
     print(f"reward in env {timestep.reward[0]}")
@@ -180,12 +183,60 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
                    if remove_world_observations else input_tuple[i])
         for i, agent_id in enumerate(self._ordered_agent_ids)
     })
-  
+    
+def downsample_observation(array: np.ndarray, scaled) -> np.ndarray:
+    """Downsample image component of the observation.
+    Args:
+      array: RGB array of the observation provided by substrate
+      scaled: Scale factor by which to downsaple the observation
+    
+    Returns:
+      ndarray: downsampled observation  
+    """
+    
+    frame = cv2.resize(
+            array, (array.shape[0]//scaled, array.shape[1]//scaled), interpolation=cv2.INTER_AREA)
+    return frame
 
+  
+def _downsample_multi_timestep(timestep: dm_env.TimeStep, scaled) -> dm_env.TimeStep:
+    return timestep._replace(
+        observation=[{k: downsample_observation(v, scaled) if k == 'RGB' else v for k, v in observation.items()
+        } for observation in timestep.observation])
+
+def _downsample_multi_spec(spec, scaled):
+    return dm_env.specs.Array(shape=(spec.shape[0]//scaled, spec.shape[1]//scaled, spec.shape[2]), dtype=spec.dtype)
+
+class DownSamplingSubstrateWrapper(observables.ObservableLab2dWrapper):
+    """Downsamples 8x8 sprites returned by substrate to 1x1. 
+    
+    This related to the observation window of each agent and will lead to observation RGB shape to reduce
+    from [88, 88, 3] to [11, 11, 3]. Other downsampling scales are allowed but not tested. Thsi will lead
+    to significant speedups in training.
+    """
+
+    def __init__(self, substrate: substrate.Substrate, scaled):
+        super().__init__(substrate)
+        self._scaled = scaled
+
+    def reset(self) -> dm_env.TimeStep:
+        timestep = super().reset()
+        return _downsample_multi_timestep(timestep, self._scaled)
+
+    def step(self, actions) -> dm_env.TimeStep:
+        timestep = super().step(actions)
+        return _downsample_multi_timestep(timestep, self._scaled)
+
+    def observation_spec(self) -> Sequence[Mapping[str, Any]]:
+        spec = super().observation_spec()
+        return [{k: _downsample_multi_spec(v, self._scaled) if k == 'RGB' else v for k, v in s.items()}
+        for s in spec]
+        
 def env_creator(env_config):
   """Outputs an environment for registering."""
   env_config = config_dict.ConfigDict(env_config)
-  env = substrate.build(env_config['substrate'], roles=env_config['roles'])
+  env = meltingpot_substrate.build(env_config['substrate'], roles=env_config['roles'])
+  env = DownSamplingSubstrateWrapper(env, env_config['scaled'])
   env = MeltingPotEnv(env)
   return env
 

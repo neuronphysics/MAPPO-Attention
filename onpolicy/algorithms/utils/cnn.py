@@ -288,7 +288,7 @@ class Encoder(nn.Module):
            X = X.permute(0, 3, 1, 2)
     
         h = self.encoder(X)
-        print (f"size of output of ecoder {h.shape}")
+        print (f"size of output of encoder (CNN) {h.shape}")
         # Get latent variables
         return self.linear_layers(h)
             
