@@ -78,19 +78,7 @@ def spec_to_space(spec: tree.Structure[dm_env.specs.Array]) -> spaces.Space:
     raise ValueError('Unexpected spec of type {}: {}'.format(type(spec), spec))
 ###
 
-
-
-def world_observation_process(data: List[Dict]) -> Dict:
-    processed_data = spaces.Dict()
-    for idx, player_data in enumerate(data):
-        player_key = f'player_{idx}'
-        rgb_data = player_data['WORLD.RGB']
-        
-        # Extracting shape and dtype for the 'WORLD.RGB' key
-        
-        # Creating a processed entry
-        processed_data[player_key] = spec_to_space(rgb_data)
-    return processed_data
+       
 
 #plotting WORLD.RGB images 
 
@@ -158,8 +146,9 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     self.action_space = self._convert_spaces_tuple_to_dict(
         spec_to_space(self._env.action_spec()))
     
-    self.share_observation_space = world_observation_process(self._env.observation_spec())
-    
+    self.share_observation_space = self._create_world_rgb_observation_space(
+            self._env.observation_spec()
+        )
     #territory room share observation Box(0, 255, (168, 168, 3), uint8)
     #print(f" plot WORLD.RGB observations ...")
     #ts=self._env.reset()
@@ -245,6 +234,36 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
                    if remove_world_observations else input_tuple[i])
         for i, agent_id in enumerate(self._ordered_agent_ids)
     })
+  
+  def _create_world_rgb_observation_space(self, observation_spec):
+      """
+        Creates a space for 'WORLD.RGB' observations for each player.
+        
+        Args:
+            observation_spec: A nested structure defining the observation space
+                              for the environment.
+
+        Returns:
+            A Dict space containing the 'WORLD.RGB' observation space for each
+            player.
+      """
+      # Extract 'WORLD.RGB' specs and convert them to Gym spaces
+      world_rgb_spec = [
+            player_obs_spec['WORLD.RGB']
+            for player_obs_spec in observation_spec
+        ]
+
+      world_rgb_space = spaces.Tuple([
+            spec_to_space(spec) for spec in world_rgb_spec
+        ])
+
+      # Map agent ids to their respective 'WORLD.RGB' observation space
+      return spaces.Dict({
+            agent_id: world_rgb_space[i]
+            for i, agent_id in enumerate(self._ordered_agent_ids)
+        })
+
+
     
 def downsample_observation(array: np.ndarray, scaled) -> np.ndarray:
     """Downsample image component of the observation.
