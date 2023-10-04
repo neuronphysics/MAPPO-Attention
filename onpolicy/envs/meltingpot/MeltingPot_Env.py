@@ -24,7 +24,7 @@ from meltingpot.utils.substrates.wrappers import observables
 import cv2
 from meltingpot.utils.substrates import substrate
 PLAYER_STR_FORMAT = 'player_{index}'
-_WORLD_PREFIX = 'WORLD.RGB', 'INTERACTION_INVENTORIES', 'NUM_OTHERS_WHO_CLEANED_THIS_STEP'
+_WORLD_PREFIX = ['WORLD.RGB', 'INTERACTION_INVENTORIES', 'NUM_OTHERS_WHO_CLEANED_THIS_STEP']
 MAX_CYCLES = 1000
 
 def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
@@ -33,7 +33,7 @@ def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
     gym_observations[PLAYER_STR_FORMAT.format(index=index)] = {
         key: value
         for key, value in observation.items()
-        if _WORLD_PREFIX not in key
+        if key not in _WORLD_PREFIX
     }
   return gym_observations
 
@@ -41,8 +41,9 @@ def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
 def remove_world_observations_from_space(
     observation: spaces.Dict) -> spaces.Dict:
   return spaces.Dict({
-      key: observation[key] for key in observation if _WORLD_PREFIX not in key
+      key: observation[key] for key in observation if key not in _WORLD_PREFIX
   })
+
 
 
 def spec_to_space(spec: tree.Structure[dm_env.specs.Array]) -> spaces.Space:
@@ -75,7 +76,61 @@ def spec_to_space(spec: tree.Structure[dm_env.specs.Array]) -> spaces.Space:
     return spaces.Dict({key: spec_to_space(s) for key, s in spec.items()})
   else:
     raise ValueError('Unexpected spec of type {}: {}'.format(type(spec), spec))
+###
 
+
+
+def world_observation_process(data: List[Dict]) -> Dict:
+    processed_data = spaces.Dict()
+    for idx, player_data in enumerate(data):
+        player_key = f'player_{idx}'
+        rgb_data = player_data['WORLD.RGB']
+        
+        # Extracting shape and dtype for the 'WORLD.RGB' key
+        
+        # Creating a processed entry
+        processed_data[player_key] = spec_to_space(rgb_data)
+    return processed_data
+
+#plotting WORLD.RGB images 
+
+class DataExtractor:
+    def __init__(self, data):
+        self.data = data
+    
+    def extract_world_rgb(self):
+        """
+        Extracts 'WORLD.RGB' arrays from the data.
+        """
+        
+        return [item['WORLD.RGB'] for item in self.data]
+    
+    def plot_and_save_rgb_images(self):
+        """
+        Plots and saves the extracted 'WORLD.RGB' arrays.
+        """
+        # Create a folder named "plot" if it doesn't exist.
+        if not os.path.exists("plot"):
+            os.mkdir("plot")
+        
+        # Extract WORLD.RGB values.
+        world_rgbs = self.extract_world_rgb()
+        
+        # Loop through the extracted RGB arrays, plot them, and save them.
+        for i, rgb in enumerate(world_rgbs):
+            if isinstance(rgb, np.ndarray): 
+               plt.imshow(rgb)
+               plt.title(f'World RGB Image {i+1}')
+               plt.axis('off')  # Do not show axis in the plot
+               filename = os.path.join("plot", f"world_rgb_{i+1}.png")
+               plt.savefig(filename)
+               plt.close()  # Close the plot to avoid showing it while running the code
+            else:
+                raise TypeError("The RGB data is not in the correct numpy array format.")
+# Example data
+
+
+###
 class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
   """An adapter between the Melting Pot substrates and RLLib MultiAgentEnv."""
 
@@ -87,6 +142,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     """
     self._env = env
     self._num_players = len(self._env.observation_spec())
+    
     self._ordered_agent_ids = [
         PLAYER_STR_FORMAT.format(index=index)
         for index in range(self._num_players)
@@ -99,11 +155,17 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     self.observation_space = self._convert_spaces_tuple_to_dict(
         spec_to_space(self._env.observation_spec()),
         remove_world_observations=True)
-
-    self.share_observation_space = list(self.observation_space.values())
-
     self.action_space = self._convert_spaces_tuple_to_dict(
         spec_to_space(self._env.action_spec()))
+    
+    self.share_observation_space = world_observation_process(self._env.observation_spec())
+    
+    #territory room share observation Box(0, 255, (168, 168, 3), uint8)
+    #print(f" plot WORLD.RGB observations ...")
+    #ts=self._env.reset()
+    #extractor = DataExtractor(ts.observation)
+    #extractor.plot_and_save_rgb_images()
+    
     self.max_cycles = max_cycles
     self.num_cycles = 0
 
@@ -236,8 +298,11 @@ def env_creator(env_config):
   """Outputs an environment for registering."""
   env_config = config_dict.ConfigDict(env_config)
   env = meltingpot_substrate.build(env_config['substrate'], roles=env_config['roles'])
+  
   env = DownSamplingSubstrateWrapper(env, env_config['scaled'])
+  
   env = MeltingPotEnv(env)
+  
   return env
 
 
