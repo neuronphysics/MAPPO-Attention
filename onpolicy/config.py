@@ -286,4 +286,6 @@ def get_config():
     # pretrained parameters
     parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")
 
+    # meltingpot parameter
+    parser.add_argument("--downsample", type='store_false', default=True, help="the scale factor of each rendered image in saved video.")
     return parser
