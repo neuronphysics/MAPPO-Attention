@@ -21,7 +21,7 @@ class Runner(object):
         self.eval_envs = config['eval_envs']
         self.device = config['device']
         self.num_agents = config['num_agents']
-        print(f"base runner environment: {self.envs.__dict__}")
+        
         # parameters
         self.env_name = self.all_args.env_name
         self.algorithm_name = self.all_args.algorithm_name
@@ -103,18 +103,16 @@ class Runner(object):
                rgb_shape = self.envs.observation_space[player_key]["RGB"].shape
                sprite_x = rgb_shape[0]
                sprite_y = rgb_shape[1]
-
-               rgb_value = self.envs.observation_space[player_key]['RGB']
-               print(f"base runner {player_key} RGB: {rgb_value}, shape: {rgb_shape} spritr_x, {sprite_x} world RGB {self.envs.observation[0]['WORLD.RGB']}")
-               share_observation_space = self.envs.observation[0]['WORLD.RGB'] if self.use_centralized_V else self.envs.observation_space[player_key]['RGB']
+               
+               share_observation_space = self.envs.share_observation_space[player_key] if self.use_centralized_V else self.envs.share_observation_space[player_key]
+               
                po = Policy(self.all_args,
                            self.envs.observation_space[player_key]['RGB'],
                            share_observation_space,
                            self.envs.action_space[player_key],
                            device = self.device)
                # policy network
-               print(f"Observation space share keys :{self.envs.observation_space.spaces.keys()} and its value {share_observation_space}") #debug
-               print(f"runner space keys :{self.envs.action_space.keys()}") 
+               
             self.policy.append(po)
 
         if self.model_dir is not None:
@@ -134,7 +132,7 @@ class Runner(object):
                                           self.envs.action_space[agent_id])
             else:
                player_key = f"player_{agent_id}" 
-               share_observation_space = self.envs.share_observation_space[0]['RGB'] if self.use_centralized_V else self.envs.observation_space[0]['RGB']
+               share_observation_space = self.envs.share_observation_space[player_key] if self.use_centralized_V else self.envs.share_observation_space[player_key]
                bu = SeparatedReplayBuffer(self.all_args,
                                           self.envs.observation_space[player_key]['RGB'],
                                           share_observation_space,
