@@ -105,50 +105,36 @@ class MeltingpotRunner(Runner):
 
     def warmup(self):
         # reset env
+        #if --n_rollout_threads 6 && --substrate_name "territory__rooms"
         obs = self.envs.reset()
-        
-        if self.env_name=="Meltingpot":
-            
-            #'RGB': Box(0, 255, (40, 40, 3), uint8))
-            share_obs = []
-            agent_obs = []
-            for sublist in obs:
-                for item in sublist:
-                    if item:
-                        rgb_player=[]
-                        arrays = []
-                        for agent_id in range(self.num_agents):
-                           player= f"player_{agent_id}"
-                           if player in item:
-                              rgb_player.append(item[player]['RGB'])
+        # replay buffer
+        share_obs = []
+        agent_obs = []
+        for sublist in obs:
+            for item in sublist:
+                if item:
+                    rgb_player=[]
+                    arrays = []
+                    for agent_id in range(self.num_agents):
+                        player= f"player_{agent_id}"
+                        if player in item:
+                              rgb_player.append(item[player]['WORLD.RGB'])
                               arrays.append(item[player]['RGB'])
-                              img_size= item[player]['RGB'].shape[1]
-                        result = np.stack(arrays)
-                        image= np.concatenate(rgb_player, axis=0)
-                        #print(f"shared observation {image.shape} ")
-                        #resize (256,80,40,3) into shape (256,40,40,3) to make it compatible with the code
-                        image = cv2.resize(image, (img_size, img_size), interpolation=cv2.INTER_CUBIC)
-                        share_obs.append(image)
-                        agent_obs.append(result)
-                        #print(f"shared observation resized {image.shape} {result.shape}")
-            share_obs = np.array(share_obs)
-            
-        else:
-            share_obs = []
-            for o in obs:
-                share_obs.append(list(chain(*o)))
-            share_obs = np.array(share_obs)
-        #print(f"size of shared observation {share_obs.shape}")
+                              #player_i obs: (11, 11, 3), share_obs: (168, 168, 3)
+                    result = np.stack(arrays)
+                    image  = np.stack(rgb_player)
+            share_obs.append(image)
+            agent_obs.append(result)
+        share_obs = np.array(share_obs)
+        agent_obs = np.array(agent_obs)
+        #share_obs shape: (6, 9, 168, 168, 3), agent obs shape: (6, 9, 11, 11, 3)
         for agent_id in range(self.num_agents):
-            if not self.use_centralized_V:
-                share_obs = np.array(list(obs[:, agent_id]))
-            self.buffer[agent_id].share_obs[0] = share_obs.copy()
-            if self.env_name=="Meltingpot":
-                #print(f"agent obs type: {agent_obs}")
-                #print(f"agent obsevation {np.array(agent_obs)[:, agent_id].shape}")
-                self.buffer[agent_id].obs[0] = np.array(agent_obs)[:, agent_id].copy() #(256, 40, 40, 3)
-            else:
-               self.buffer[agent_id].obs[0] = np.array(list(obs[:, agent_id])).copy()
+            #size of buffer share_obs (6, 168, 168, 3)--- obs (6, 11, 11, 3)
+            self.buffer[agent_id].share_obs[0] = share_obs[:,agent_id,:,:,:].copy()
+            self.buffer[agent_id].obs[0]       = agent_obs[:,agent_id,:,:,:].copy()
+        
+
+            
 
     @torch.no_grad()
     def collect(self, step):

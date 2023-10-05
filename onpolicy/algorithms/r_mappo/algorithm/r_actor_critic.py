@@ -18,7 +18,7 @@ class R_Actor(nn.Module):
     :param action_space: (gym.Space) action space.
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
-    def __init__(self, args, obs_space, action_space, attention_module ='SCOFF', device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+    def __init__(self, args, obs_space, action_space, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super(R_Actor, self).__init__()
         self.hidden_size = args.hidden_size
         
@@ -31,12 +31,12 @@ class R_Actor(nn.Module):
         self.tpdv = dict(dtype=torch.float32, device=device)
         ##
         self.use_attention = args.use_attention
-        self._attention_module = attention_module
+        self._attention_module = args.attention_module
         obs_shape = get_shape_from_obs_space(obs_space)
         self._obs_shape = obs_shape
         if self.use_attention and len(self._obs_shape) >= 3:
            
-           logging.info('Using attention module %s: input width: %d', attention_module, obs_shape[1]) 
+           logging.info('Using attention module %s: input width: %d', self._attention_module, obs_shape[1]) 
            #print(f"we are using both CNN and attention module.... {obs_shape} {len(self._obs_shape)}")
            if obs_shape[0]==3:
                input_channel = obs_shape[0]
@@ -47,7 +47,7 @@ class R_Actor(nn.Module):
                input_width = obs_shape[0]
                input_height = obs_shape[1]          
            #making parametrs of encoder for CNN compatible with different image sizes
-           print(f"input channel and input image width in actor network {input_channel} {input_width} {input_height}")
+           #print(f"input channel and input image width in actor network {input_channel} {input_width} {input_height}")
            kernel, stride, padding = calculate_conv_params((input_width,input_width,input_channel))
            
            self.base = Encoder(input_channel, input_width, self.hidden_size, device, max_filters=256, num_layers=3, kernel_size= kernel, stride_size=stride, padding_size=padding)
@@ -152,7 +152,7 @@ class R_Critic(nn.Module):
     :param cent_obs_space: (gym.Space) (centralized) observation space.
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
-    def __init__(self, args, cent_obs_space, attention_module ='SCOFF', device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+    def __init__(self, args, cent_obs_space, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super(R_Critic, self).__init__()
         self.hidden_size = args.hidden_size
         self._use_orthogonal = args.use_orthogonal
@@ -163,7 +163,7 @@ class R_Critic(nn.Module):
         self.tpdv = dict(dtype=torch.float32, device=device)
         ##
         self.use_attention = args.use_attention
-        self._attention_module = attention_module
+        self._attention_module = args.attention_module
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self._use_orthogonal]
 
         cent_obs_shape = get_shape_from_obs_space(cent_obs_space)
@@ -192,7 +192,7 @@ class R_Critic(nn.Module):
                 self.rnn = RIM(device, self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
                                               
            elif self._attention_module == "SCOFF":
-                
+                print(f"we are using SCOFF attention module in critic network.... {cent_obs_shape} {len(self._obs_shape)}")
                 self.rnn = SCOFF(device,  self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
         else:
             base = CNNBase if len(cent_obs_shape) == 3 else MLPBase

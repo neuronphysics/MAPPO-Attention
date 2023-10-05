@@ -190,6 +190,8 @@ def get_config():
     # network parameters
     parser.add_argument("--use_attention", action='store_true',
                         default=False, help='Whether agent use the attention module or not')
+    parser.add_argument("--attention_module", type=str, 
+                        default= 'SCOFF', help='specify the name of attention module')
     parser.add_argument("--share_policy", action='store_false',
                         default=True, help='Whether agent share the same policy')
     parser.add_argument("--use_centralized_V", action='store_false',
