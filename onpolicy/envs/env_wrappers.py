@@ -184,7 +184,7 @@ def worker(remote, parent_remote, env_fn_wrapper):
             cmd, data = remote.recv()
             print(f"Received command: {cmd}")
             if cmd == 'step':
-                print(f"Action data passed to step in env wrapper: {data}, Type: {type(data)}")
+                
                 ob, reward, done, info = env.step(data)
                 if 'bool' in done.__class__.__name__:
                     if done:

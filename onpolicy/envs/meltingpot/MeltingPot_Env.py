@@ -27,13 +27,15 @@ PLAYER_STR_FORMAT = 'player_{index}'
 _WORLD_PREFIX = ['WORLD.RGB', 'INTERACTION_INVENTORIES', 'NUM_OTHERS_WHO_CLEANED_THIS_STEP']
 MAX_CYCLES = 1000
 
+_OBSERVATION_PREFIX = ['WORLD.RGB', 'RGB']
+
 def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
   gym_observations = {}
   for index, observation in enumerate(timestep.observation):
     gym_observations[PLAYER_STR_FORMAT.format(index=index)] = {
         key: value
         for key, value in observation.items()
-        if key not in _WORLD_PREFIX
+        if key in _OBSERVATION_PREFIX
     }
   return gym_observations
 
@@ -168,13 +170,12 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
   def step(self, action_dict):
     """See base class."""
-    print(f"inside step in meltingpot env {action_dict} {type (action_dict)} {self._ordered_agent_ids}")
 
-    actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
-    
-    print(f"actions enter meltingpot step func. (Meltingpot Env) {actions}")
+    #actions = [action_dict[agent_id] for agent_id, player in enumerate(self._ordered_agent_ids)]
+    actions = [int(action_dict[agent_id][0]) for agent_id, player in enumerate(self._ordered_agent_ids)]
+
     timestep = self._env.step(actions)
-    print(f"reward in env {timestep.reward[0]}")
+    
     rewards = {
         agent_id: timestep.reward[index]
         for index, agent_id in enumerate(self._ordered_agent_ids)
@@ -187,7 +188,8 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     info = {}
 
     observations = timestep_to_observations(timestep)
-    return observations, rewards, done, truncations, info
+    
+    return observations, rewards, truncations, info
 
   def close(self):
     """See base class."""
@@ -323,5 +325,3 @@ def env_creator(env_config):
   env = MeltingPotEnv(env)
   
   return env
-
-
