@@ -5,7 +5,7 @@ import numpy as np
 from .multi_discrete import MultiDiscrete
 
 # update bounds to center around agent
-cam_range = 2
+cam_range = 100
 
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
@@ -261,6 +261,207 @@ class MultiAgentEnv(gym.Env):
         self.render_geoms_xform = None
 
     def render(self, mode='human', close=False):
+        from . import rendering
+        if mode == 'human':
+            alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            message = ''
+            for agent in self.world.agents:
+                comm = []
+                for other in self.world.agents:
+                    if other is agent: continue
+                    if np.all(other.state.c == 0):
+                        word = '_'
+                    else:
+                        word = alphabet[np.argmax(other.state.c)]
+                    message += (other.name + ' to ' + agent.name + ': ' + word + '   ')
+            #print(message)
+        
+
+        for i in range(len(self.viewers)):
+            # create viewers (if necessary)
+            WINDOW_W = 700
+            WINDOW_H = 700
+            if self.viewers[i] is None:
+                # import rendering only if we need it (and don't import for headless machines)
+                #from gym.envs.classic_control import rendering
+                from . import rendering
+                self.viewers[i] = rendering.Viewer(WINDOW_W, WINDOW_H)
+
+        self.agents_geoms = []
+        self.agents_geoms_xform = []
+        self.render_geoms = []
+        self.render_geoms_xform = []
+        entities_rearrange = self.world.entities
+        agents = []
+        for entity in self.world.entities:
+            if 'agent' in entity.name:
+                agents.append(entity)
+                entities_rearrange.pop(0)
+        entities_rearrange += agents
+
+        for entity in entities_rearrange:
+            if 'agent' in entity.name:
+                geom = rendering.make_square(entity.size, angle=entity.state.p_ang+np.pi/4)
+            elif 'landmark' in entity.name:
+                if entity.center:
+                    geom = rendering.make_circle(entity.size)
+                else:
+                    geom = rendering.make_circle(entity.size)
+            else:
+                geom = rendering.make_circle(entity.size)
+            geom.set_color(*entity.color)
+            xform = rendering.Transform()
+            geom.add_attr(xform)
+            self.render_geoms.append(geom)
+            self.render_geoms_xform.append(xform)
+
+        import copy
+        agents_end = agents
+        agents_begin = copy.deepcopy(agents)
+        agents_begin.insert(0, agents_begin.pop())
+        lines = []
+        lines_length_text = []
+        for i in range(len(agents_begin)):
+            line = rendering.Line((agents_begin[i].state.p_pos[0], agents_begin[i].state.p_pos[1]), 
+                                  (agents_end[i].state.p_pos[0], agents_end[i].state.p_pos[1]))
+            lines.append(line)
+            agent_begin_name = agents_begin[i].name
+            agent_end_name = agents_end[i].name
+            tmp_text = agent_begin_name + ' to ' + agent_end_name + ' : '
+            length = np.linalg.norm(agents_begin[i].state.p_pos - agents_end[i].state.p_pos)
+            tmp_text = tmp_text + str(length)
+            lines_length_text.append(tmp_text)
+
+
+        # add geoms to viewer
+        for viewer in self.viewers:
+            viewer.geoms = []
+            viewer.labels = []
+
+            for geom in self.render_geoms:
+                viewer.add_geom(geom)
+
+        results = []
+        for i in range(len(self.viewers)):
+            from . import rendering
+            # update bounds to center around agent
+            #cam_range = 500
+            if self.shared_viewer:
+                pos = np.zeros(self.world.dim_p)
+            else:
+                pos = self.agents[i].state.p_pos
+            pos = self.world.agents[0].state.p_pos
+            #self.viewers[i].set_bounds(0, 1200, 0, 1200)
+            self.viewers[i].set_bounds(
+                pos[0]-cam_range, pos[0]+cam_range, pos[1]-cam_range, pos[1]+cam_range)
+            # update geometry positions
+            for e, entity in enumerate(entities_rearrange):
+                self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
+            # add goal to render
+            goal = []
+            goal_xform = []
+            goal = rendering.make_circle(5)
+            goal.set_color(1.0, 0, 0)
+            goal_xform = rendering.Transform()
+            goal.add_attr(goal_xform)
+            goal_xform.set_translation(*self.world.landmarks[0].state.p_pos)
+            self.viewers[i].add_geom(goal)
+
+            goal_ang = self.world.agents[0].state.p_ang + self.world.agents[0].ang2goal
+            goal_dir = 20 * np.array([np.cos(goal_ang), np.sin(goal_ang)])
+            arrow = rendering.make_triangle(5, angle=goal_ang)
+            arrow.set_color(1.0, 0., 0.)
+            arrow_xform = rendering.Transform()
+            arrow.add_attr(arrow_xform)
+            arrow_xform.set_translation(*self.world.agents[0].state.p_pos + goal_dir)
+            self.viewers[i].add_geom(arrow)
+            # add formation center to render
+            ctr = []
+            ctr_xform = []
+            ctr = rendering.make_circle(1)
+            ctr_xform = rendering.Transform()
+            ctr.add_attr(ctr_xform)
+            ctr_xform.set_translation(*self.agents[0].agents_ctr)
+            self.viewers[i].add_geom(ctr)
+            # add previous formation center to render
+            ctr_prev = []
+            ctr_xform_prev = []
+            ctr_prev = rendering.make_circle(1)
+            ctr_prev.set_color(0.5, 0.5, 0.5)
+            ctr_xform_prev = rendering.Transform()
+            ctr_prev.add_attr(ctr_xform_prev)
+            ctr_xform_prev.set_translation(*self.agents[0].agents_ctr_prev)
+            self.viewers[i].add_geom(ctr_prev)
+
+            # add head to agents
+            for e, agent in enumerate(self.agents):
+                for j in range(agent.start_ray[0], agent.end_ray[0] + 1):
+                    # 105 for compensating square's rendering error
+                    if 100 * agent.ray[j][0] < 200:
+                        ray_pos = 105 * agent.ray[j][0] * np.array(
+                            [np.cos(agent.ray[j][1] + agent.state.p_ang), np.sin(agent.ray[j][1] + agent.state.p_ang)])
+                        ray = rendering.make_line(agent.state.p_pos, agent.state.p_pos + ray_pos)
+                        ray.set_color(1., 0., 0.)
+                        ray_xform = rendering.Transform()
+                        ray.add_attr(ray_xform)
+                        self.viewers[i].add_geom(ray)
+                for j in range(agent.start_ray[1], agent.end_ray[1] + 1):
+                    # 105 for compensating square's rendering error
+                    if 100 * agent.ray[j][0] < 200:
+                        ray_pos = 105 * agent.ray[j][0] * np.array(
+                            [np.cos(agent.ray[j][1] + agent.state.p_ang), np.sin(agent.ray[j][1] + agent.state.p_ang)])
+                        ray = rendering.make_line(agent.state.p_pos, agent.state.p_pos + ray_pos)
+                        ray.set_color(1., 0., 0.)
+                        ray_xform = rendering.Transform()
+                        ray.add_attr(ray_xform)
+                        self.viewers[i].add_geom(ray)
+                head = rendering.make_circle(agent.size / 8)
+                head_xform = rendering.Transform()
+                head.set_color(0.0, .0, 1.0)
+                head.add_attr(head_xform)
+                displacement = 0.6*agent.size*np.array([np.cos(agent.state.p_ang), np.sin(agent.state.p_ang)])
+                head_xform.set_translation(*agent.state.p_pos + displacement)
+                self.viewers[i].add_geom(head)
+                label = rendering.make_text(text='%d' % e, font_size=12, x=agent.state.p_pos[0], y=agent.state.p_pos[1], color=(0, 0, 0, 255))
+                self.viewers[i].add_label(label)
+                dis_btw_agents = rendering.make_text(text=lines_length_text[e], font_size=15,
+                                            x= self.world.width // 2 - WINDOW_W // 1.5,
+                                            y= self.world.width // 2 - WINDOW_H // 2.0 - 20 * (e + 2),
+                                            anchor_x='left',
+                                            color=(0, 0, 0, 255))
+                self.viewers[i].add_label(dis_btw_agents)
+
+                # for name_num, name in enumerate(reward_names):
+                #     agent_reward_text = rendering.make_text(text=name + ' '+str(np.around(reward_dict[name][e], decimals=2)), font_size=15,
+                #                                         x= self.world.width // 2 - WINDOW_W // 1.5 + 200 * name_num,
+                #                                         y= self.world.width // 2 + WINDOW_H // 2.0 - 20 * (e + 2),
+                #                                         anchor_x='left',
+                #                                         color=(0, 0, 0, 255))
+                #     self.viewers[i].add_label(agent_reward_text)
+            time = rendering.make_text(text='time = %f sec' % self.world.time, font_size=15,
+                                           x=self.world.width // 2 - WINDOW_W // 1.5,
+                                           y=self.world.width // 2 - WINDOW_H // 2.0,
+                                           anchor_x='left',
+                                           color=(0, 0, 0, 255))
+            distance = rendering.make_text(text='distance = %f meters' % self.world.distance, font_size=15,
+                                           x=self.world.width // 2 - WINDOW_W // 1.5,
+                                           y=self.world.width // 2 - WINDOW_H // 2.0-20,
+                                           anchor_x='left',
+                                           color=(0, 0, 0, 255))
+            self.viewers[i].add_label(distance)
+            self.viewers[i].add_label(time)
+            # render to display or array
+            for line in lines:
+                self.viewers[i].add_geom(line)
+            results.append(self.viewers[i].render(return_rgb_array = mode=='rgb_array'))
+
+
+            '''for j in range(len(self.viewers)):
+                self.viewers[i].geoms.pop(-1)'''
+        #print(pos[0])
+        return results
+    
+    def render_origin(self, mode='human', close=False):
         if close:
             # close any existic renderers
             for i, viewer in enumerate(self.viewers):

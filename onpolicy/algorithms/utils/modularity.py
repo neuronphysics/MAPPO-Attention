@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import sys
-import pathlib 
+import pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from SCOFF.rnn_models_scoff import RNNModel as RNNModelScoff
 from SCOFFv2.rnn_models_scoffv2 import RNNModel as RNNModelScoffv2
@@ -9,13 +9,13 @@ from RIMs.rnn_models_rim import RNNModel as RNNModelRim
 from RIMv2.rnn_models_rimv2 import RNNModel as RNNModelRimv2
 from utilities.RuleNetwork import RuleNetwork
 
+
 class Identity(torch.autograd.Function):
   @staticmethod
   def forward(ctx, input):
 
     return input * 1.0
   def backward(ctx, grad_output):
-    print(grad_output)
     return grad_output * 1.0
 
 
@@ -75,22 +75,22 @@ class RIM(nn.Module):
 				RNNModelRim(rnn_cell, hidden_size, hidden_size, [hidden_size], 1,  num_blocks = [num_units], topk = [k], do_gru = rnn_cell == 'GRU', version=version, attention_out=attention_out, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, dropout = dropout, step_att = step_att, rule_selection = rule_selection).to(self.device) for i in range(self.n_layers)])
 
 	def rim_transform_hidden(self, hs):
-	    hiddens = []
-	    h_split = torch.split(hs[0], 1, dim = 0)
-	    c_split = torch.split(hs[1], 1, dim = 0)
-	    for h, c in zip(h_split, c_split):
-	        hiddens.append((h.squeeze(0), c.squeeze(0)))
-	    return hiddens
+		hiddens = []
+		h_split = torch.split(hs[0], 1, dim = 0)
+		c_split = torch.split(hs[1], 1, dim = 0)
+		for h, c in zip(h_split, c_split):
+			hiddens.append((h.squeeze(0), c.squeeze(0)))
+		return hiddens
 
 	def rim_inverse_transform_hidden(self, hs):
-	    h, c = [], []
-	    for h_ in hs:
-	        h.append(h_[0])
-	        c.append(h_[1])
-	    h = torch.stack(h, dim = 0)
-	    c = torch.stack(c, dim = 0)
+		h, c = [], []
+		for h_ in hs:
+			h.append(h_[0])
+			c.append(h_[1])
+		h = torch.stack(h, dim = 0)
+		c = torch.stack(c, dim = 0)
 
-	    return (h, c)
+		return (h, c)
 
 	def layer(self, rim_layer, x, h, c = None, direction = 0, message_to_rule_network = None):
 		batch_size = x.size(1)
@@ -140,7 +140,7 @@ class RIM(nn.Module):
 
 
 		hs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if h is None else h
-		
+
 		cs = None
 		if self.rnn_cell == 'LSTM':
 			cs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if c is None else c
@@ -383,6 +383,7 @@ class SCOFF(nn.Module):
 		self.num_directions = 2 if bidirectional else 1
 		self.rnn_cell = rnn_cell
 		self.num_units = num_units
+		self.hs = hidden_size
 		self.hidden_size = hidden_size // num_units
 		self.batch_first = batch_first
 		if self.num_directions == 2:
@@ -393,10 +394,14 @@ class SCOFF(nn.Module):
 				RNNModelScoff(rnn_cell, hidden_size, hidden_size, hidden_size, 1, n_templates = num_templates,  num_blocks = num_units, update_topk = k, use_gru = rnn_cell == 'GRU', num_rules = num_rules, version=version, attention_out=attention_out,rule_time_steps = rule_time_steps, perm_inv = perm_inv, application_option = application_option, dropout = dropout, step_att = step_att, rule_selection = rule_selection).to(self.device) for i in range(self.n_layers)])
 
 	def layer(self, rim_layer, x, h, c = None, direction = 0, message_to_rule_network = None):
-		batch_size = x.size(1)
-		xs = list(torch.split(x, 1, dim = 0))
-		if direction == 1: xs.reverse()
-		xs = torch.cat(xs, dim = 0)
+		print(f" inside layer (modularity) h:{h.size()} c:{c.size()}")
+		# Split x into a list of 1-batch tensors. This may not be necessary
+
+		xs = list(torch.split(x, 1, dim = self.hidden_dim))
+        # Reverse the order of the batches if direction is 1.
+		if direction == self.batch_dim: xs.reverse()
+		# Concatenate the list of 1-batch tensors back into a full tensor.
+		xs = torch.cat(xs, dim = self.hidden_dim)
 
 
 		hidden = (h, c)#self.rim_transform_hidden((h, c))
@@ -417,18 +422,18 @@ class SCOFF(nn.Module):
 		#	outputs.append(hs.view(1, batch_size, -1))
 		hs, cs = hidden #self.rim_inverse_transform_hidden(hidden)
 
-		outputs = list(torch.split(outputs, 1, dim = 0))
+		outputs = list(torch.split(outputs, 1, dim = self.hidden_dim))
 
-		if direction == 1: outputs.reverse()
-		outputs = torch.cat(outputs, dim = 0)
+		if direction == self.batch_dim: outputs.reverse()
+		outputs = torch.cat(outputs, dim = self.hidden_dim)
 
 		if c is not None:
-			hs_ = hs.reshape(batch_size, -1)
-			cs_ = cs.reshape(batch_size, -1)
-			print(f"modularity layer outputs {outputs.shape} hs size {hs_.shape} cs {cs_.shape}")
+			hs_ = hs.reshape(self.batch_size, -1)
+			cs_ = cs.reshape(self.batch_size, -1)
+
 			return outputs, hs_, cs_, entropy #.view(batch_size, -1)
 		else:
-			hs_ = hs.reshape(batch_size, -1)
+			hs_ = hs.reshape(self.batch_size, -1)
 			return outputs, hs_
 
 	def forward(self, x, hidden = None, message_to_rule_network = None):
@@ -438,51 +443,54 @@ class SCOFF(nn.Module):
 		Output: outputs (batch_size, seqlen, hidden_size * num_units * num-directions)
 				h(and c) (num_layer * num_directions, batch_size, hidden_size* num_units)
 		"""
-
+		self.batch_dim, self.batch_size = next((dim, size) for dim, size in enumerate(x.size()) if size != self.hs)
+		self.hidden_dim = next((i for i, size in enumerate(x.size()) if size == self.hs), None)
+		print(f"batch size in layer SCOFF {self.batch_size} {self.batch_dim} {self.hidden_dim} {self.hs}, x:{x.size()} ")
 		if self.batch_first:
 			x = x.transpose(0, 1)
 
 		h, c = None, None
 		if hidden is not None:
-			h, c = hidden[0], hidden[1]
+			if isinstance(hidden, tuple) and len(hidden) == 2:
+				h, c = hidden[0], hidden[1]
+			elif isinstance(hidden, torch.Tensor):
+				h, c = hidden, hidden
+				print(f"hidden state is tensor {h.size()} {c.size()}")
+			else:
+				ValueError('ERROR: hidden should be a tuple of tensors or a tensor')
+				
+		#hs = torch.zeros(self.n_layers * self.num_directions, self.batch_size, self.hidden_size * self.num_units).to(self.device) if h is None else h
+		hs = h.unsqueeze(0).expand(self.n_layers * self.num_directions, -1, -1).to(h.device) if h is not None and h.unsqueeze(1).dim() == 2 else (h if h is not None and h.unsqueeze(1).dim()==3 else torch.zeros(self.n_layers * self.num_directions, self.batch_size, self.hidden_size * self.num_units).to(self.device))
 
-
-		hs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if h is None else h
-		
+        
 		cs = None
 		if self.rnn_cell == 'LSTM':
-			cs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if c is None else c
+			cs = c.unsqueeze(0).expand(self.n_layers * self.num_directions, -1, -1).to(c.device) if c is not None and c.unsqueeze(1).dim() == 2 else (c if c is not None and c.unsqueeze(1).dim()==3 else torch.zeros(self.n_layers * self.num_directions, self.batch_size, self.hidden_size * self.num_units).to(self.device))
+			#cs = torch.zeros(self.n_layers * self.num_directions, self.batch_size, self.hidden_size * self.num_units).to(self.device) if c is None else (c if len(c.shape) != 2 else c.unsqueeze(0).expand(self.n_layers * self.num_directions, -1, -1))
 		else:
 			cs = hs
 		#hs_new = []
 		#cs_new = []
+  
 		new_hs = torch.zeros(hs.size()).to(hs.device)
 		new_cs = torch.zeros(cs.size()).to(cs.device)
-		#Debug
-		new_hs = new_hs.unsqueeze(-1)
-		new_cs = new_cs.unsqueeze(-1)
+		print(f"new hs modularity:{new_hs.size()} cs:{new_cs.size()}")
 		entropy = 0
 		for n in range(self.n_layers):
 			idx = n * self.num_directions
-			#debug
-			print("x shape:", x.shape)
-			print("hs[idx].unsqueeze(0) shape:", hs[idx].unsqueeze(0).shape)
-			print("cs[idx].unsqueeze(0) shape:", cs[idx].unsqueeze(0).shape)
-			print(f"new_hs[idx] shape:{new_hs[idx].shape} , new_cs [idx] {new_cs[idx].shape}")
-			x_fw, new_hs[idx], new_cs[idx], entropy_ = self.layer(self.rimcell[idx], x, hs[idx].unsqueeze(0), cs[idx].unsqueeze(0), message_to_rule_network = message_to_rule_network)
+			x_fw, new_hs[idx], new_cs[idx], entropy_ = self.layer(self.rimcell[idx], x, hs[idx], cs[idx], message_to_rule_network = message_to_rule_network)
 			entropy += entropy_
 			if self.num_directions == 2:
 				idx = n * self.num_directions + 1
-
 				x_bw, new_hs[idx], new_cs[idx], entropy_ = self.layer(self.rimcell[idx], x, hs[idx], cs[idx], direction = 1, message_to_rule_network = message_to_rule_network)
 				entropy += entropy_
 				x = torch.cat((x_fw, x_bw), dim = 2)
 			else:
 				x = x_fw
-
+		print(f"new hs after layer:{new_hs.size()} cs:{new_cs.size()}")
 		#hs = torch.stack(hs, dim = 0)
 		#cs = torch.stack(cs, dim = 0)
-		print(f"SCOFF X {x_fw.shape}, h shape {new_hs.shape} c shape {new_cs.shape}")
+
 
 		if self.batch_first:
 			x = x.transpose(0, 1)

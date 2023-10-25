@@ -33,7 +33,6 @@ class Identity(torch.autograd.Function):
 		return input * 1.0
 	def backward(ctx, grad_output):
 		#print(torch.sqrt(torch.sum(torch.pow(grad_output,2))))
-		print(grad_output)
 		return grad_output * 1.0
 
 class ArgMax(torch.autograd.Function):
@@ -57,10 +56,10 @@ class ArgMax(torch.autograd.Function):
 		return grad_input
 
 class GroupMLP(nn.Module):
-	def __init__(self, in_dim, out_dim, num):
+	def __init__(self, in_dim, out_dim, num, device=torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')):
 		super().__init__()
-		self.group_mlp1 = GroupLinearLayer(in_dim, 128, num)
-		self.group_mlp2 = GroupLinearLayer(128, out_dim, num)
+		self.group_mlp1 = GroupLinearLayer(in_dim, 128, num, device=device)
+		self.group_mlp2 = GroupLinearLayer(128, out_dim, num, device=device)
 		#self.group_mlp3 = GroupLinearLayer(128, 128, num)
 		#self.group_mlp4 = GroupLinearLayer(128, out_dim, num)
 		self.dropout = nn.Dropout(p = 0.5)
@@ -154,7 +153,7 @@ class RuleNetwork(nn.Module):
 
 		self.encoder_transform = nn.Linear(num_variables * hidden_dim, hidden_dim)
 		self.rule_mlp = GroupMLP(rule_dim + hidden_dim, hidden_dim, num_rules)
-		self.rule_linear = GroupLinearLayer(rule_dim + hidden_dim, hidden_dim, num_rules)
+		self.rule_linear = GroupLinearLayer(rule_dim + hidden_dim, hidden_dim, num_rules, device=self.device)
 		self.interaction_mlp = MLP(2*hidden_dim, hidden_dim)
 		self.variables_select = MultiHeadAttention(n_head=4, d_model_read= hidden_dim, d_model_write = hidden_dim , d_model_out = hidden_dim,  d_k=32, d_v=32, num_blocks_read = 1, num_blocks_write = num_variables, topk = 3, grad_sparse = False)
 

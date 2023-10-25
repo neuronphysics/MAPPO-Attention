@@ -173,6 +173,7 @@ class PrintLayer(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, 
                  in_channel, 
+                 img_height,
                  img_width, 
                  hidden_dim, 
                  device, 
@@ -190,6 +191,7 @@ class Encoder(nn.Module):
         self.nchannel    = in_channel
         self.hidden_dim  = hidden_dim
         self.img_width   = img_width
+        self.img_height  = img_height
         self.device      = device
         self.enc_kernel  = kernel_size
         self.enc_stride  = stride_size
@@ -219,7 +221,7 @@ class Encoder(nn.Module):
                         stride=self.enc_stride,
                         padding=self.enc_padding,
                 ))
-                encoder_layers.append(PrintLayer())
+                #encoder_layers.append(PrintLayer())
             else:
                 encoder_layers.append( nn.Conv2d(
                         in_channels=in_channels,
@@ -229,7 +231,7 @@ class Encoder(nn.Module):
                         padding=self.enc_padding,
                         bias=False,
                     ))
-                encoder_layers.append(PrintLayer())
+                #encoder_layers.append(PrintLayer())
             # Batch Norm
             if norm_type == 'batch':
                 encoder_layers.append(nn.BatchNorm2d(out_channels))
@@ -249,7 +251,7 @@ class Encoder(nn.Module):
                         norm_type=norm_type,
                         nonlinearity=self.activation
                     ))
-                encoder_layers.append(PrintLayer())
+                #encoder_layers.append(PrintLayer())
 
         # Flatten Encoder Output
         encoder_layers.append(nn.Flatten())
@@ -258,8 +260,8 @@ class Encoder(nn.Module):
         
 
         # Calculate shape of the flattened image
-        self.h_dim, self.h_image_dim = self.get_flattened_size(self.img_width)
-        
+        self.h_dim, (self.height_image_dim, self.width_image_dim) = self.get_flattened_size((self.img_height,self.img_width))
+        print(f"Calculate shape of the flattened image for linear layer: input {self.h_dim} hidden {hidden_dim}")
         
         #linear layers
         layers = []
@@ -286,28 +288,34 @@ class Encoder(nn.Module):
         print(f"CNN module : check the size of input {X.shape}")
         if X.shape[1] != self.nchannel:
            X = X.permute(0, 3, 1, 2)
-    
+        print(f"CNN module permuted iput shape {X.shape}")
         h = self.encoder(X)
         print (f"size of output of encoder (CNN) {h.shape}")
         # Get latent variables
         return self.linear_layers(h)
             
-    def get_flattened_size( self, image_size ):
-        #for param in self.encoder.parameters():
-        #    print(type(param.data), param.size())
+    
+    def get_flattened_size(self, image_dim):
+        """
+        image_dim is a tuple (height, width)
+        """
+
+        image_height, image_width = image_dim
 
         for layer in self.encoder.modules():
             if isinstance(layer, nn.Conv2d):
 
-                kernel_size = layer.kernel_size[0]
-                stride = layer.stride[0]
-                padding = layer.padding[0]
-                filters = layer.out_channels
+              kernel_size_h, kernel_size_w = layer.kernel_size
+              stride_h, stride_w = layer.stride
+              padding_h, padding_w = layer.padding
+              filters = layer.out_channels
 
-                image_size = calculate_layer_size(
-                    image_size, kernel_size, stride, padding
-                )
-               
-        return filters * image_size * image_size, image_size
-    
+              image_height = calculate_layer_size(
+                 image_height, kernel_size_h, stride_h, padding_h
+              )
+              image_width = calculate_layer_size(
+                 image_width, kernel_size_w, stride_w, padding_w
+              )
+
+        return filters * image_height * image_width, (image_height, image_width)
 

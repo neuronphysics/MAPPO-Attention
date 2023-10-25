@@ -112,7 +112,7 @@ class Runner(object):
                            self.envs.action_space[player_key],
                            device = self.device)
                # policy network
-               
+            
             self.policy.append(po)
 
         if self.model_dir is not None:

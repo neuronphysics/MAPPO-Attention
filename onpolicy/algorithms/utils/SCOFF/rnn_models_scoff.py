@@ -16,7 +16,7 @@ class Identity(torch.autograd.Function):
   def forward(ctx, input):
     return input * 1.0
   def backward(ctx, grad_output):
-    print(grad_output)
+    #print(grad_output)
     return grad_output * 1.0
 
 class RNNModel(nn.Module):
@@ -28,7 +28,7 @@ class RNNModel(nn.Module):
                  memory_mlp =4, num_blocks=6, update_topk=4, memorytopk=4,
                  use_gru=False, do_rel=False ,num_modules_read_input=2, inp_heads=1,
                  device = None, memory_slots= 4, memory_head_size=16,
-                 num_memory_heads=4, attention_out=512, version=1, step_att=True,
+                 num_memory_heads=4, attention_out=512, version=0, step_att=True,
                  num_rules = 0, rule_time_steps = 0, perm_inv = True, application_option = 3, use_dropout = True, rule_selection = 'gumble'):
 
         super(RNNModel, self).__init__()
@@ -198,13 +198,19 @@ class RNNModel(nn.Module):
         #input inside SCOFF  embedding batch_size, hidden
         #comment the next line for MARL
         #timesteps, batch_size, _ = emb.shape
-
-
+        print(f'emb shape (rnn model scoff) {emb.shape}')
+        print(f'rnn scoff input shape:{input.shape} hidden shape:{hidden[0].shape}, nlayers: {self.nlayers}')
+        
         hx, cx = hidden[0], hidden[1]
+        hx  = hx.unsqueeze(0).repeat(self.nlayers, 1, 1)#new line
+        cx  = cx.unsqueeze(0).repeat(self.nlayers, 1, 1)#new line
+        hidden = (hx, cx)
         entropy = 0
         if True:
             # for loop implementation with RNNCell
-            layer_input = emb
+            layer_input = emb.unsqueeze(0).repeat(self.nlayers, 1, 1)#new line
+            timesteps = 1 if input.dim() == 2 else input.shape[0]
+            
             new_hidden = [[], []]
             for idx_layer in range(0, self.nlayers):
                 # print('idx layer', idx_layer)
@@ -218,21 +224,25 @@ class RNNModel(nn.Module):
                 hx, cx = hidden[0][idx_layer], hidden[1][idx_layer]
                 if self.do_rel:
                     self.bc_lst[idx_layer].reset_relational_memory(input.shape[1])
-                for idx_step in range(input.shape[0]):
+                
+                for idx_step in range(timesteps):#input shape: timesteps, batch_size, hidden 
+                    #input shape torch.Size([10, 64]), hx torch.Size([10, 64]) cx :torch.Size([10, 64])
+                    print(f"rnn model scoff before block core input shape {layer_input[idx_step].shape}, hidden size {hx.shape} cx :{cx.shape} index of loop {idx_step} {input.shape[0]}") 
                     hx, cx, mask, bmask, temp_attn, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step,
                                                                  do_print=do_print, message_to_rule_network = message_to_rule_network)
+                    print(f"right after block core computation, hx shape {hx.shape}, cx shape {cx.shape}, mask shape {mask.shape}, bmask shape {bmask.shape}")
                     entropy += entropy_
                     output.append(hx)
                     masklst.append(mask)
                     bmasklst.append(bmask)
                     template_attn.append(temp_attn)
-
+                print(f"rnn model scoff output shape {len(output)}, {output[0].shape}, mask shape {masklst[0].shape}, bmask shape {bmasklst[0].shape}")
                 output = torch.stack(output)
                 mask = torch.stack(masklst)
                 bmask = torch.stack(bmasklst)
                 if type(template_attn[0])!= type(None):
                     template_attn = torch.stack(template_attn)
-                # print(torch.squeeze(torch.squeeze(bmask, dim=0), dim=-1).sum(dim=0))
+                print(f"output shape {output.shape}, mask shape {mask.shape}, bmask shape {bmask.shape}")
                 layer_input = output
                 new_hidden[0].append(hx)
                 new_hidden[1].append(cx)
@@ -240,9 +250,12 @@ class RNNModel(nn.Module):
             new_hidden[1] = torch.stack(new_hidden[1])
             hidden = tuple(new_hidden)
         block_mask = bmask.squeeze(0)
-        print(f"input shape {input.shape}, hidden size {hx.shape}") # torch.Size([256, 64]), torch.Size([1, 64])
-        hx=hx.squeeze()
-        assert input.shape[1] == hx.shape[0] #Note: removed this line to check the reults
+        print(f"rnn model scoff input shape {block_mask.shape}, hidden size {new_hidden[0].shape} ") # block_mask shape: torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+        hx=hx.squeeze() 
+        if input.dim() == 2:
+            assert input.shape[0] == hx.shape[0]
+        elif input.dim() == 3:
+            assert input.shape[1] == hx.shape[0] #Note: removed this line to check the reults
         #if self.use_dropout:
         output = self.drop(output)
         dec = output.view(output.size(0) * output.size(1), self.nhid)

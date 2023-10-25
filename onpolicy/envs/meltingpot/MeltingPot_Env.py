@@ -170,26 +170,44 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
   def step(self, action_dict):
     """See base class."""
-
-    #actions = [action_dict[agent_id] for agent_id, player in enumerate(self._ordered_agent_ids)]
-    actions = [int(action_dict[agent_id][0]) for agent_id, player in enumerate(self._ordered_agent_ids)]
-
-    timestep = self._env.step(actions)
     
-    rewards = {
-        agent_id: timestep.reward[index]
-        for index, agent_id in enumerate(self._ordered_agent_ids)
-    }
-    self.num_cycles += 1
-    termination = timestep.last()
-    done = { '__all__': termination}
-    truncation = self.num_cycles >= self.max_cycles
-    truncations = {agent_id: truncation for agent_id in self._ordered_agent_ids}
+    actions = [list(map(int, action_dict[agent_id])) for agent_id, player in enumerate(self._ordered_agent_ids)]
+    actions = np.array(actions)
+    #print(f"size of action in step {actions.shape}")
+    # Initialize empty arrays to store rewards and done flags for each agent
+    agent_rewards = {agent_id: [] for agent_id in self._ordered_agent_ids}
+    agent_dones = {agent_id: [] for agent_id in self._ordered_agent_ids}
+    agent_observation = {agent_id: {'RGB':[], 'WORLD.RGB':[]} for agent_id in self._ordered_agent_ids}
+    # Loop through each time step
+    for i in range(actions.shape[1]):
+        # Step the environment for each agent individually
+        
+        timestep = self._env.step(actions[:, i])
+        for agent_id, player in enumerate(self._ordered_agent_ids):
+            # Append rewards and done flags for each agent
+            agent_rewards[player].append(timestep.reward[agent_id])
+            agent_dones[player].append(timestep.last())
+            obs=timestep_to_observations(timestep)
+            agent_observation[player]['RGB'].append(obs[player]['RGB'])
+            agent_observation[player]['WORLD.RGB'].append(obs[player]['WORLD.RGB'])
+            # Check if the maximum number of cycles is reached
+            truncation=self.num_cycles >= self.max_cycles
+            agent_dones[player][-1] = agent_dones[player][-1] or truncation
+            
+    # Extract the final rewards and done flags for each agent
+    rewards = {agent_id: np.array(reward_list) for agent_id, reward_list in agent_rewards.items()}
+    done = {agent_id: np.array(done_list, dtype=bool) for agent_id, done_list in agent_dones.items()}
+    observations = {}
+    for agent_id in self._ordered_agent_ids:
+        observations[agent_id] = {
+            'RGB': np.stack(agent_observation[agent_id]['RGB'], axis=0),
+            'WORLD.RGB': np.stack(agent_observation[agent_id]['WORLD.RGB'], axis=0)
+        }
+    #print(f"observation inside step melting pot environment {observations['player_0']['RGB'].shape}, {observations['player_0']['WORLD.RGB'].shape}")
+    #(n_rollout, 11, 11, 3), (n_rollout, 30, 21, 3)
     info = {}
-
-    observations = timestep_to_observations(timestep)
-    
-    return observations, rewards, truncations, info
+    self.num_cycles += 1
+    return observations, rewards, done, info
 
   def close(self):
     """See base class."""
@@ -284,7 +302,7 @@ def downsample_observation(array: np.ndarray, scaled) -> np.ndarray:
   
 def _downsample_multi_timestep(timestep: dm_env.TimeStep, scaled) -> dm_env.TimeStep:
     return timestep._replace(
-        observation=[{k: downsample_observation(v, scaled) if k == 'RGB' else v for k, v in observation.items()
+        observation=[{k: downsample_observation(v, scaled) if k == 'WORLD.RGB' or k == 'RGB' else v for k, v in observation.items()
         } for observation in timestep.observation])
 
 def _downsample_multi_spec(spec, scaled):
@@ -307,12 +325,14 @@ class DownSamplingSubstrateWrapper(observables.ObservableLab2dWrapper):
         return _downsample_multi_timestep(timestep, self._scaled)
 
     def step(self, actions) -> dm_env.TimeStep:
+        print(f"step downsampled Substrate")
         timestep = super().step(actions)
+        
         return _downsample_multi_timestep(timestep, self._scaled)
 
     def observation_spec(self) -> Sequence[Mapping[str, Any]]:
         spec = super().observation_spec()
-        return [{k: _downsample_multi_spec(v, self._scaled) if k == 'RGB' else v for k, v in s.items()}
+        return [{k: _downsample_multi_spec(v, self._scaled) if k == 'WORLD.RGB' or k == 'RGB' else v for k, v in s.items()}
         for s in spec]
         
 def env_creator(env_config):

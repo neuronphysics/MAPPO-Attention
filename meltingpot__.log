@@ -1,0 +1,760 @@
+u are choosing to use mappo, we set use_recurrent_policy & use_naive_recurrent_policy to be False
+choose to use gpu...
+Creating process objects...
+Process objects created.
+Process 3027409 started SubprocVecEnv.
+Process 3027410 started SubprocVecEnv.
+Process 3027411 started SubprocVecEnv.
+Process 3027412 started SubprocVecEnv.
+Process 3027413 started SubprocVecEnv.
+Process 3027414 started SubprocVecEnv.
+Process 3027415 started SubprocVecEnv.
+Process 3027416 started SubprocVecEnv.
+Process 3027417 started SubprocVecEnv.
+Process 3027418 started SubprocVecEnv.
+Processes started.
+runner separated share_observation_space:  Dict('player_0': Box(0, 255, (168, 168, 3), uint8), 'player_1': Box(0, 255, (168, 168, 3), uint8), 'player_2': Box(0, 255, (168, 168, 3), uint8), 'player_3': Box(0, 255, (168, 168, 3), uint8), 'player_4': Box(0, 255, (168, 168, 3), uint8), 'player_5': Box(0, 255, (168, 168, 3), uint8), 'player_6': Box(0, 255, (168, 168, 3), uint8), 'player_7': Box(0, 255, (168, 168, 3), uint8), 'player_8': Box(0, 255, (168, 168, 3), uint8))
+runner separated observation_space:  Dict('player_0': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)), 'player_1': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)), 'player_2': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)), 'player_3': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)), 'player_4': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)), 'player_5': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)), 'player_6': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)), 'player_7': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)), 'player_8': Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (11, 11, 3), uint8)))
+runner separated action_space:  Dict('player_0': Discrete(9), 'player_1': Discrete(9), 'player_2': Discrete(9), 'player_3': Discrete(9), 'player_4': Discrete(9), 'player_5': Discrete(9), 'player_6': Discrete(9), 'player_7': Discrete(9), 'player_8': Discrete(9))
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+actor network observation shape (11, 11, 3) 3
+We are using SCOFF...
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+critic network observation shape (168, 168, 3) 3
+input channel and input image width in critic network 3 168 168 observation: (168, 168, 3)
+we are using SCOFF attention module in critic network.... (168, 168, 3) 3
+top k blocks, using dropput 3 0.0
+number of inputs, ninp 64
+number of blocks 4
+Dropout rate 0.0
+topk is 3
+bs in 64
+bs out 16
+inp_heads is 1
+num_modules_read_input 2
+share inp and comm True True
+communication is happening True
+n_templates:2
+using set transformer False
+d model read 16
+Using version 0 att_out is 85
+d model read 16
+USING GRU!
+Using Gumble sparsity
+-------Done Initializing Module----------
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+torch.Size([10, 128, 11, 11])
+actor features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+torch.Size([10, 128, 168, 168])
+critic features shape.... torch.Size([10, 64]) torch.Size([10, 1, 64])
+batch size in layer SCOFF 10 0 1 64, x:torch.Size([10, 64]) 
+hidden state is tensor torch.Size([10, 1, 64]) torch.Size([10, 1, 64])
+new hs modularity:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+ inside layer (modularity) h:torch.Size([10, 64]) c:torch.Size([10, 64])
+emb shape (rnn model scoff) torch.Size([10, 64])
+rnn scoff input shape:torch.Size([10, 64]) hidden shape:torch.Size([10, 64]), nlayers: 1
+rnn model scoff before block core input shape torch.Size([10, 64]), hidden size torch.Size([10, 64]) cx :torch.Size([10, 64]) index of loop 0 10
+block core scoff input torch.Size([10, 64]) cx: torch.Size([10, 64])
+In block core scoff input shape torch.Size([10, 1, 64]), hx shape: torch.Size([10, 64]), batch size: 10 version : 0 num_blocks_in 1, block_size_in , 64
+block core scoff output hx torch.Size([10, 64]) cx: torch.Size([10, 64]), mask torch.Size([10, 64]), block_mask torch.Size([10, 4, 1])
+right after block core computation, hx shape torch.Size([10, 64]), cx shape torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+rnn model scoff output shape 1, torch.Size([10, 64]), mask shape torch.Size([10, 64]), bmask shape torch.Size([10, 4, 1])
+output shape torch.Size([1, 10, 64]), mask shape torch.Size([1, 10, 64]), bmask shape torch.Size([1, 10, 4, 1])
+rnn model scoff input shape torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+new hs after layer:torch.Size([1, 10, 64]) cs:torch.Size([1, 10, 64])
+meltingpot_runner action type Discrete
+(1, 10, 1, 9)
+size of action in the collect function (1, 10, 1), rnn_state (tuple) torch.Size([1, 10, 64]) rnn_state_critic torch.Size([1, 10, 64])
+size of values (1, 9, 10)
+size of actions (1, 9, 10)
+rnn states (1, 9, 10, 64)
+rnn_states_critic (1, 9, 10, 64)
+meltingpot runner separate ......
+Before envs.step in MeltingpotRunner
+Step called in ShareVecEnv...
+Step commands sent in SubprocVecEnv.
+Waiting to receive step results...
+Timeout while waiting for process 1.
+Timeout while waiting for process 2.
+Timeout while waiting for process 3.
+Timeout while waiting for process 4.
+Timeout while waiting for process 5.
+Timeout while waiting for process 6.
+Timeout while waiting for process 7.
+Timeout while waiting for process 8.
+Timeout while waiting for process 9.
+After envs.step in MeltingpotRunner
+size of rewards (1,)
+size of rnn_states (1, 9, 10, 64), (0, 10, 64)
+size of masks (1, 9, 10, 1), (1, 9)

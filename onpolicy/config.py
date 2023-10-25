@@ -192,6 +192,7 @@ def get_config():
                         default=False, help='Whether agent use the attention module or not')
     parser.add_argument("--attention_module", type=str, 
                         default= 'SCOFF', help='specify the name of attention module')
+    parser.add_argument("--use_version_scoff", type=int, default=0, help="specify the version of SCOFF")
     parser.add_argument("--share_policy", action='store_false',
                         default=True, help='Whether agent share the same policy')
     parser.add_argument("--use_centralized_V", action='store_false',

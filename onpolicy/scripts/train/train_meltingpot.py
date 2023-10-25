@@ -11,9 +11,12 @@ from onpolicy.config import get_config
 from onpolicy.envs.meltingpot.MeltingPot_Env import env_creator
 from meltingpot import substrate
 from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
+import gc
+import ptvsd
+import time
 
 
-"""Train script for MPEs."""
+"""Train script for Meltingpot."""
 
 def make_train_env(all_args):
     def get_env_fn(rank):
@@ -82,6 +85,8 @@ def parse_args(args, parser):
 
 
 def main(args):
+    torch.cuda.empty_cache()
+    gc.collect()
     parser = get_config()
     all_args = parse_args(args, parser)
 
@@ -175,6 +180,14 @@ def main(args):
     else:
         from onpolicy.runner.separated.meltingpot_runner import MeltingpotRunner as Runner
 
+    #################
+    #debug with vs code
+    #ptvsd.enable_attach(address=('localhost', 5678), redirect_output=True)
+
+    # Pause the program until a remote debugger is attached
+    #ptvsd.wait_for_attach()
+
+    ###################
     runner = Runner(config)
     runner.run()
     

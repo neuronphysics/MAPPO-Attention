@@ -25,7 +25,6 @@ class Identity(torch.autograd.Function):
   def forward(ctx, input):
     return input * 1.0
   def backward(ctx, grad_output):
-    print(grad_output)
     return grad_output * 1.0
 
 
@@ -205,9 +204,11 @@ class BlocksCore(nn.Module):
 
 
     def forward(self, inp, hx, cx, step,do_print=False, message_to_rule_network = None):
-
-        hxl = []
-        cxl = []
+        hx=hx.to(self.device)
+        cx=cx.to(self.device)
+        #hxl = []
+        #cxl = []
+        print(f"block core scoff input {inp.shape} cx: {cx.shape}")
         sz_b = inp.shape[0]
         batch_size = inp.shape[0]
 
@@ -226,7 +227,7 @@ class BlocksCore(nn.Module):
              input_to_attention = [_process_input(_input) for _input in
                           torch.chunk(inp_use, chunks=self.num_blocks_out, dim=1)
                          ]
-             print(f"In block core scoff hx shape: {hx.shape}")
+             print(f"In block core scoff hx shape: {hx.shape}, batch size: {batch_size} version : {self.version}")
              if hx.shape[0] != 1:
                 hx = hx.unsqueeze(0)
 
@@ -240,16 +241,18 @@ class BlocksCore(nn.Module):
 
              inp_use_list, iatt_list, _ = zip(*output)
 
-             inp_use = torch.cat(inp_use_list, dim=1)
-             iatt = torch.cat(iatt_list, dim=1)
+             inp_use = torch.cat(inp_use_list, dim=1).to(self.device)
+             iatt = torch.cat(iatt_list, dim=1).to(self.device)
 
              inp_use = inp_use.reshape((inp_use.shape[0], self.att_out * self.num_blocks_out))
 
         else:
              #use attention here.
+             inp_use =inp_use.permute(1,0,2) #new line
+             print(f"In block core scoff input shape {inp_use.shape}, hx shape: {hx.shape}, batch size: {batch_size} version : {self.version} num_blocks_in {self.num_blocks_in}, block_size_in , {self.block_size_in}")
              inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.block_size_in))
              inp_use = inp_use.repeat(1,self.num_modules_read_input-1,1)
-             inp_use = torch.cat([torch.zeros_like(inp_use[:,0:1,:]), inp_use], dim=1)
+             inp_use = torch.cat([torch.zeros_like(inp_use[:,0:1,:]).to(self.device), inp_use], dim=1).to(self.device)
              batch_size = inp.shape[0]
              inp_use, iatt, _ = self.inp_att(hx.reshape((hx.shape[0], self.num_blocks_out, self.block_size_out)), inp_use, inp_use)
              iatt = iatt.reshape((self.inp_heads, sz_b, iatt.shape[1], iatt.shape[2]))
@@ -259,15 +262,15 @@ class BlocksCore(nn.Module):
 
 
 
-        new_mask = torch.ones_like(iatt[:,:,0])
+        new_mask = torch.ones_like(iatt[:,:,0]).to(self.device)
 
         if (self.num_blocks_out - self.topkval)>0:
             bottomk_indices = torch.topk(iatt[:,:,0], dim=1,
                                 sorted=True, largest=True,
                                 k = self.num_blocks_out - self.topkval)[1]
-
-            new_mask.index_put_((torch.arange(bottomk_indices.size(0)).unsqueeze(1), bottomk_indices),
-                    torch.zeros_like(bottomk_indices[0], dtype=new_mask.dtype))
+            bottomk_indices =bottomk_indices.to(self.device)
+            new_mask.index_put_((torch.arange(bottomk_indices.size(0)).unsqueeze(1).to(self.device), bottomk_indices),
+                    torch.zeros_like(bottomk_indices[0], dtype=new_mask.dtype).to(self.device))
         mask = new_mask
         memory_inp_mask = mask
         block_mask = mask.reshape((inp_use.shape[0], self.num_blocks_out,1))
@@ -293,7 +296,7 @@ class BlocksCore(nn.Module):
                                                       (mask.shape[0],
                                                        self.num_blocks_out,
                                                        self.block_size_out)))
-            hx_new_att,attn_out,extra_loss_att = self.mha(hx_new_grad_mask,hx_new_grad_mask,hx_new_grad_mask)
+            hx_new_att, attn_out, extra_loss_att = self.mha(hx_new_grad_mask,hx_new_grad_mask,hx_new_grad_mask)
             hx_new = hx_new + hx_new_att
 
             hx_new = hx_new.reshape((hx_new.shape[0], self.nhid))
@@ -308,9 +311,16 @@ class BlocksCore(nn.Module):
                 hx_new = rule_ + hx_new
             hx_new = hx_new.reshape((hx_new.shape[0], self.nhid))
 
+        hx_new = hx_new.to(self.device)
+        cx_new = cx_new.to(self.device)
+        hx_old = hx_old.to(hx_new.device)
+        cx_old = cx_old.to(hx_new.device)
+        hx     = hx.to(hx_new.device)
+        cx     = cx.to(hx_new.device)
+        mask   = mask.to(self.device)
 
-        hx = (mask)*hx_new + (1-mask)*hx_old
-        cx = (mask)*cx_new + (1-mask)*cx_old
+        hx = (mask)*hx_new + (1-mask).to(self.device)*hx_old
+        cx = (mask)*cx_new + (1-mask).to(self.device)*cx_old
 
         if self.do_rel:
              #memory_inp_mask = new_mask
