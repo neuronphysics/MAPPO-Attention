@@ -14,7 +14,7 @@ from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
 import gc
 import ptvsd
 import time
-
+PLAYER_STR_FORMAT = 'player_{index}'
 
 """Train script for Meltingpot."""
 
@@ -39,9 +39,15 @@ def make_train_env(all_args):
         
         return init_env
     if all_args.n_rollout_threads == 1:
-        return DummyVecEnv([get_env_fn(0)])
+        return DummyVecEnv([get_env_fn(0)], [
+        PLAYER_STR_FORMAT.format(index=index)
+        for index in range(all_args.num_agents)
+    ])
     else:
-        return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_rollout_threads)])
+        return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_rollout_threads)], [
+        PLAYER_STR_FORMAT.format(index=index)
+        for index in range(all_args.num_agents)
+    ])
 
 
 def make_eval_env(all_args):

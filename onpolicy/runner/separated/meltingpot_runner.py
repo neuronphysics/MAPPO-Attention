@@ -56,7 +56,7 @@ class MeltingpotRunner(Runner):
                 # Obser reward and next obs
                 print(f"Before envs.step in MeltingpotRunner with action size {actions.shape}")
                 obs, rewards, dones, infos = self.envs.step(actions)
-                print(f"After envs.step in MeltingpotRunner reward {rewards} dones {dones} observation size {obs}")
+                print(f"After envs.step in MeltingpotRunner reward {rewards} dones {dones} observation size {len(obs)}")
 
                 data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
 
@@ -90,7 +90,7 @@ class MeltingpotRunner(Runner):
                 if self.env_name == "Meltingpot":
                     for agent_id in range(self.num_agents):
                         idv_rews = []
-                        for index in self.envs._ordered_agent_ids:
+                        for index in self.envs.ordered_agent_ids:
                             idv_rews.append(rewards[index])
                         train_infos[agent_id].update({'individual_rewards': np.mean(idv_rews)})
 
@@ -217,8 +217,9 @@ class MeltingpotRunner(Runner):
         done_new  = np.array([player_dict[f'player_{i}'] for player_dict in done for i in range(self.num_agents)], dtype=np.bool_)
         rewards = np.array([player_dict[f'player_{i}'] for player_dict in rewards for i in range(self.num_agents)], dtype=np.float32)
         #rnn_states:(1, num_agent, n_rollout_threads, hidden_size)
-        done_new = done_new.reshape(1, self.num_agents, -1)
-        rewards  = rewards.reshape(1, self.num_agents, -1)
+        print(f"done_new shape {done_new.shape}, rewards shape {rewards.shape}")
+        done_new = np.expand_dims(done_new, axis=0)
+        rewards  = np.expand_dims(rewards, axis=0)
         # Create a boolean mask with the same shape as rnn_states
         
         rnn_states[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
@@ -231,43 +232,32 @@ class MeltingpotRunner(Runner):
         
         share_obs = []
         agent_obs = []
-        print(f"observation inside insert meltingpot runner: {obs}")
-        for i, sublist in enumerate(obs):
-            print(f"sublist: {sublist}")
-            for item in sublist:
-                if item:
-                    rgb_player=[]
-                    arrays = []
-                    for agent_id in range(self.num_agents):
-                        player= f"player_{agent_id}"
-                        if player in item:
-                              print(f"player {player}")
-                              print(f"item {item}")
-                              rgb_player.append(item[player]['WORLD.RGB'])
-                              arrays.append(item[player]['RGB'])
-                              print(f"player_i {player} obs: {item[player]['RGB'].shape}, share_obs: {item[player]['WORLD.RGB'].shape}")
-                    result = np.stack(arrays)
-                    image  = np.stack(rgb_player)
-            share_obs.append(image)
-            agent_obs.append(result)
-            print(f"share_obs shape {image.shape}, agent_obs shape {result.shape}, index: {i}")
-        share_obs = np.array(share_obs)
-        agent_obs = np.array(agent_obs)
+        
+        for sublist in obs:
+            for agent_id in range(self.num_agents):
+                player= f"player_{agent_id}"    
+                print(f"player {player}")
+                share_obs.append(sublist[player]['WORLD.RGB'])
+                agent_obs.append(sublist[player]['RGB'])
+        
+        share_obs = np.array(share_obs).transpose(1, 0, 3, 2, 4)
+        agent_obs = np.array(agent_obs).transpose(1, 0, 3, 2, 4)
         print(f"share_obs shape {share_obs.shape}, agent_obs shape {agent_obs.shape}, rewards shape {rewards.shape}, masks shape {masks.shape} values shape {values.shape} actions shape {actions.shape} action_log_probs shape {action_log_probs.shape} rnn_states shape {rnn_states.shape} rnn_states_critic shape {rnn_states_critic.shape}")
         for agent_id in range(self.num_agents):
             
             #For a quick fix to see if the issue is just about the share_obs reshaping, I comment out the conditional reshaping:
             #if not self.use_centralized_V:
             #    share_obs = np.array(list(obs[:, agent_id]))
-            print(f"share_obs {share_obs.shape} again")
+            #print(f"share_obs {share_obs.shape} again")
+            
             self.buffer[agent_id].insert(share_obs[:, agent_id],
                                          agent_obs[:, agent_id],
-                                         rnn_states[:, agent_id].reshape(self.n_rollout_threads, 1, -1),
-                                         rnn_states_critic[:, agent_id].reshape(self.n_rollout_threads, 1, -1),
-                                         actions[:, agent_id],
-                                         action_log_probs[:, agent_id],
-                                         values[:, agent_id],
-                                         rewards[:, agent_id],
+                                         rnn_states[:, agent_id].swapaxes( 1, 0),
+                                         rnn_states_critic[:, agent_id].swapaxes( 1, 0),
+                                         actions[:, agent_id].swapaxes( 1, 0),
+                                         action_log_probs[:, agent_id].swapaxes( 1, 0),
+                                         values[:, agent_id].swapaxes( 1, 0),
+                                         rewards[:, agent_id].swapaxes( 1, 0),
                                          masks[:, agent_id])
 
     @torch.no_grad()

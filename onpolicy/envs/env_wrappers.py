@@ -315,10 +315,11 @@ class GuardSubprocVecEnv(ShareVecEnv):
 
 
 class SubprocVecEnv(ShareVecEnv):
-    def __init__(self, env_fns, spaces=None):
+    def __init__(self, env_fns, ordered_agent_ids, spaces=None):
         """
         envs: list of gym environments to run in subprocesses
         """
+        self.ordered_agent_ids = ordered_agent_ids
         self.waiting = False
         self.closed = False
         nenvs = len(env_fns)
@@ -392,7 +393,7 @@ class SubprocVecEnv(ShareVecEnv):
             raise RuntimeError("No results were successfully processed from the worker environments.")
         else:
            obs, rews, dones, infos = zip(*results)
-           print(f"well, we are inside SubprocVecEnv class reward {rews} obs :{obs}")
+           print(f"well, we are inside SubprocVecEnv class reward {rews} obs :{len(obs)}")
         return np.stack(obs), np.stack(rews), np.stack(dones), infos
 
     def reset(self):
@@ -805,7 +806,8 @@ class ChooseGuardSubprocVecEnv(ShareVecEnv):
 
 # single env
 class DummyVecEnv(ShareVecEnv):
-    def __init__(self, env_fns):
+    def __init__(self, env_fns, ordered_agent_ids):
+        self.ordered_agent_ids = ordered_agent_ids
         self.envs = [fn() for fn in env_fns]
         env = self.envs[0]
         ShareVecEnv.__init__(self, len(
