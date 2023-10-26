@@ -41,13 +41,14 @@ class MeltingpotRunner(Runner):
 
         start = time.time()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
-
+        print(f'episodes: {episodes}')
         for episode in range(episodes):
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
 
             for step in range(self.episode_length):
+                print(f"step: {step}")
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
 
@@ -62,11 +63,11 @@ class MeltingpotRunner(Runner):
 
                 # insert data into buffer
                 self.insert(data)
-
+            print('before train')
             # compute return and update network
             self.compute()
             train_infos = self.train()
-            
+            print('after train')
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
             
@@ -90,8 +91,8 @@ class MeltingpotRunner(Runner):
                 if self.env_name == "Meltingpot":
                     for agent_id in range(self.num_agents):
                         idv_rews = []
-                        for index in self.envs.ordered_agent_ids:
-                            idv_rews.append(rewards[index])
+                        for index in list(self.envs.observation_space.keys()):
+                            idv_rews.append(rewards[0][index])
                         train_infos[agent_id].update({'individual_rewards': np.mean(idv_rews)})
 
                         train_infos[agent_id].update({"average_episode_rewards": np.mean(self.buffer[agent_id].rewards) * self.episode_length})
@@ -251,14 +252,14 @@ class MeltingpotRunner(Runner):
             #print(f"share_obs {share_obs.shape} again")
             
             self.buffer[agent_id].insert(share_obs[:, agent_id],
-                                         agent_obs[:, agent_id],
-                                         rnn_states[:, agent_id].swapaxes( 1, 0),
-                                         rnn_states_critic[:, agent_id].swapaxes( 1, 0),
-                                         actions[:, agent_id].swapaxes( 1, 0),
-                                         action_log_probs[:, agent_id].swapaxes( 1, 0),
-                                         values[:, agent_id].swapaxes( 1, 0),
-                                         rewards[:, agent_id].swapaxes( 1, 0),
-                                         masks[:, agent_id])
+                                            agent_obs[:, agent_id],
+                                            np.swapaxes(rnn_states[:, agent_id], 0, 1),
+                                            np.swapaxes(rnn_states_critic[:, agent_id], 0, 1),
+                                            np.swapaxes(actions[:, agent_id], 0, 1),
+                                            np.swapaxes(action_log_probs[:, agent_id], 0, 1),
+                                            np.swapaxes(values[:, agent_id], 0, 1),
+                                            np.swapaxes(rewards[:, agent_id], 0, 1),
+                                            masks[:, agent_id])
 
     @torch.no_grad()
     def eval(self, total_num_steps):

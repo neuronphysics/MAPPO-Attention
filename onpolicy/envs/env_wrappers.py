@@ -315,11 +315,10 @@ class GuardSubprocVecEnv(ShareVecEnv):
 
 
 class SubprocVecEnv(ShareVecEnv):
-    def __init__(self, env_fns, ordered_agent_ids, spaces=None):
+    def __init__(self, env_fns, spaces=None):
         """
         envs: list of gym environments to run in subprocesses
         """
-        self.ordered_agent_ids = ordered_agent_ids
         self.waiting = False
         self.closed = False
         nenvs = len(env_fns)
@@ -806,8 +805,7 @@ class ChooseGuardSubprocVecEnv(ShareVecEnv):
 
 # single env
 class DummyVecEnv(ShareVecEnv):
-    def __init__(self, env_fns, ordered_agent_ids):
-        self.ordered_agent_ids = ordered_agent_ids
+    def __init__(self, env_fns):
         self.envs = [fn() for fn in env_fns]
         env = self.envs[0]
         ShareVecEnv.__init__(self, len(
