@@ -15,13 +15,14 @@ import gc
 import ptvsd
 import time
 
+
 """Train script for Meltingpot."""
 
 def make_train_env(all_args):
     def get_env_fn(rank):
         def init_env():
             if all_args.env_name == "Meltingpot":
-                
+                print(f"subtrate: {all_args.substrate_name}")
                 player_roles = substrate.get_config(all_args.substrate_name).default_player_roles
                 if all_args.downsample:
                    scale_factor = 8

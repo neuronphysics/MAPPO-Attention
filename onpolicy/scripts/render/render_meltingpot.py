@@ -20,9 +20,12 @@ def make_train_env(all_args):
     def get_env_fn(rank):
         def init_env():
             if all_args.env_name == "Meltingpot":
-                
                 player_roles = substrate.get_config(all_args.substrate_name).default_player_roles
-                env_config = {"substrate": all_args.substrate_name, "roles": player_roles}
+                if all_args.downsample:
+                   scale_factor = 8
+                else:
+                   scale_factor = 1
+                env_config = {"substrate": all_args.substrate_name, "roles": player_roles, "scaled":scale_factor}
                 env = env_creator(env_config)
                 
             else:

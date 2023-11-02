@@ -67,9 +67,10 @@ class BlocksCore(nn.Module):
             print('Using version 0 att_out is', self.att_out)
             d_v = self.att_out#//self.inp_heads
             self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out,
-                                           d_model_write=ninp, d_model_out=self.att_out,
-                                           d_k=64, d_v=d_v, num_blocks_read=num_blocks_out, num_blocks_write=self.num_modules_read_input,residual=False,
-                                           dropout=0.1, topk=self.num_blocks_in+1, grad_sparse=False, skip_write=True)
+                                              d_model_write=ninp, d_model_out=self.att_out,
+                                              d_k=64, d_v=d_v, num_blocks_read=num_blocks_out, 
+                                              num_blocks_write=self.num_modules_read_input,residual=False,
+                                              dropout=0.1, topk=self.num_blocks_in+1, grad_sparse=False, skip_write=True)
 
 
 
@@ -111,14 +112,15 @@ class BlocksCore(nn.Module):
         self.block_lstm.blockify_params()
 
     def forward(self, inp, hx, cx, step,do_print=False, do_block=True, message_to_rule_network = None):
-
+        print(f"blocks_core_rim BlocksCore input {inp.shape} h: {hx.shape} c: {cx.shape} ")
         hxl = []
         cxl = []
+        inp = inp.unsqueeze(0)
 
         inp_use = inp #layer_input[idx_step]
         batch_size = inp.shape[0]
         sz_b = batch_size
-
+        print(f"the batch size in blocks_core_rim {batch_size}")
         def _process_input(_input):
               _input = _input.unsqueeze(1)
 
@@ -146,12 +148,19 @@ class BlocksCore(nn.Module):
         else:
              #use attention here.
              #inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.block_size_in))
-
+             print(f"size of inp_use: {inp_use.shape}")
+             print(f" num_blocks_in {self.num_blocks_in}, ninp { self.ninp}")
              inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.ninp))
 
              inp_use = inp_use.repeat(1,self.num_modules_read_input-1,1)
              inp_use = torch.cat([torch.zeros_like(inp_use[:,0:1,:]), inp_use], dim=1)
              batch_size = inp.shape[0]
+             print(f"Shape of hx before reshaping: {hx.shape}")
+             if hx.dim()==1:
+                hx=hx.unsqueeze(0)
+             print(f"self.num_blocks_out: {self.num_blocks_out}")
+             print(f"self.block_size_out: {self.block_size_out}")
+
              inp_use, iatt, _ = self.inp_att(hx.reshape((hx.shape[0], self.num_blocks_out, self.block_size_out)), inp_use, inp_use)
              iatt = iatt.reshape((self.inp_heads, sz_b, iatt.shape[1], iatt.shape[2]))
              iatt = iatt.mean(0)
@@ -183,7 +192,12 @@ class BlocksCore(nn.Module):
 
 
         if self.do_gru:
+            print("Blocks_Core class --- Shape of inp_use:", inp_use.shape)
+            print("Blocks_Core class --- Shape of hx:", hx.shape)
+            #hx=hx.squeeze(0)
+            #
             hx_new, _ = self.block_lstm(inp_use, hx)
+            print("Blocks_Core class --- Shape of hx new:", hx_new.shape)
             cx_new = hx_new
         else:
             hx_new, cx_new, _ = self.block_lstm(inp_use, hx, cx)
@@ -209,10 +223,10 @@ class BlocksCore(nn.Module):
                 hx_new = hx_new.reshape((hx_new.shape[0], self.num_blocks_out * self.block_size_out))
 
 
-
+        print(f"BlockCore class --- hx new {hx_new.shape} hx_old {hx_old.shape}")
         hx = (mask)*hx_new + (1-mask)*hx_old
         cx = (mask)*cx_new + (1-mask)*cx_old
-
+        print(f"BlockCore class --- hx  {hx.shape} mask {mask.shape}, {entropy}")
         return hx, cx, mask, entropy
 
 

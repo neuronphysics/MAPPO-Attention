@@ -252,10 +252,11 @@ class RNNModel(nn.Module):
         block_mask = bmask.squeeze(0)
         print(f"rnn model scoff input shape {block_mask.shape}, hidden size {new_hidden[0].shape} ") # block_mask shape: torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
         hx=hx.squeeze() 
-        if input.dim() == 2:
-            assert input.shape[0] == hx.shape[0]
-        elif input.dim() == 3:
-            assert input.shape[1] == hx.shape[0] #Note: removed this line to check the reults
+        # if input.dim() == 2:
+        #     print(f"{input.shape} == {hx.shape}")
+        #     assert input.shape[0] == hx.shape[0]
+        # elif input.dim() == 3:
+        #     assert input.shape[1] == hx.shape[0] #Note: removed this line to check the reults
         #if self.use_dropout:
         output = self.drop(output)
         dec = output.view(output.size(0) * output.size(1), self.nhid)

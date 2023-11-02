@@ -109,7 +109,7 @@ class RNNModel(nn.Module):
         emb = self.drop(self.encoder(input))
         weighted = None
         attn_vec = None
-
+        print(f"inside RNNModel RIM --- input {input.shape}, hidden {hidden[0][0].shape} emb {emb.shape}")
         #encoder_final_state = weighted.squeeze(0)
         if True:
             # for loop implementation with RNNCell
@@ -128,6 +128,7 @@ class RNNModel(nn.Module):
                 for idx_step in range(input.shape[0]):
                     if idx_step % self.layer_dilation[idx_layer] == 0:
                         if idx_step % self.block_dilation[idx_layer] == 0:
+                            print(f"RNNModel class RIM hx {hx.shape} {idx_step}")
                             hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = True, message_to_rule_network = message_to_rule_network)
                             entropy += entropy_
                         else:
@@ -169,12 +170,13 @@ class RNNModel(nn.Module):
                     layer_input = output
 
                 new_hidden[idx_layer] = tuple((hx,cx))
-
+            print(f"RNNModel class RIM again size of hx {hx.shape}")
             hidden = new_hidden
         output = self.drop(output)
         dec = output.view(output.size(0) * output.size(1), self.nhid[-1])
         if False:
             dec = self.decoder(dec)
+        print(f"RNNModel class RIM decoder {dec.shape} out {output.size()}")
         if calc_mask:
             return dec.view(output.size(0), output.size(1), dec.size(1)), hidden, extra_loss, masks, sample_masks, entropy
         else:

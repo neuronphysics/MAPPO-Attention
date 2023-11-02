@@ -392,7 +392,7 @@ class SubprocVecEnv(ShareVecEnv):
             raise RuntimeError("No results were successfully processed from the worker environments.")
         else:
            obs, rews, dones, infos = zip(*results)
-           print(f"well, we are inside SubprocVecEnv class reward {rews} obs :{len(obs)}")
+           print(f"well, we are inside SubprocVecEnv class reward {rews} obs :{obs[0]['player_0']['WORLD.RGB'].shape}")
         return np.stack(obs), np.stack(rews), np.stack(dones), infos
 
     def reset(self):
@@ -817,7 +817,7 @@ class DummyVecEnv(ShareVecEnv):
 
     def step_wait(self):
         results = [env.step(a) for (a, env) in zip(self.actions, self.envs)]
-        print(f"we are inside the DummyVecEnv class and step_wait func. results of step are {results}")
+        print(f"we are inside the DummyVecEnv class and step_wait func. results of step are {len(results)}")
         obs, rews, dones, infos = map(np.array, zip(*results))
 
         for (i, done) in enumerate(dones):
@@ -839,9 +839,12 @@ class DummyVecEnv(ShareVecEnv):
         for env in self.envs:
             env.close()
 
-    def render(self, mode="human"):
+    def render(self, mode="human", has_mode = True):
         if mode == "rgb_array":
-            return np.array([env.render(mode=mode) for env in self.envs])
+            if has_mode:
+                return np.array([env.render(mode=mode) for env in self.envs]) 
+            else: 
+                return np.array([env.render() for env in self.envs])
         elif mode == "human":
             for env in self.envs:
                 env.render(mode=mode)

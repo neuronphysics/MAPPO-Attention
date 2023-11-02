@@ -39,8 +39,9 @@ class BlockGRU(nn.Module):
     def __init__(self, ninp, nhid, k):
         super(BlockGRU, self).__init__()
 
-        assert ninp % k == 0
-        assert nhid % k == 0
+        assert ninp % k == 0, f"ninp ({ninp}) should be divisible by k ({k})"
+        assert nhid % k == 0, f"nhid ({nhid}) should be divisible by k ({k})"
+
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.k = k
         self.gru = nn.GRUCell(ninp, nhid).to(self.device)
@@ -63,9 +64,10 @@ class BlockGRU(nn.Module):
     def forward(self, input, h):
 
         #self.blockify_params()
-
+        print("Inside BlockGRU - Shape of input:", input.shape)
+        print("Inside BlockGRU - Shape of h:", h.shape)
         hnext = self.gru(input, h)
-
+        print(f"Inside BlockGRU - after GRU {hnext.shape}")
         return hnext, None
 
 class Identity(torch.autograd.Function):
@@ -83,8 +85,9 @@ class SharedBlockGRU(nn.Module):
     def __init__(self, ninp, nhid, k, n_templates):
         super(SharedBlockGRU, self).__init__()
 
-        assert ninp % k == 0
-        assert nhid % k == 0
+        assert ninp % k == 0, f"ninp ({ninp}) should be divisible by k ({k})"
+        assert nhid % k == 0, f"nhid ({nhid}) should be divisible by k ({k})"
+
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.k = k
         self.m = nhid // self.k
