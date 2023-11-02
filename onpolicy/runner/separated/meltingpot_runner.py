@@ -411,7 +411,8 @@ class MeltingpotRunner(Runner):
                     calc_end = time.time()
                     elapsed = calc_end - calc_start
                     if elapsed < self.all_args.ifi:
-                        time.sleep(self.all_args.ifi - elapsed)
+                        # time.sleep(self.all_args.ifi - elapsed)
+                        pass
 
             episode_rewards = np.array(episode_rewards)
             # print(f'episode rewards: {episode_rewards.shape}')
@@ -422,4 +423,4 @@ class MeltingpotRunner(Runner):
         if self.all_args.save_gifs:
             # print(f'gif duration : {self.all_args.ifi}')
             print(f"gif saved to {str(self.gif_dir) + '/render.gif'}")
-            imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
+            imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, fps=3)
