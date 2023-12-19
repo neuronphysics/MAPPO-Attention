@@ -113,10 +113,10 @@ class MultiHeadAttention(nn.Module):
         # print('num_blocks_read: ', num_blocks_read)
         # print('num_blocks_write: ', num_blocks_write)
         # input()
-
-        self.GLN_qs = GroupLinearLayer(d_model_read, n_head * d_k, num_blocks_read)
-        self.GLN_ks = GroupLinearLayer(d_model_write, n_head * d_k, num_blocks_write)
-        self.GLN_vs = GroupLinearLayer(d_model_write, n_head * d_v, num_blocks_write)
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.GLN_qs = GroupLinearLayer(d_model_read, n_head * d_k, num_blocks_read, device=self.device)
+        self.GLN_ks = GroupLinearLayer(d_model_write, n_head * d_k, num_blocks_write, device=self.device)
+        self.GLN_vs = GroupLinearLayer(d_model_write, n_head * d_v, num_blocks_write, device=self.device)
 
         self.residual = residual
 
@@ -143,6 +143,7 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         self.ln = nn.LayerNorm(d_model_out)
+        self.to(self.device)
 
     def forward(self, q, k, v, mask=None):
 

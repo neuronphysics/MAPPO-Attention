@@ -92,13 +92,13 @@ class MultiHeadAttention(nn.Module):
         self.n_head = n_head
         self.d_k = d_k
         self.d_v = d_v
-
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')   
         print('d model read', d_model_read)
         if share_inp:
             assert(n_templates!=0, "provide number of paramters for sharing")
             self.GLN_qs = SharedGroupLinearLayer(d_model_read, n_head * d_k, n_templates)
-            self.GLN_ks = GroupLinearLayer(d_model_write, n_head * d_k, num_blocks_write)
-            self.GLN_vs = GroupLinearLayer(d_model_write, n_head * d_v, num_blocks_write)
+            self.GLN_ks = GroupLinearLayer(d_model_write, n_head * d_k, num_blocks_write, device=self.device)
+            self.GLN_vs = GroupLinearLayer(d_model_write, n_head * d_v, num_blocks_write, device=self.device)
         elif share_comm:
             # share Q,K,V for commuication
             assert(n_templates!=0, "provide number of paramters for sharing")
@@ -106,9 +106,9 @@ class MultiHeadAttention(nn.Module):
             self.GLN_ks = SharedGroupLinearLayer(d_model_write, n_head * d_k, n_templates)
             self.GLN_vs = SharedGroupLinearLayer(d_model_write, n_head * d_v, n_templates)
         else:
-            self.GLN_qs = GroupLinearLayer(d_model_read, n_head * d_k, num_blocks_read)
-            self.GLN_ks = GroupLinearLayer(d_model_write, n_head * d_k, num_blocks_write)
-            self.GLN_vs = GroupLinearLayer(d_model_write, n_head * d_v, num_blocks_write)
+            self.GLN_qs = GroupLinearLayer(d_model_read, n_head * d_k, num_blocks_read, device=self.device)
+            self.GLN_ks = GroupLinearLayer(d_model_write, n_head * d_k, num_blocks_write, device=self.device)
+            self.GLN_vs = GroupLinearLayer(d_model_write, n_head * d_v, num_blocks_write, device=self.device)
 
         self.residual = residual
 
@@ -135,6 +135,7 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         self.ln = nn.LayerNorm(d_model_out)
+        self.to(self.device)
 
     def forward(self, q, k, v, mask=None):
 

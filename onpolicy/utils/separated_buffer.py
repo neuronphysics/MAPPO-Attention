@@ -57,6 +57,9 @@ class SeparatedReplayBuffer(object):
         self.active_masks = np.ones_like(self.masks)
 
         self.step = 0
+        
+    def update_factor(self, factor):
+        self.factor = factor.copy()
 
     def insert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
                value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
@@ -266,6 +269,7 @@ class SeparatedReplayBuffer(object):
             adv_targ = np.stack(adv_targ, 1)
 
             # States is just a (N, -1) from_numpy [N[1,dim]]
+            print(f"inside separated_buffer.py, rnn_states_batch.shape is {rnn_states_batch.shape} and rnn_states_critic_batch.shape is {rnn_states_critic_batch.shape}")
             rnn_states_batch = np.stack(rnn_states_batch, 1).reshape(N, *self.rnn_states.shape[2:])
             rnn_states_critic_batch = np.stack(rnn_states_critic_batch, 1).reshape(N, *self.rnn_states_critic.shape[2:])
 

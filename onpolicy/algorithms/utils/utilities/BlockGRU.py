@@ -39,13 +39,15 @@ class BlockGRU(nn.Module):
     def __init__(self, ninp, nhid, k):
         super(BlockGRU, self).__init__()
 
-        assert ninp % k == 0
-        assert nhid % k == 0
+        assert ninp % k == 0, f"ninp ({ninp}) should be divisible by k ({k})"
+        assert nhid % k == 0, f"nhid ({nhid}) should be divisible by k ({k})"
 
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.k = k
-        self.gru = nn.GRUCell(ninp, nhid)
+        self.gru = nn.GRUCell(ninp, nhid).to(self.device)
         self.nhid = nhid
         self.ninp = ninp
+        self.to(self.device)
 
     def blockify_params(self):
         pl = self.gru.parameters()
@@ -62,9 +64,10 @@ class BlockGRU(nn.Module):
     def forward(self, input, h):
 
         #self.blockify_params()
-
+        print("Inside BlockGRU - Shape of input:", input.shape)
+        print("Inside BlockGRU - Shape of h:", h.shape)
         hnext = self.gru(input, h)
-
+        print(f"Inside BlockGRU - after GRU {hnext.shape}")
         return hnext, None
 
 class Identity(torch.autograd.Function):
@@ -82,21 +85,23 @@ class SharedBlockGRU(nn.Module):
     def __init__(self, ninp, nhid, k, n_templates):
         super(SharedBlockGRU, self).__init__()
 
-        assert ninp % k == 0
-        assert nhid % k == 0
+        assert ninp % k == 0, f"ninp ({ninp}) should be divisible by k ({k})"
+        assert nhid % k == 0, f"nhid ({nhid}) should be divisible by k ({k})"
 
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.k = k
         self.m = nhid // self.k
 
         self.n_templates = n_templates
-        self.templates = nn.ModuleList([nn.GRUCell(ninp,self.m) for _ in range(0,self.n_templates)])
+        self.templates = nn.ModuleList([nn.GRUCell(ninp,self.m).to(self.device) for _ in range(0,self.n_templates)])
         self.nhid = nhid
 
         self.ninp = ninp
 
-        self.gll_write = GroupLinearLayer(self.m,16, self.n_templates)
-        self.gll_read = GroupLinearLayer(self.m,16,1)
-        self.sa = Sparse_attention(1)
+        self.gll_write = GroupLinearLayer(self.m,16, self.n_templates, device=self.device)
+        self.gll_read = GroupLinearLayer(self.m,16,1, device=self.device)
+        self.sa = Sparse_attention(1).to(self.device)
+        self.to(self.device)
         print("Using Gumble sparsity")
 
     def blockify_params(self):
@@ -120,7 +125,7 @@ class SharedBlockGRU(nn.Module):
 
 
         for template in self.templates:
-            hnext_l = template(input, h)
+            hnext_l = template(input.to(self.device), h.to(self.device))
             hnext_l = hnext_l.reshape((hnext_l.shape[0], 1, hnext_l.shape[1]))
             hnext_stack.append(hnext_l)
 

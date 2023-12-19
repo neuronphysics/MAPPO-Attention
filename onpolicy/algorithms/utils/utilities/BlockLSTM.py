@@ -35,9 +35,9 @@ class BlockLSTM(nn.Module):
 
         assert ninp % k == 0
         assert nhid % k == 0
-
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.k = k
-        self.lstm = nn.LSTMCell(ninp, nhid)
+        self.lstm = nn.LSTMCell(ninp, nhid).to(self.device)
         self.nhid = nhid
         self.ninp = ninp
 
@@ -69,17 +69,18 @@ class SharedBlockLSTM(nn.Module):
 
         assert ninp % k == 0
         assert nhid % k == 0
-
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.k = k
         self.m = nhid // self.k
         self.n_templates = n_templates
-        self.templates = nn.ModuleList([nn.LSTMCell(ninp,self.m) for _ in range(0,self.n_templates)])
+        self.templates = nn.ModuleList([nn.LSTMCell(ninp,self.m).to(self.device) for _ in range(0,self.n_templates)])
         self.nhid = nhid
 
         self.ninp = ninp
 
-        self.gll_write = GroupLinearLayer(self.m,16, self.n_templates)
-        self.gll_read = GroupLinearLayer(self.m,16,1)
+        self.gll_write = GroupLinearLayer(self.m,16, self.n_templates, device=self.device)
+        self.gll_read = GroupLinearLayer(self.m,16,1, device=self.device)
+        self.to(self.device)
 
     def blockify_params(self):
 
