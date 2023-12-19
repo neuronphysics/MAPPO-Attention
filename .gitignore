@@ -1,0 +1,6 @@
+# Ignore all __pycache__ directories
+**/__pycache__/
+
+# Alternatively, if you only want to ignore __init__.cpython-*.pyc files in __pycache__ directories
+# **/__pycache__/__init__.cpython*.pyc
+
