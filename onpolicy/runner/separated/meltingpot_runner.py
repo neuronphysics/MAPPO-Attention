@@ -194,14 +194,30 @@ class MeltingpotRunner(Runner):
                 one_hot_action_env.append(temp_action_env[i])
             actions_env.append(one_hot_action_env)
         
-        print("BEFORE SQUEEZING \n values are \n", np.array(values).shape, "\n actions are \n", np.array(actions).shape, "\n action log probs are \n ", np.array(action_log_probs).shape, " \n rnn states are \n", np.array(rnn_states).shape, "\n rnn states critic are \n", np.array(rnn_states_critic).shape, "\n actions env are \n", len(actions_env))
-        values = np.array(values).squeeze(-1).transpose(1, 0, 2)
-        actions = np.array(actions).squeeze(-1).transpose(1, 0, 2)
-        action_log_probs = np.array(action_log_probs).transpose(1, 0, 2)
-        rnn_states = np.array(rnn_states).transpose(1, 0, 2, 3)
-        rnn_states_critic = np.array(rnn_states_critic).transpose(1, 0, 2, 3)
-        print("AFTER SQUEEZING\n values are \n", values.shape, "\n actions are \n", actions.shape, "\n action log probs are \n ", action_log_probs.shape, " \n rnn states are \n", rnn_states.shape, "\n rnn states critic are \n", rnn_states_critic.shape, "\n actions env are \n", len(actions_env))
-        print(f"size of values {values.shape} size of actions {actions.shape} size of action log probs {action_log_probs.shape} size of rnn states {rnn_states.shape} size of rnn states critic {rnn_states_critic.shape}")
+        #print("BEFORE SQUEEZING \n values are \n", np.array(values).shape, "\n actions are \n", np.array(actions).shape, "\n action log probs are \n ", np.array(action_log_probs).shape, " \n rnn states are \n", np.array(rnn_states).shape, "\n rnn states critic are \n", np.array(rnn_states_critic).shape, "\n actions env are \n", len(actions_env))
+        values = np.array(values) if isinstance(values, list) else values
+        actions = np.array(actions) if isinstance(actions, list) else actions
+        action_log_probs = np.array(action_log_probs) if isinstance(action_log_probs, list) else action_log_probs
+        rnn_states = np.array(rnn_states) if isinstance(rnn_states, list) else rnn_states
+        rnn_states_critic = np.array(rnn_states_critic) if isinstance(rnn_states_critic, list) else rnn_states_critic
+
+        values = values.squeeze(-1).transpose(1, 0, 2)
+        if actions.ndim==3:
+            actions = actions.transpose(2, 0, 1)
+        else:
+            actions = actions.squeeze(-1).transpose(1, 0, 2)
+        if action_log_probs.ndim==2:
+           action_log_probs = action_log_probs[:, np.newaxis, :]
+        action_log_probs = action_log_probs.transpose(1, 0, 2)
+        if rnn_states.ndim==3:
+            rnn_states =rnn_states[:, np.newaxis, :, :]
+        rnn_states = rnn_states.transpose(1, 0, 2, 3)
+        #print(f"size of rnn state critic {rnn_states_critic.shape}")
+        if rnn_states_critic.ndim==3:
+            rnn_states_critic = rnn_states_critic[:, np.newaxis, :, :]
+        rnn_states_critic = rnn_states_critic.transpose(1, 0, 2, 3)
+        #print("AFTER SQUEEZING\n values are \n", values.shape, "\n actions are \n", actions.shape, "\n action log probs are \n ", action_log_probs.shape, " \n rnn states are \n", rnn_states.shape, "\n rnn states critic are \n", rnn_states_critic.shape, "\n length of actions env \n", len(actions_env))
+        #print(f"size of values {values.shape} size of actions {actions.shape} size of action log probs {action_log_probs.shape} size of rnn states {rnn_states.shape} size of rnn states critic {rnn_states_critic.shape}")
         #values (1, num_agent, n_rollout)
         #ctions (1, num_agent, n_rollout)
         #rnn states (1, num_agent, n_rollout, hidden_size)

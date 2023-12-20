@@ -121,6 +121,7 @@ class R_Actor(nn.Module):
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
                actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
                print(f"actor features shape after normal RNN in an actor network (lstm).... {actor_features.shape} {rnn_states.shape}")
+               rnn_states =rnn_states.permute(1,0,2)
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
         return actions, action_log_probs, rnn_states
@@ -261,13 +262,16 @@ class R_Critic(nn.Module):
             critic_features = self.base(cent_obs)
             print(f"critic features shape before rnn.... {critic_features.shape} {rnn_states.shape}")
             critic_features, rnn_states = self.rnn(critic_features, rnn_states)
-            print(f"critic features shape after rnn using attention.... {critic_features.shape} {rnn_states[0].shape}")
+            print(f"critic features shape after rnn using attention.... {critic_features.shape} {rnn_states[0].shape}") # torch.Size([1, rollout,hidden_size]) torch.Size([1, rollout, hidden_size])
         else:
 
            critic_features = self.base(cent_obs)
+           print(f"critic features shape before rnn using (normal rnn).... {critic_features.shape} {rnn_states.shape}")
            if self._use_naive_recurrent_policy or self._use_recurrent_policy:
               critic_features, rnn_states = self.rnn(critic_features, rnn_states, masks)
-              print(f"critic features shape after rnn using (normal rnn).... {critic_features.shape} {rnn_states.shape}")
+              print(f"critic features shape after rnn using (normal rnn).... {critic_features.shape} {rnn_states.shape}") #torch.Size([rollout,hidden_size]) torch.Size([rollout, 1, hidden_size])
+              critic_features = critic_features.unsqueeze(0)
+              rnn_states = rnn_states.permute(1,0,2)
         values = self.v_out(critic_features)
 
         return values, rnn_states
