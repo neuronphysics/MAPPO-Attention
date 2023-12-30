@@ -57,7 +57,7 @@ class CNNLayer(nn.Module):
             init_(nn.Linear(hidden_size, hidden_size)), active_func)
 
     def forward(self, x):
-        x = x / 255.0
+        x = 2.*(x / 255.0)- 1
         print(f"shape of the input to CNN base {x.shape}")
         x = x.permute(0, 3, 1, 2)  # Rearrange the dimensions
         x = self.cnn(x)
@@ -469,6 +469,7 @@ class Encoder(nn.Module):
                     ))
                 #encoder_layers.append(PrintLayer())
 
+        print("ENCODER LAYERS, cnn.py: ",encoder_layers)
         self.encoder = nn.Sequential(*encoder_layers)
         self.out_channels = out_channels
         # Calculate shape of the flattened image
@@ -478,8 +479,9 @@ class Encoder(nn.Module):
         
         # Position embeddings
         position_encoding_kwargs = dict(
-            concat_pos=True, max_resolution=(self.img_height*out_channels//2 , self.img_width*out_channels//2), num_bands=10, sine_only=False
+            concat_pos=True, max_resolution=(self.img_height*out_channels//2 , self.img_width*out_channels//2), num_bands=16, sine_only=False
         )
+        print("ENCODING, cnn.py: ",position_encoding_kwargs)
         trainable_position_encoding_kwargs = dict(num_channels=out_channels, index_dims=1)
         self.position_embeddings, self.positions_projection = build_position_encoding(
             position_encoding_type=position_encoding_type,
@@ -541,7 +543,7 @@ class Encoder(nn.Module):
         This method expects the inputs to always have channels as last dimension.
         """
         batch_size = inputs.shape[0]
-        
+        print(f"input shape in _build_network_inputs {inputs.shape}")
         index_dims = inputs.shape[1:-1]
         indices = np.prod(index_dims).item()
         #print(f"Inside _build_network_inputs: {inputs.shape} batch_size: {batch_size}, index_dims: {index_dims} indices {indices}")
@@ -571,21 +573,28 @@ class Encoder(nn.Module):
             inputs_with_pos = inputs + pos_enc
         return inputs_with_pos, inputs
 
-
+    def normalize(slef, image):
+        return 2*(image / 255.0)- 1
+    
     def forward(self, X: torch.Tensor, network_input_is_1d: bool = True):
-        # Encode (note ensure input tensor has the shape [batch_size, channels, height, width])    
-        #print(f"CNN module : check the size of input {X.shape}")
+        # Encode (note ensure input tensor has the shape [batch_size, channels, height, width])   
+        print(f"size of input to CNN module {X.shape}") 
+        X=self.normalize(X) #normalize the input image to scale between 0,1
         if X.shape[1] != self.nchannel:
            X = X.permute(0, 3, 1, 2)
         #print(f"CNN module permuted iput shape {X.shape}")
         inputs = self.encoder(X)
+        print(f"size of output of encoder (CNN) {inputs.shape}")
         #print (f"size of output of encoder (CNN) {inputs.shape}")
         if inputs.ndim ==4 :
            # move channels to last dimension, as the _build_network_inputs method below expects this
            inputs = torch.permute(inputs, (0, 2, 3, 1))
         # Get latent variables
         #print(f"Before _build_network_inputs: inputs shape: {inputs.shape}")
+        print(f"size of output of encoder (CNN) before _build_network_inputs {inputs.shape}")
+        print(network_input_is_1d,"network_input_is_1d")
         inputs, inputs_without_pos = self._build_network_inputs(inputs, network_input_is_1d)
+        print(f"size of output of encoder (CNN) after _build_network_inputs {inputs.shape}")
         return self.linear_layers(inputs)
             
     

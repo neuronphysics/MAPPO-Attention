@@ -82,11 +82,10 @@ class RNNModel(nn.Module):
         if False:
             self.decoder = nn.Linear(nhid[-1], ntoken)
             if tie_weights:
-            	if nhid[-1] != ninp:
-            		raise ValueError('When using the tied flag, nhid must be equal to emsize')
-            	else:
-            		self.decoder.weight = self.encoder.weight
-
+                if nhid[-1] != ninp:
+                    raise ValueError('When using the tied flag, nhid must be equal to emsize')
+                else:
+                    self.decoder.weight = self.encoder.weight
         self.init_weights()
 
 
@@ -136,7 +135,9 @@ class RNNModel(nn.Module):
                     if idx_step % self.layer_dilation[idx_layer] == 0:
                         if idx_step % self.block_dilation[idx_layer] == 0:
                             print(f"RNNModel class RIM --- hx {hx.shape} {idx_step} emb size : {emb.shape}")
-                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = True, message_to_rule_network = message_to_rule_network)
+                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx.to(input.device), cx.to(input.device), idx_step, do_block = True, message_to_rule_network = message_to_rule_network)
+                            #RuntimeError: shape '[4, 2, 1, 64]' is invalid for input of size 1024
+                            
                             entropy += entropy_
                         else:
                             hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = False, message_to_rule_network = message_to_rule_network)

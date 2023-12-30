@@ -65,6 +65,7 @@ class RIM(nn.Module):
 		self.num_directions = 2 if bidirectional else 1
 		self.rnn_cell = rnn_cell
 		self.num_units = num_units
+		self.hs = hidden_size
 		self.hidden_size = hidden_size // num_units
 		self.batch_first = batch_first
 		if self.num_directions == 2:
@@ -74,12 +75,24 @@ class RIM(nn.Module):
 			self.rimcell = nn.ModuleList([RNNModelRim(rnn_cell, input_size, input_size, [hidden_size], 1,  num_blocks = [num_units], topk = [k], do_gru = rnn_cell == 'GRU', version=version, attention_out=attention_out, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, dropout = dropout, step_att = step_att, rule_selection = rule_selection).to(self.device) if i == 0 else
 				RNNModelRim(rnn_cell, hidden_size, hidden_size, [hidden_size], 1,  num_blocks = [num_units], topk = [k], do_gru = rnn_cell == 'GRU', version=version, attention_out=attention_out, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, dropout = dropout, step_att = step_att, rule_selection = rule_selection).to(self.device) for i in range(self.n_layers)])
 
+
 	def rim_transform_hidden(self, hs):
+		h, c = hs  # Unpack the tuple
 		hiddens = []
-		h_split = torch.split(hs[0], 1, dim = 0)
-		c_split = torch.split(hs[1], 1, dim = 0)
-		for h, c in zip(h_split, c_split):
-			hiddens.append((h.squeeze(0), c.squeeze(0)))
+
+		# Ensure h and c are tensors and have the same batch size
+		if not (isinstance(h, torch.Tensor) and isinstance(c, torch.Tensor)):
+			raise ValueError("Both h and c must be torch.Tensor objects.")
+		if h.size(0) != c.size(0):
+			raise ValueError("The batch sizes of h and c must be the same.")
+		print(f"rim transform hidden modularity h {h.shape} c {c.shape}")
+		# Split and reformat
+		h_split = torch.split(h, 1, dim=0)  # Split along batch dimension
+		c_split = torch.split(c, 1, dim=0)
+		print(f"rim transform hidden modularity h split {h_split[0].shape} c split {c_split[0].shape}")
+		for h_single, c_single in zip(h_split, c_split):
+			hiddens.append((h_single.squeeze(0), c_single.squeeze(0)))
+
 		return hiddens
 
 	def rim_inverse_transform_hidden(self, hs):
@@ -95,7 +108,7 @@ class RIM(nn.Module):
 	def layer(self, rim_layer, x, h, c = None, direction = 0, message_to_rule_network = None):
 		
 		batch_size = x.size(1)
-		print(f"layer bs modularity {batch_size}, data {x.shape}")
+		print(f"layer bs modularity {batch_size}, data {x.shape}, hidden {h.shape}, c {c.shape} ")
 		xs = list(torch.split(x, 1, dim = 0))
 		if direction == 1: xs.reverse()
 		xs = torch.cat(xs, dim = 0)
@@ -131,6 +144,8 @@ class RIM(nn.Module):
 			return outputs, hs.view(batch_size, -1)
 		
 	def forward(self, x, hidden = None, message_to_rule_network = None):
+		
+     
 		"""
 		Input: x (seq_len, batch_size, input_size
 		       hidden tuple[(num_layers * num_directions, batch_size, hidden_size)] (Optional)
@@ -138,18 +153,23 @@ class RIM(nn.Module):
 		        hidden tuple[(num_layers * num_directions, batch_size, hidden_size)]
 		"""
 		print(f"Input RIM modularity forward {x.shape} hidden {hidden.shape}")
+		self.batch_dim, self.batch_size = next((dim, size) for dim, size in enumerate(x.size()) if size != self.hs)
+		print(f"batch size in layer SCOFF {self.batch_size} ")
 		if self.batch_first:
 			x = x.transpose(0, 1)
 		h, c = None, None
 		if hidden is not None:
-			if isinstance(hidden, Tuple) and len(hidden)==2:
-			   h, c = hidden[0], hidden[1]
+			if isinstance(hidden, tuple) and len(hidden) == 2:
+				h, c = hidden[0], hidden[1]
 			else:
 				h, c = hidden, hidden
-		hs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if h is None else h
+		print(f"RIM modularity before enter layer: hs {h.shape}")
+		#hs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if h is None else h
+		hs = h.unsqueeze(0).expand(self.n_layers * self.num_directions, -1, -1).to(h.device) if h is not None and h.unsqueeze(1).dim() == 2 else (h if h is not None and h.unsqueeze(1).dim()==3 else torch.zeros(self.n_layers * self.num_directions, self.batch_size, self.hidden_size * self.num_units).to(self.device))
 		cs = None
 		if self.rnn_cell == 'LSTM':
-			cs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if c is None else c
+			#cs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if c is None else c
+			cs = c.unsqueeze(0).expand(self.n_layers * self.num_directions, -1, -1).to(c.device) if c is not None and c.unsqueeze(1).dim() == 2 else (c if c is not None and c.unsqueeze(1).dim()==3 else torch.zeros(self.n_layers * self.num_directions, self.batch_size, self.hidden_size * self.num_units).to(self.device))
 		else:
 			cs = hs
 		print(f"RIM modularity before enter layer: hs {hs.shape}")
@@ -158,9 +178,9 @@ class RIM(nn.Module):
 		entropy = 0
 		for n in range(self.n_layers):
 			idx = n * self.num_directions
-			print(f"Inside modularity scrip and RIM class forwward before layer-- input {x.shape} and hs {hs[:,idx].unsqueeze(0).shape} and cs {cs[:,idx].unsqueeze(0).shape} idx {idx} new_hs {new_hs[:,idx].shape}")
-			x_fw, new_hs[:,idx], new_cs[:,idx], entropy_ = self.layer(self.rimcell[idx], x.transpose(1,0).unsqueeze(0),
-																hs[:,idx].unsqueeze(0), cs[:,idx].unsqueeze(0),
+			print(f"Inside modularity scrip and RIM class forwward before layer-- input {x.shape} and hs {hs[idx,:].unsqueeze(0).shape} and cs {cs[idx,:].unsqueeze(0).shape} idx {idx} new_hs {new_hs[:,idx].shape}")
+			x_fw, new_hs[idx,:], new_cs[idx,:], entropy_ = self.layer(self.rimcell[idx], x.transpose(1,0).unsqueeze(0),
+																hs[idx,:].unsqueeze(0), cs[idx,:].unsqueeze(0),
 																message_to_rule_network=message_to_rule_network)
 			print(f"after layer RIM modularity x {x_fw.shape} new hs {new_hs[idx].shape}")
 			entropy += entropy_
@@ -247,22 +267,22 @@ class RIMv2(nn.Module):
 				RNNModelRimv2(rnn_cell, hidden_size, hidden_size, [hidden_size], 1,  num_blocks = [num_units], topk = [k], do_gru = rnn_cell == 'GRU', version=version, attention_out=attention_out, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, dropout = dropout, step_att = step_att, rule_selection = rule_selection, rule_dim = rule_dim).to(self.device) for i in range(self.n_layers)])
 
 	def rim_transform_hidden(self, hs):
-	    hiddens = []
-	    h_split = torch.split(hs[0], 1, dim = 0)
-	    c_split = torch.split(hs[1], 1, dim = 0)
-	    for h, c in zip(h_split, c_split):
-	        hiddens.append((h.squeeze(0), c.squeeze(0)))
-	    return hiddens
+		hiddens = []
+		h_split = torch.split(hs[0], 1, dim = 0)
+		c_split = torch.split(hs[1], 1, dim = 0)
+		for h, c in zip(h_split, c_split):
+			hiddens.append((h.squeeze(0), c.squeeze(0)))
+		return hiddens
 
 	def rim_inverse_transform_hidden(self, hs):
-	    h, c = [], []
-	    for h_ in hs:
-	        h.append(h_[0])
-	        c.append(h_[1])
-	    h = torch.stack(h, dim = 0)
-	    c = torch.stack(c, dim = 0)
+		h, c = [], []
+		for h_ in hs:
+			h.append(h_[0])
+			c.append(h_[1])
+		h = torch.stack(h, dim = 0)
+		c = torch.stack(c, dim = 0)
 
-	    return (h, c)
+		return (h, c)
 
 	def layer(self, rim_layer, x, h, c = None, direction = 0, message_to_rule_network = None):
 		batch_size = x.size(1)

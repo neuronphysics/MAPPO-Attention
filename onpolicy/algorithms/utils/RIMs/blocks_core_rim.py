@@ -23,8 +23,22 @@ Core blocks module.  Takes:
 class BlocksCore(nn.Module):
 
 
-    def __init__(self, ninp, nhid, num_blocks_in, num_blocks_out, topkval, step_att, do_gru, num_modules_read_input=2, device=None,
-        version = 0, attention_out = 32 , num_rules = 0, rule_time_steps = 0, application_option = 3, rule_selection = 'gumble'):
+    def __init__(self, 
+                 ninp, 
+                 nhid, 
+                 num_blocks_in, 
+                 num_blocks_out, 
+                 topkval, 
+                 step_att, 
+                 do_gru, 
+                 num_modules_read_input=2, 
+                 device=None,
+                 version = 0, 
+                 attention_out = 32 , 
+                 num_rules = 0, 
+                 rule_time_steps = 0, 
+                 application_option = 3, 
+                 rule_selection = 'gumble'):
         super(BlocksCore, self).__init__()
         self.nhid = nhid
         self.num_blocks_in = num_blocks_in
@@ -45,10 +59,13 @@ class BlocksCore(nn.Module):
         print("block_size_in: ", self.block_size_in)
         print("block_size_out: ", self.block_size_out)
         print("topkval: ", topkval)
+        print("num_modules_read_input: ", num_modules_read_input)
         print("communication is happening", self.step_att)
         print("inp heads", self.inp_heads)
 
-        self.mha = MultiHeadAttention(n_head=4, d_model_read=self.block_size_out, d_model_write=self.block_size_out, d_model_out=self.block_size_out, d_k=32, d_v=32, num_blocks_read=self.num_blocks_out, num_blocks_write=self.num_blocks_out, topk=self.num_blocks_out, grad_sparse=False)
+        self.mha = MultiHeadAttention(n_head=4, d_model_read=self.block_size_out, d_model_write=self.block_size_out, 
+                                      d_model_out=self.block_size_out, d_k=32, d_v=32, 
+                                      num_blocks_read=self.num_blocks_out, num_blocks_write=self.num_blocks_out, topk=self.num_blocks_out, grad_sparse=False)
 
 
         self.version = version
@@ -56,9 +73,9 @@ class BlocksCore(nn.Module):
             #It supports the flexibility of each module having a sperate encoder.
             self.att_out = self.block_size_out * 1
             self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out,
-                                            d_model_write=int(self.nhid / self.num_blocks_out),
-                                            d_model_out=self.att_out, d_k=64, d_v=self.att_out, num_blocks_read=1,
-                                            num_blocks_write=num_blocks_in + 1, residual=False,
+                                            d_model_write=self.block_size_in,
+                                            d_model_out=self.att_out, d_k=64, d_v=self.att_out, num_blocks_read=self.num_blocks_out,
+                                            num_blocks_write=num_modules_read_input, residual=False,
                                             topk=self.num_blocks_in + 1, grad_sparse=False, skip_write=True)
 
         else:
@@ -69,7 +86,7 @@ class BlocksCore(nn.Module):
             self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out,
                                               d_model_write=ninp, d_model_out=self.att_out,
                                               d_k=64, d_v=d_v, num_blocks_read=num_blocks_out, 
-                                              num_blocks_write=self.num_modules_read_input,residual=False,
+                                              num_blocks_write=self.num_modules_read_input, residual=False,
                                               dropout=0.1, topk=self.num_blocks_in+1, grad_sparse=False, skip_write=True)
 
 
@@ -115,10 +132,10 @@ class BlocksCore(nn.Module):
         print(f"blocks_core_rim BlocksCore input {inp.shape} h: {hx.shape} c: {cx.shape} ")
         hxl = []
         cxl = []
-        inp = inp.unsqueeze(0)
+        #inp = inp.unsqueeze(0)
 
         inp_use = inp #layer_input[idx_step]
-        batch_size = inp.shape[1]
+        batch_size = inp.shape[0]
         sz_b = batch_size
         print(f"the batch size in blocks_core_rim {batch_size}")
         def _process_input(_input):
@@ -150,22 +167,23 @@ class BlocksCore(nn.Module):
              #inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.block_size_in))
              print(f"size of inp_use: {inp_use.shape}")
              print(f" num_blocks_in {self.num_blocks_in}, ninp { self.ninp}")
-             inp_use = inp_use.reshape((inp_use.shape[1], self.num_blocks_in, self.ninp))
+             inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.ninp))
 
              inp_use = inp_use.repeat(1,self.num_modules_read_input-1,1)
              inp_use = torch.cat([torch.zeros_like(inp_use[:,0:1,:]), inp_use], dim=1)
-             batch_size = inp.shape[0]
+             #batch_size = inp.shape[0]
              print(f"Shape of hx before reshaping: {hx.shape}")
-             if hx.dim()==1:
-                hx=hx.unsqueeze(0)
+             #if hx.dim()==1:
+             #   hx=hx.unsqueeze(0)
              print(f"self.num_blocks_out: {self.num_blocks_out}")
              print(f"self.block_size_out: {self.block_size_out}")
-
+             print(f"Shape of hx after reshaping: {hx.shape}")
              inp_use, iatt, _ = self.inp_att(hx.reshape((hx.shape[0], self.num_blocks_out, self.block_size_out)), inp_use, inp_use)
              iatt = iatt.reshape((self.inp_heads, sz_b, iatt.shape[1], iatt.shape[2]))
              iatt = iatt.mean(0)
 
              inp_use = inp_use.reshape((inp_use.shape[0], self.att_out*self.num_blocks_out))
+        print(f"blocks_core_rim BlocksCore inp_use {inp_use.shape} h: {hx.shape} c: {cx.shape} ")
 
         #inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.ninp))
         #inp_use = inp_use.repeat(1,self.num_modules_read_input-1,1)

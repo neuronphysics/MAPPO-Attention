@@ -34,7 +34,7 @@ class R_Actor(nn.Module):
         obs_shape = get_shape_from_obs_space(obs_space)
         
         ##Zahra added
-        self.use_attention = False
+        self.use_attention = True
         #self.use_attention = args.use_attention
         self._attention_module = args.attention_module
         print(f"value of use attention is {self.use_attention} ")
@@ -101,19 +101,20 @@ class R_Actor(nn.Module):
         :return rnn_states: (torch.Tensor) updated RNN hidden states.
         """
         obs = check(obs).to(**self.tpdv)
+        print(f"actor obs shape in forward {obs.shape}")
         rnn_states = check(rnn_states).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
             
         if self.use_attention and len(self._obs_shape) >= 3:
+            print(f"actor features shape of shared observation before cnn.... {obs.shape} {masks.shape}")
             actor_features = self.base(obs)
-            
-            
-            print(f"actor features shape.... {actor_features.shape} {rnn_states.shape}")#torch.Size([9, 64]) torch.Size([9, 1, 64])
+            print(f"actor features shape before rnn.... {actor_features.shape} {rnn_states.shape}")#torch.Size([9, 64]) torch.Size([9, 1, 64])
             actor_features, rnn_states = self.rnn(actor_features, rnn_states)
             print(f"actor features shape after normal RNN in an actor network (attention).... {actor_features[0].shape} {rnn_states[0].shape}")
-
+            if self._attention_module == "RIM":
+                rnn_states= tuple( t.permute(1,0,2) for t in rnn_states )
         else:
 
             actor_features = self.base(obs)
@@ -123,7 +124,7 @@ class R_Actor(nn.Module):
                print(f"actor features shape after normal RNN in an actor network (lstm).... {actor_features.shape} {rnn_states.shape}")
                rnn_states =rnn_states.permute(1,0,2)
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
-
+        
         return actions, action_log_probs, rnn_states
 
     def evaluate_actions(self, obs, rnn_states, action, masks, available_actions=None, active_masks=None):
@@ -140,7 +141,9 @@ class R_Actor(nn.Module):
         :return action_log_probs: (torch.Tensor) log probabilities of the input actions.
         :return dist_entropy: (torch.Tensor) action distribution entropy for the given inputs.
         """
+        print(f"actor obs shape in evaluate actions before change{obs.shape}")
         obs = check(obs).to(**self.tpdv)
+        print(f"actor obs shape in evaluate actions after change{obs.shape}")
         rnn_states = check(rnn_states).to(**self.tpdv)
         action = check(action).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
@@ -195,7 +198,7 @@ class R_Critic(nn.Module):
         
         ## Zahra added
         self._use_version_scoff = args.use_version_scoff
-        self.use_attention = False
+        self.use_attention = True
         #self.use_attention = args.use_attention
         self._attention_module = args.attention_module
         
@@ -255,6 +258,7 @@ class R_Critic(nn.Module):
         :return rnn_states: (torch.Tensor) updated RNN hidden states.
         """
         cent_obs = check(cent_obs).to(**self.tpdv)
+        print(f"critic obs shape in forward {cent_obs.shape}")
         rnn_states = check(rnn_states).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
         if self.use_attention and len(self._obs_shape) == 3:
@@ -263,6 +267,8 @@ class R_Critic(nn.Module):
             print(f"critic features shape before rnn.... {critic_features.shape} {rnn_states.shape}")
             critic_features, rnn_states = self.rnn(critic_features, rnn_states)
             print(f"critic features shape after rnn using attention.... {critic_features.shape} {rnn_states[0].shape}") # torch.Size([1, rollout,hidden_size]) torch.Size([1, rollout, hidden_size])
+            if self._attention_module == "RIM":
+               rnn_states = tuple( t.permute(1,0,2) for t in rnn_states )
         else:
 
            critic_features = self.base(cent_obs)
@@ -271,7 +277,8 @@ class R_Critic(nn.Module):
               critic_features, rnn_states = self.rnn(critic_features, rnn_states, masks)
               print(f"critic features shape after rnn using (normal rnn).... {critic_features.shape} {rnn_states.shape}") #torch.Size([rollout,hidden_size]) torch.Size([rollout, 1, hidden_size])
               critic_features = critic_features.unsqueeze(0)
+              
               rnn_states = rnn_states.permute(1,0,2)
         values = self.v_out(critic_features)
-
+        
         return values, rnn_states
