@@ -124,7 +124,8 @@ class R_Actor(nn.Module):
             print(f"actor features shape.... {actor_features.shape} {rnn_states.shape}")#torch.Size([9, 64]) torch.Size([9, 1, 64])
             actor_features, rnn_states = self.rnn(actor_features, rnn_states)
             print(f"actor features shape after normal RNN in an actor network (attention).... {actor_features[0].shape} {rnn_states[0].shape}")
-
+            if self._attention_module == "RIM":
+                rnn_states= tuple( t.permute(1,0,2) for t in rnn_states )
         else:
 
             actor_features = self.base(obs)
@@ -274,6 +275,8 @@ class R_Critic(nn.Module):
             print(f"critic features shape before rnn.... {critic_features.shape} {rnn_states.shape}")
             critic_features, rnn_states = self.rnn(critic_features, rnn_states)
             print(f"critic features shape after rnn using attention.... {critic_features.shape} {rnn_states[0].shape}") # torch.Size([1, rollout,hidden_size]) torch.Size([1, rollout, hidden_size])
+            if self._attention_module == "RIM":
+                rnn_states= tuple( t.permute(1,0,2) for t in rnn_states )
         else:
 
            critic_features = self.base(cent_obs)
