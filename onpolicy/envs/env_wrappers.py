@@ -13,6 +13,9 @@ from multiprocessing import Process, Pipe, Queue
 import logging
 import time
 
+def print(*args, **kwargs):
+    pass
+
 class CloudpickleWrapper(object):
     """
     Uses cloudpickle to serialize contents (otherwise multiprocessing tries to use pickle)
@@ -806,13 +809,13 @@ class DummyVecEnv(ShareVecEnv):
         print(f"we are inside the DummyVecEnv class and step_wait func. results of step are {results}")
         obs, rews, dones, infos = map(np.array, zip(*results))
 
-        for (i, done) in enumerate(dones):
-            if 'bool' in done.__class__.__name__:
-                if done:
-                    obs[i] = self.envs[i].reset()
-            else:
-                if np.all(done):
-                    obs[i] = self.envs[i].reset()
+        # for (i, done) in enumerate(dones):
+        #     if 'bool' in done.__class__.__name__:
+        #         if done:
+        #             obs[i] = self.envs[i].reset()
+        #     else:
+        #         if np.all(done):
+        #             obs[i] = self.envs[i].reset()
 
         self.actions = None
         return obs, rews, dones, infos

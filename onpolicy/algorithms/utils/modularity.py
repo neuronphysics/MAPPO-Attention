@@ -85,11 +85,11 @@ class RIM(nn.Module):
 			raise ValueError("Both h and c must be torch.Tensor objects.")
 		if h.size(0) != c.size(0):
 			raise ValueError("The batch sizes of h and c must be the same.")
-		print(f"rim transform hidden modularity h {h.shape} c {c.shape}")
+		#print(f"rim transform hidden modularity h {h.shape} c {c.shape}")
 		# Split and reformat
 		h_split = torch.split(h, 1, dim=0)  # Split along batch dimension
 		c_split = torch.split(c, 1, dim=0)
-		print(f"rim transform hidden modularity h split {h_split[0].shape} c split {c_split[0].shape}")
+		#print(f"rim transform hidden modularity h split {h_split[0].shape} c split {c_split[0].shape}")
 		for h_single, c_single in zip(h_split, c_split):
 			hiddens.append((h_single.squeeze(0), c_single.squeeze(0)))
 
@@ -108,7 +108,7 @@ class RIM(nn.Module):
 	def layer(self, rim_layer, x, h, c = None, direction = 0, message_to_rule_network = None):
 		
 		batch_size = x.size(1)
-		print(f"layer bs modularity {batch_size}, data {x.shape}, hidden {h.shape}, c {c.shape} ")
+		#print(f"layer bs modularity {batch_size}, data {x.shape}, hidden {h.shape}, c {c.shape} ")
 		xs = list(torch.split(x, 1, dim = 0))
 		if direction == 1: xs.reverse()
 		xs = torch.cat(xs, dim = 0)
@@ -116,7 +116,7 @@ class RIM(nn.Module):
 		hidden = self.rim_transform_hidden((h, c))
 		entropy = 0
 		
-		print(f"modularity RIM Layer xs {xs.shape} hidden {hidden[0][0].shape}")
+		#print(f"modularity RIM Layer xs {xs.shape} hidden {hidden[0][0].shape}")
 		outputs, hidden, _, _, _, entropy_ = rim_layer(xs, hidden, message_to_rule_network = message_to_rule_network)
 		entropy += entropy_
 
@@ -131,13 +131,13 @@ class RIM(nn.Module):
 		#	hs, cs = rim_layer(x, hs, cs)
 		#	outputs.append(hs.view(1, batch_size, -1))
 		hs, cs = self.rim_inverse_transform_hidden(hidden)
-		print(f"RIM Modularity hs :{hs.shape}")
+		#print(f"RIM Modularity hs :{hs.shape}")
 
 		outputs = list(torch.split(outputs, 1, dim = 0))
 
 		if direction == 1: outputs.reverse()
 		outputs = torch.cat(outputs, dim = 0)
-		print(f"RIM modularity layer --- output {outputs.shape} hs {hs.view(batch_size, -1).shape}, cs {cs.view(batch_size, -1).shape}")
+		#print(f"RIM modularity layer --- output {outputs.shape} hs {hs.view(batch_size, -1).shape}, cs {cs.view(batch_size, -1).shape}")
 		if c is not None:
 			return outputs, hs.view(batch_size, -1), cs.view(batch_size, -1), entropy
 		else:
@@ -152,9 +152,9 @@ class RIM(nn.Module):
 		Output: outputs (batch_size, seqlen, hidden_size *  num_directions)
 		        hidden tuple[(num_layers * num_directions, batch_size, hidden_size)]
 		"""
-		print(f"Input RIM modularity forward {x.shape} hidden {hidden.shape}")
+		#print(f"Input RIM modularity forward {x.shape} hidden {hidden.shape}")
 		self.batch_dim, self.batch_size = next((dim, size) for dim, size in enumerate(x.size()) if size != self.hs)
-		print(f"batch size in layer SCOFF {self.batch_size} ")
+		#print(f"batch size in layer SCOFF {self.batch_size} ")
 		if self.batch_first:
 			x = x.transpose(0, 1)
 		h, c = None, None
@@ -163,7 +163,7 @@ class RIM(nn.Module):
 				h, c = hidden[0], hidden[1]
 			else:
 				h, c = hidden, hidden
-		print(f"RIM modularity before enter layer: hs {h.shape}")
+		#print(f"RIM modularity before enter layer: hs {h.shape}")
 		#hs = torch.zeros(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(self.device) if h is None else h
 		hs = h.unsqueeze(0).expand(self.n_layers * self.num_directions, -1, -1).to(h.device) if h is not None and h.unsqueeze(1).dim() == 2 else (h if h is not None and h.unsqueeze(1).dim()==3 else torch.zeros(self.n_layers * self.num_directions, self.batch_size, self.hidden_size * self.num_units).to(self.device))
 		cs = None
@@ -172,17 +172,17 @@ class RIM(nn.Module):
 			cs = c.unsqueeze(0).expand(self.n_layers * self.num_directions, -1, -1).to(c.device) if c is not None and c.unsqueeze(1).dim() == 2 else (c if c is not None and c.unsqueeze(1).dim()==3 else torch.zeros(self.n_layers * self.num_directions, self.batch_size, self.hidden_size * self.num_units).to(self.device))
 		else:
 			cs = hs
-		print(f"RIM modularity before enter layer: hs {hs.shape}")
+		#print(f"RIM modularity before enter layer: hs {hs.shape}")
 		new_hs = torch.zeros(hs.size()).to(hs.device)
 		new_cs = torch.zeros(cs.size()).to(cs.device)
 		entropy = 0
 		for n in range(self.n_layers):
 			idx = n * self.num_directions
-			print(f"Inside modularity scrip and RIM class forwward before layer-- input {x.shape} and hs {hs[idx,:].unsqueeze(0).shape} and cs {cs[idx,:].unsqueeze(0).shape} idx {idx} new_hs {new_hs[:,idx].shape}")
+			#print(f"Inside modularity scrip and RIM class forwward before layer-- input {x.shape} and hs {hs[idx,:].unsqueeze(0).shape} and cs {cs[idx,:].unsqueeze(0).shape} idx {idx} new_hs {new_hs[:,idx].shape}")
 			x_fw, new_hs[idx,:], new_cs[idx,:], entropy_ = self.layer(self.rimcell[idx], x.transpose(1,0).unsqueeze(0),
 																hs[idx,:].unsqueeze(0), cs[idx,:].unsqueeze(0),
 																message_to_rule_network=message_to_rule_network)
-			print(f"after layer RIM modularity x {x_fw.shape} new hs {new_hs[idx].shape}")
+			#print(f"after layer RIM modularity x {x_fw.shape} new hs {new_hs[idx].shape}")
 			entropy += entropy_
 			if self.num_directions == 2:
 				idx = n * self.num_directions + 1
@@ -198,12 +198,12 @@ class RIM(nn.Module):
 		#cs = torch.stack(cs, dim = 0)
 		if self.batch_first:
 			x = x.transpose(0, 1)
-		print(f" RIM class -- output {x.shape}, new hs {new_hs.shape}")
+		#print(f" RIM class -- output {x.shape}, new hs {new_hs.shape}")
 		#x = x.squeeze()
 		x= x.permute(1,0,2)
 		new_hs = new_hs.permute(1,0,2)
 		new_cs = new_cs.permute(1,0,2)
-		print(f" RIM class -- final output {x.shape}, new hs {new_hs.shape}")
+		#print(f" RIM class -- final output {x.shape}, new hs {new_hs.shape}")
 		
 		if self.rnn_cell == 'GRU':
 			return x, (new_hs, new_hs)
@@ -429,7 +429,7 @@ class SCOFF(nn.Module):
 				RNNModelScoff(rnn_cell, hidden_size, hidden_size, hidden_size, 1, n_templates = num_templates,  num_blocks = num_units, update_topk = k, use_gru = rnn_cell == 'GRU', num_rules = num_rules, version=version, attention_out=attention_out,rule_time_steps = rule_time_steps, perm_inv = perm_inv, application_option = application_option, dropout = dropout, step_att = step_att, rule_selection = rule_selection).to(self.device) for i in range(self.n_layers)])
 
 	def layer(self, rim_layer, x, h, c = None, direction = 0, message_to_rule_network = None):
-		print(f" inside layer (modularity) h:{h.size()} c:{c.size()}")
+		#print(f" inside layer (modularity) h:{h.size()} c:{c.size()}")
 		# Split x into a list of 1-batch tensors. This may not be necessary
 
 		xs = list(torch.split(x, 1, dim = self.hidden_dim))
@@ -480,7 +480,7 @@ class SCOFF(nn.Module):
 		"""
 		self.batch_dim, self.batch_size = next((dim, size) for dim, size in enumerate(x.size()) if size != self.hs)
 		self.hidden_dim = next((i for i, size in enumerate(x.size()) if size == self.hs), None)
-		print(f"batch size in layer SCOFF {self.batch_size} {self.batch_dim} {self.hidden_dim} {self.hs}, x:{x.size()} ")
+		#print(f"batch size in layer SCOFF {self.batch_size} {self.batch_dim} {self.hidden_dim} {self.hs}, x:{x.size()} ")
 		if self.batch_first:
 			x = x.transpose(0, 1)
 
@@ -509,7 +509,7 @@ class SCOFF(nn.Module):
   
 		new_hs = torch.zeros(hs.size()).to(hs.device)
 		new_cs = torch.zeros(cs.size()).to(cs.device)
-		print(f"new hs modularity:{new_hs.size()} cs:{new_cs.size()}")
+		#print(f"new hs modularity:{new_hs.size()} cs:{new_cs.size()}")
 		entropy = 0
 		for n in range(self.n_layers):
 			idx = n * self.num_directions
@@ -522,7 +522,7 @@ class SCOFF(nn.Module):
 				x = torch.cat((x_fw, x_bw), dim = 2)
 			else:
 				x = x_fw
-		print(f"new hs after layer:{new_hs.size()} cs:{new_cs.size()}")
+		#print(f"new hs after layer:{new_hs.size()} cs:{new_cs.size()}")
 		#hs = torch.stack(hs, dim = 0)
 		#cs = torch.stack(cs, dim = 0)
 
@@ -687,6 +687,6 @@ if __name__=='__main__':
 	rim = SCOFF('cuda', 20, 32, 4, 4, rnn_cell = 'LSTM', n_layers = 2, bidirectional = True, num_rules = 5, rule_time_steps = 3, perm_inv = True)
 	x = torch.rand(10, 2, 20).cuda()
 	out = rim(x)
-	print(out[0].size())
-	print(out[1][0].size())
-	print(out[1][1].size())
+	#print(out[0].size())
+	#print(out[1][0].size())
+	#print(out[1][1].size())

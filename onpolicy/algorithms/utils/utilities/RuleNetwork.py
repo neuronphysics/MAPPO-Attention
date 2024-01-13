@@ -118,7 +118,7 @@ class RuleNetwork(nn.Module):
 		self.masks = []
 		import math
 		rule_dim = rule_dim
-		print('RULE DIM:' + str(rule_dim))
+		#print('RULE DIM:' + str(rule_dim))
 		w =  0.01 * torch.randn(1, num_rules, rule_dim).to(self.device)
 
 
@@ -189,7 +189,7 @@ class RuleNetwork(nn.Module):
 		else:
 			print('using ArgMax for rule selction')
 
-		print('Using application option ' + str(self.design_config['application_option']))
+		#print('Using application option ' + str(self.design_config['application_option']))
 
 		self.gumble_temperature = 1.0
 

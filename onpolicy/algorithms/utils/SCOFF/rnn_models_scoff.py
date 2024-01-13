@@ -37,10 +37,10 @@ class RNNModel(nn.Module):
         self.memorytopk = memorytopk
         self.num_modules_read_input=num_modules_read_input
         self.inp_heads = inp_heads
-        print('top k blocks, using dropput', self.topk, dropout)
+        #print('top k blocks, using dropput', self.topk, dropout)
         self.use_cudnn_version = use_cudnn_version
         self.drop = nn.Dropout(dropout)
-        print('number of inputs, ninp', ninp)
+        #print('number of inputs, ninp', ninp)
         self.n_templates = n_templates
         self.do_rel = do_rel
         self.use_dropout = use_dropout
@@ -73,7 +73,7 @@ class RNNModel(nn.Module):
         self.num_blocks = num_blocks
         self.nhid = nhid
         self.block_size = nhid // self.num_blocks
-        print('number of blocks', self.num_blocks)
+        #print('number of blocks', self.num_blocks)
         self.discrete_input = discrete_input
         self.use_adaptive_softmax = use_adaptive_softmax
         self.bc_lst = None
@@ -85,7 +85,7 @@ class RNNModel(nn.Module):
         self.application_option = application_option
 
         self.perm_inv = perm_inv
-        print("Dropout rate", dropout)
+        #print("Dropout rate", dropout)
 
         self.num_rules = num_rules
         self.rule_time_steps = rule_time_steps
@@ -171,14 +171,14 @@ class RNNModel(nn.Module):
             #    self.pma = SetTransformer(self.block_size, 1, self.nhid)
 
             if tie_weights:
-                print('tying weights!')
+                #print('tying weights!')
                 if self.nhid != ninp:
                     raise ValueError('When using the tied flag, '
                                      'nhid must be equal to emsize')
                 self.decoder.weight = self.encoder.weight
 
         #self.init_blocks_weights()
-        print('-------Done Initializing Module----------')
+        #print('-------Done Initializing Module----------')
 
 
     def reparameterize(self, mu, logvar):
@@ -198,8 +198,8 @@ class RNNModel(nn.Module):
         #input inside SCOFF  embedding batch_size, hidden
         #comment the next line for MARL
         #timesteps, batch_size, _ = emb.shape
-        print(f'emb shape (rnn model scoff) {emb.shape}')
-        print(f'rnn scoff input shape:{input.shape} hidden shape:{hidden[0].shape}, nlayers: {self.nlayers}')
+        #print(f'emb shape (rnn model scoff) {emb.shape}')
+        #print(f'rnn scoff input shape:{input.shape} hidden shape:{hidden[0].shape}, nlayers: {self.nlayers}')
         
         hx, cx = hidden[0], hidden[1]
         hx  = hx.unsqueeze(0).repeat(self.nlayers, 1, 1)#new line
@@ -227,22 +227,22 @@ class RNNModel(nn.Module):
                 
                 for idx_step in range(timesteps):#input shape: timesteps, batch_size, hidden 
                     #input shape torch.Size([10, 64]), hx torch.Size([10, 64]) cx :torch.Size([10, 64])
-                    print(f"rnn model scoff before block core input shape {layer_input[idx_step].shape}, hidden size {hx.shape} cx :{cx.shape} index of loop {idx_step} {input.shape[0]}") 
+                    #print(f"rnn model scoff before block core input shape {layer_input[idx_step].shape}, hidden size {hx.shape} cx :{cx.shape} index of loop {idx_step} {input.shape[0]}") 
                     hx, cx, mask, bmask, temp_attn, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step,
                                                                  do_print=do_print, message_to_rule_network = message_to_rule_network)
-                    print(f"right after block core computation, hx shape {hx.shape}, cx shape {cx.shape}, mask shape {mask.shape}, bmask shape {bmask.shape}")
+                    #print(f"right after block core computation, hx shape {hx.shape}, cx shape {cx.shape}, mask shape {mask.shape}, bmask shape {bmask.shape}")
                     entropy += entropy_
                     output.append(hx)
                     masklst.append(mask)
                     bmasklst.append(bmask)
                     template_attn.append(temp_attn)
-                print(f"rnn model scoff output shape {len(output)}, {output[0].shape}, mask shape {masklst[0].shape}, bmask shape {bmasklst[0].shape}")
+                #print(f"rnn model scoff output shape {len(output)}, {output[0].shape}, mask shape {masklst[0].shape}, bmask shape {bmasklst[0].shape}")
                 output = torch.stack(output)
                 mask = torch.stack(masklst)
                 bmask = torch.stack(bmasklst)
                 if type(template_attn[0])!= type(None):
                     template_attn = torch.stack(template_attn)
-                print(f"output shape {output.shape}, mask shape {mask.shape}, bmask shape {bmask.shape}")
+                #print(f"output shape {output.shape}, mask shape {mask.shape}, bmask shape {bmask.shape}")
                 layer_input = output
                 new_hidden[0].append(hx)
                 new_hidden[1].append(cx)
@@ -250,7 +250,7 @@ class RNNModel(nn.Module):
             new_hidden[1] = torch.stack(new_hidden[1])
             hidden = tuple(new_hidden)
         block_mask = bmask.squeeze(0)
-        print(f"rnn model scoff input shape {block_mask.shape}, hidden size {new_hidden[0].shape} ") # block_mask shape: torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
+        #print(f"rnn model scoff input shape {block_mask.shape}, hidden size {new_hidden[0].shape} ") # block_mask shape: torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
         hx=hx.squeeze() 
         if input.dim() == 2:
             assert input.shape[0] == hx.shape[0]

@@ -21,22 +21,22 @@ class RNNModel(nn.Module):
         super(RNNModel, self).__init__()
 
         self.topk = topk
-        print('Top k Blocks: ', topk)
+        #print('Top k Blocks: ', topk)
 
         self.use_cudnn_version = use_cudnn_version
         self.drop = nn.Dropout(dropout)
 
-        print('Number of Inputs, ninp: ', ninp)
+        #print('Number of Inputs, ninp: ', ninp)
         if discrete_input:
             self.encoder = nn.Embedding(ntoken, ninp)
         else:
             self.encoder = nn.Linear(ntoken, ninp)
 
         self.num_blocks = num_blocks
-        print('Number of Blocks: ', self.num_blocks)
+        #print('Number of Blocks: ', self.num_blocks)
 
         self.nhid = nhid
-        print('Dimensions of Hidden Layers: ', nhid)
+        #print('Dimensions of Hidden Layers: ', nhid)
 
         self.discrete_input = discrete_input
         self.sigmoid = nn.Sigmoid()
@@ -45,7 +45,7 @@ class RNNModel(nn.Module):
 
         self.use_inactive = use_inactive
         self.blocked_grad = blocked_grad
-        print('Is the model using inactive blocks for higher representations? ', use_inactive)
+        #print('Is the model using inactive blocks for higher representations? ', use_inactive)
 
         if layer_dilation == -1:
             self.layer_dilation = [1]*nlayers
@@ -62,7 +62,7 @@ class RNNModel(nn.Module):
         self.bc_lst = []
         self.dropout_lst = []
 
-        print("Dropout rate", dropout)
+        #print("Dropout rate", dropout)
 
         for i in range(nlayers):
             if i==0:
@@ -94,7 +94,7 @@ class RNNModel(nn.Module):
         self.rnn_type = rnn_type
         self.nhid = nhid
         self.nlayers = nlayers
-        print('-------Done Initializing Module----------')
+        #print('-------Done Initializing Module----------')
 
     def init_weights(self):
         initrange = 0.1
@@ -108,11 +108,12 @@ class RNNModel(nn.Module):
         #print(f"rnn_models_rim RNNModel --- size of input before {input.shape}")
         #input= input.permute(0,2,1)
         
-        print(f"rnn_models_rim RNNModel --- size of input before encoder {input.shape}")
+        #print(f"rnn_models_rim RNNModel --- size of input before encoder {input.shape}")
         emb = self.drop(self.encoder(input))
+        emb = emb.to(input.device) # BEN ADDED
         weighted = None
         attn_vec = None
-        print(f"inside RNNModel RIM --- input {input.shape}, hidden {hidden[0][0].shape} emb {emb.shape}")
+        #print(f"inside RNNModel RIM --- input {input.shape}, hidden {hidden[0][0].shape} emb {emb.shape}")
         #encoder_final_state = weighted.squeeze(0)
         if True:
             # for loop implementation with RNNCell
@@ -130,17 +131,20 @@ class RNNModel(nn.Module):
                 output = []
                 t0 = time.time()
                 self.bc_lst[idx_layer].blockify_params()
-                hx, cx = hidden[int(idx_layer)][0], hidden[int(idx_layer)][1]
+                # hx, cx = hidden[int(idx_layer)][0], hidden[int(idx_layer)][1]
+                hx, cx = hidden[int(idx_layer)][0].to(input.device), hidden[int(idx_layer)][1].to(input.device) # BEN REPLACED
                 for idx_step in range(layer_input.shape[0]):
                     if idx_step % self.layer_dilation[idx_layer] == 0:
                         if idx_step % self.block_dilation[idx_layer] == 0:
-                            print(f"RNNModel class RIM --- hx {hx.shape} {idx_step} emb size : {emb.shape}")
-                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx.to(input.device), cx.to(input.device), idx_step, do_block = True, message_to_rule_network = message_to_rule_network)
+                            # print(f"RNNModel class RIM --- hx {hx.shape} {idx_step} emb size : {emb.shape}")
+                            # hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx.to(input.device), cx.to(input.device), idx_step, do_block = True, message_to_rule_network = message_to_rule_network)
+                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step].to(input.device), hx, cx, idx_step, do_block=True, message_to_rule_network=message_to_rule_network) # BEN REPLACED
                             #RuntimeError: shape '[4, 2, 1, 64]' is invalid for input of size 1024
                             
                             entropy += entropy_
                         else:
-                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = False, message_to_rule_network = message_to_rule_network)
+                            # hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = False, message_to_rule_network = message_to_rule_network)
+                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step].to(input.device), hx, cx, idx_step, do_block=False, message_to_rule_network=message_to_rule_network) # BEN REPLACED
                             entropy += entropy_
                     if idx_layer < self.nlayers - 1:
                         if self.use_inactive:
@@ -178,13 +182,13 @@ class RNNModel(nn.Module):
                     layer_input = output
 
                 new_hidden[idx_layer] = tuple((hx,cx))
-            print(f"RNNModel class RIM again size of hx {hx.shape}")
+            #print(f"RNNModel class RIM again size of hx {hx.shape}")
             hidden = new_hidden
         output = self.drop(output)
         dec = output.view(output.size(0) * output.size(1), self.nhid[-1])
         if False:
             dec = self.decoder(dec)
-        print(f"RNNModel class RIM decoder {dec.shape} out {output.size()}")
+        #print(f"RNNModel class RIM decoder {dec.shape} out {output.size()}")
         if calc_mask:
             return dec.view(output.size(0), output.size(1), dec.size(1)), hidden, extra_loss, masks, sample_masks, entropy
         else:

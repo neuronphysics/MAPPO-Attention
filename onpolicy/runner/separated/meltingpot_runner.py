@@ -37,9 +37,11 @@ class MeltingpotRunner(Runner):
         super(MeltingpotRunner, self).__init__(config)
        
     def run(self):
+        print('executing warmup function')
         self.warmup()   
 
         start = time.time()
+
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
 
         for episode in range(episodes):
@@ -157,7 +159,7 @@ class MeltingpotRunner(Runner):
             action = _t2n(action)
             # rearrange action
             player= f"player_{agent_id}"
-            print(f"meltingpot runner in collect - action log prob shape : {action_log_prob.shape} and action shape {action.shape}")
+            # print(f"meltingpot runner in collect - action log prob shape : {action_log_prob.shape} and action shape {action.shape}")
             if self.envs.action_space[player].__class__.__name__ == 'MultiDiscrete':
                 print(f"meltingpot_runner action type {self.envs.action_space[player].__class__.__name__}")
                 for i in range(self.envs.action_space[player].shape):
@@ -167,8 +169,8 @@ class MeltingpotRunner(Runner):
                     else:
                         action_env = np.concatenate((action_env, uc_action_env), axis=1)
             elif self.envs.action_space[player].__class__.__name__ == 'Discrete':
-                print(f"meltingpot_runner action type {self.envs.action_space[player].__class__.__name__}")
-                print(f"size of action in meltingpot runner {np.eye(self.envs.action_space[player].n)[action].shape}")
+                # print(f"meltingpot_runner action type {self.envs.action_space[player].__class__.__name__}")
+                # print(f"size of action in meltingpot runner {np.eye(self.envs.action_space[player].n)[action].shape}")
                 
                 var = np.eye(self.envs.action_space[player].n)[action]
                 
@@ -178,7 +180,7 @@ class MeltingpotRunner(Runner):
                 raise NotImplementedError
 
             
-            print(f"size of action in the collect function {action.shape}, rnn_state (tuple) {rnn_state[0].shape} rnn_state_critic {rnn_state_critic[0].shape}")
+            # print(f"size of action in the collect function {action.shape}, rnn_state (tuple) {rnn_state[0].shape} rnn_state_critic {rnn_state_critic[0].shape}")
             actions.append(action)
             temp_actions_env.append(action_env)
             action_log_probs.append(_t2n(action_log_prob))
@@ -233,7 +235,7 @@ class MeltingpotRunner(Runner):
         done_new  = np.array([player_dict[f'player_{i}'] for player_dict in done for i in range(self.num_agents)], dtype=np.bool_)
         rewards = np.array([player_dict[f'player_{i}'] for player_dict in rewards for i in range(self.num_agents)], dtype=np.float32)
         #rnn_states:(1, num_agent, n_rollout_threads, hidden_size)
-        print(f"done_new shape {done_new.shape}, rewards shape {rewards.shape}")
+        # print(f"done_new shape {done_new.shape}, rewards shape {rewards.shape}")
         done_new = np.expand_dims(done_new, axis=0)
         rewards  = np.expand_dims(rewards, axis=0)
         # Create a boolean mask with the same shape as rnn_states
@@ -266,7 +268,7 @@ class MeltingpotRunner(Runner):
                         share_obs.append(sublist[0][player]['WORLD.RGB'])
                         agent_obs.append(sublist[0][player]['RGB'])
 
-        print(f" share observation shape {np.array(share_obs).shape}, agent observation shape {np.array(agent_obs).shape}")
+        # print(f" share observation shape {np.array(share_obs).shape}, agent observation shape {np.array(agent_obs).shape}")
         share_obs = np.array(share_obs)
         agent_obs = np.array(agent_obs)
         if share_obs.ndim == 5 and agent_obs.ndim == 5:
@@ -276,7 +278,7 @@ class MeltingpotRunner(Runner):
            share_obs = np.reshape(share_obs, (1,) + share_obs.shape)
            agent_obs = np.reshape(agent_obs, (1,) + agent_obs.shape)
         
-        print(f"share_obs shape {share_obs.shape}, agent_obs shape {agent_obs.shape}, rewards shape {rewards.shape}, masks shape {masks.shape} values shape {values.shape} actions shape {actions.shape} action_log_probs shape {action_log_probs.shape} rnn_states shape {rnn_states.shape} rnn_states_critic shape {rnn_states_critic.shape}")
+        # print(f"share_obs shape {share_obs.shape}, agent_obs shape {agent_obs.shape}, rewards shape {rewards.shape}, masks shape {masks.shape} values shape {values.shape} actions shape {actions.shape} action_log_probs shape {action_log_probs.shape} rnn_states shape {rnn_states.shape} rnn_states_critic shape {rnn_states_critic.shape}")
         for agent_id in range(self.num_agents):
             
             #For a quick fix to see if the issue is just about the share_obs reshaping, I comment out the conditional reshaping:
@@ -351,7 +353,7 @@ class MeltingpotRunner(Runner):
         for agent_id in range(self.num_agents):
             eval_average_episode_rewards = np.mean(np.sum(eval_episode_rewards[:, :, agent_id], axis=0))
             eval_train_infos.append({'eval_average_episode_rewards': eval_average_episode_rewards})
-            print("eval average episode rewards of agent%i: " % agent_id + str(eval_average_episode_rewards))
+            # print("eval average episode rewards of agent%i: " % agent_id + str(eval_average_episode_rewards))
 
         self.log_train(eval_train_infos, total_num_steps)  
 
@@ -374,14 +376,16 @@ class MeltingpotRunner(Runner):
                 
                 temp_actions_env = []
                 for agent_id in range(self.num_agents):
+                    player= f"player_{agent_id}"
                     if not self.use_centralized_V:
-                        share_obs = np.array(list(obs[:, agent_id]))
+                        #share_obs = np.array(list(obs[:, agent_id]))
+                        share_obs=np.array(list(np.expand_dims(obs[0][player]['WORLD.RGB'], axis=0)))
+                        #share_obs = np.array(list(np.expand_dims(obs[0][player]['RGB'], axis=0)))
                     self.trainer[agent_id].prep_rollout()
                     #action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(obs[:, agent_id])),
                     #                                                    rnn_states[:, agent_id],
                     #                                                    masks[:, agent_id],
                     #                                                    deterministic=True)
-                    player= f"player_{agent_id}"
                     action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(np.expand_dims(obs[0][player]['RGB'], axis=0))),
                                                                         rnn_states[:, agent_id],
                                                                         masks[:, agent_id],
@@ -401,7 +405,10 @@ class MeltingpotRunner(Runner):
                         raise NotImplementedError
 
                     temp_actions_env.append(action_env)
-                    rnn_states[:, agent_id] = _t2n(rnn_state)
+                    if isinstance(rnn_state, tuple):
+                        rnn_states[:, agent_id] = _t2n(rnn_state[0])
+                    else:
+                        rnn_states[:, agent_id] = _t2n(rnn_state)
                    
                 # [envs, agents, dim]
                 actions_env = []
@@ -416,6 +423,7 @@ class MeltingpotRunner(Runner):
                 obs, rewards, dones, infos = self.envs.step(actions_env)
                 #Armin: start
                 obs = obs[0]
+                # print(f"render reward shape {rewards}")
                 rewards = rewards[0]
                 summed_rewards = []
                 for agent_id in range(self.num_agents):
@@ -439,12 +447,29 @@ class MeltingpotRunner(Runner):
                     elapsed = calc_end - calc_start
                     if elapsed < self.all_args.ifi:
                         time.sleep(self.all_args.ifi - elapsed)
+            player_rewards = {f"player_{agent_id}": [] for agent_id in range(self.num_agents)}
 
-            episode_rewards = np.array(episode_rewards)
+            # Accumulate rewards for each player
+            for episode in episode_rewards:
+                for agent_id in range(self.num_agents):
+                    player = f"player_{agent_id}"
+                    player_rewards[player].append(episode[player])
+
+            # Calculate the average reward for each player
+            average_episode_rewards = {}
             for agent_id in range(self.num_agents):
-                #average_episode_rewards = np.mean(np.sum(episode_rewards[:, :, agent_id], axis=0))
-                average_episode_rewards = np.mean(np.sum(episode_rewards[:, agent_id], axis=0))
-                print("eval average episode rewards of agent%i: " % agent_id + str(average_episode_rewards))
+                player = f"player_{agent_id}"
+                total_rewards = np.sum(player_rewards[player], axis=0)
+                average_episode_rewards[player] = np.mean(total_rewards)
+                
+            # Print the average rewards
+            for player, avg_reward in average_episode_rewards.items():
+                print(f"eval average episode rewards of {player}: {avg_reward}")
+            
+            #episode_rewards = np.array(episode_rewards)
+            #for agent_id in range(self.num_agents):
+            #    average_episode_rewards = np.mean(np.sum(episode_rewards[:, :, agent_id], axis=0))
+            #    print("eval average episode rewards of agent%i: " % agent_id + str(average_episode_rewards))
         
         if self.all_args.save_gifs:
             imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)

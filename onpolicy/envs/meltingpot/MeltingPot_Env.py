@@ -163,10 +163,10 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     super().__init__()
 
   def reset(self, *args, **kwargs):
-    """See base class."""
-    timestep = self._env.reset()
-    self.num_cycles = 0
-    return timestep_to_observations(timestep), {}
+      """See base class."""
+      timestep = self._env.reset()
+      self.num_cycles = 0
+      return timestep_to_observations(timestep), {}
 
   def step(self, action_dict):
     """See base class."""

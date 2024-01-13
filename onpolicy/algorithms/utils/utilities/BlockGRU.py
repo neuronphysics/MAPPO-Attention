@@ -64,10 +64,10 @@ class BlockGRU(nn.Module):
     def forward(self, input, h):
 
         #self.blockify_params()
-        print("Inside BlockGRU - Shape of input:", input.shape)
-        print("Inside BlockGRU - Shape of h:", h.shape)
+        #print("Inside BlockGRU - Shape of input:", input.shape)
+        #print("Inside BlockGRU - Shape of h:", h.shape)
         hnext = self.gru(input, h)
-        print(f"Inside BlockGRU - after GRU {hnext.shape}")
+        #print(f"Inside BlockGRU - after GRU {hnext.shape}")
         return hnext, None
 
 class Identity(torch.autograd.Function):
@@ -75,8 +75,8 @@ class Identity(torch.autograd.Function):
     def forward(ctx, input):
         return input * 1.0
     def backward(ctx, grad_output):
-        print(torch.sqrt(torch.sum(torch.pow(grad_output,2))))
-        print('-----------')
+        #print(torch.sqrt(torch.sum(torch.pow(grad_output,2))))
+        #print('-----------')
         return grad_output * 1.0
 
 class SharedBlockGRU(nn.Module):
@@ -102,7 +102,7 @@ class SharedBlockGRU(nn.Module):
         self.gll_read = GroupLinearLayer(self.m,16,1, device=self.device)
         self.sa = Sparse_attention(1).to(self.device)
         self.to(self.device)
-        print("Using Gumble sparsity")
+        #print("Using Gumble sparsity")
 
     def blockify_params(self):
 
@@ -173,13 +173,13 @@ if __name__ == "__main__":
 
     pl = Blocks.gru.parameters()
     for p in pl:
-        print(p.shape)
+        #print(p.shape)
         #print(torch.Size([Blocks.nhid*4]))
         if p.shape == torch.Size([Blocks.nhid*3]):
             print(p.shape, 'a')
             #print(p)
             '''biases, don't need to change anything here'''
         if p.shape == torch.Size([Blocks.nhid*3, Blocks.nhid]) or p.shape == torch.Size([Blocks.nhid*3, Blocks.ninp]):
-            print(p.shape, 'b')
+            #print(p.shape, 'b')
             for e in range(0,4):
                 print(p[Blocks.nhid*e : Blocks.nhid*(e+1)])
