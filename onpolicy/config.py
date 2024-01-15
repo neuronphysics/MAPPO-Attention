@@ -185,7 +185,7 @@ def get_config():
 
     # replay buffer parameters
     parser.add_argument("--episode_length", type=int,
-                        default=2000, help="Max length for any episode")
+                        default=250, help="Max length for any episode")
 
     # network parameters
     parser.add_argument("--use_attention", type=bool,
@@ -198,8 +198,10 @@ def get_config():
     parser.add_argument("----rim_num_units", type=int, default=6, help="specify the number of units in RIM")
     parser.add_argument("--rim_topk", type=int, default=4, help="specify the number of topk in RIM")
     
-    parser.add_argument("--share_policy", action='store_false',
-                        default=True, help='Whether agent share the same policy')
+    # parser.add_argument("--share_policy", action='store_false',
+    #                     default=True, help='Whether agent share the same policy')
+    parser.add_argument("--share_policy", type=lambda x: (str(x).lower() == 'true'), 
+                        default=False, help='Whether agent share the same policy')
     parser.add_argument("--use_centralized_V", action='store_false',
                         default=True, help="Whether to use centralized V function")
     parser.add_argument("--stacked_frames", type=int, default=1,

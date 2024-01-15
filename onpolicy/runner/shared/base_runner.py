@@ -70,7 +70,11 @@ class Runner(object):
             from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
             from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
-        share_observation_space = self.envs.share_observation_space[0] if self.use_centralized_V else self.envs.observation_space[0]
+        print('use centralized V', self.use_centralized_V)
+        print('obs space', self.envs.observation_space)
+        print('action space', )
+
+        share_observation_space = self.envs.share_observation_space['player_0'] if self.use_centralized_V else self.envs.share_observation_space['player_0']
 
         print("obs_space: ", self.envs.observation_space)
         print("share_obs_space: ", self.envs.share_observation_space)
@@ -78,10 +82,9 @@ class Runner(object):
         
         # policy network
         self.policy = Policy(self.all_args,
-                            self.envs.observation_space[0],
+                            self.envs.observation_space['player_0']['RGB'],
                             share_observation_space,
-                            self.envs.action_space[0],
-                            self.num_agents, # default 2
+                            self.envs.action_space['player_0'],
                             device = self.device)
 
         if self.model_dir is not None:
@@ -96,9 +99,9 @@ class Runner(object):
         # buffer
         self.buffer = SharedReplayBuffer(self.all_args,
                                         self.num_agents,
-                                        self.envs.observation_space[0],
+                                        self.envs.observation_space['player_0']['RGB'],
                                         share_observation_space,
-                                        self.envs.action_space[0])
+                                        self.envs.action_space['player_0'])
 
     def run(self):
         """Collect training data, perform training updates, and evaluate policy."""

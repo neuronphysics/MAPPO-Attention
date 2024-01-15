@@ -170,7 +170,8 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
   def step(self, action_dict):
     """See base class."""
-    
+    print('action dict', action_dict)
+    print('ordred agent ids', self._ordered_agent_ids)
     actions = [list(map(int, action_dict[agent_id])) for agent_id, player in enumerate(self._ordered_agent_ids)]
     actions = np.array(actions)
     #print(f"size of action in step {actions.shape}")

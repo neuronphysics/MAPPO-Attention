@@ -44,6 +44,8 @@ class MeltingpotRunner(Runner):
 
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
 
+        print('num episodes to run (separated):', episodes) 
+
         for episode in range(episodes):
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
@@ -231,6 +233,8 @@ class MeltingpotRunner(Runner):
         
         obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
         
+        print('rnn states sep', rnn_states.shape)
+
         # Extract the boolean values for each player and convert to a boolean array
         done_new  = np.array([player_dict[f'player_{i}'] for player_dict in done for i in range(self.num_agents)], dtype=np.bool_)
         rewards = np.array([player_dict[f'player_{i}'] for player_dict in rewards for i in range(self.num_agents)], dtype=np.float32)
