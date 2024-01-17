@@ -173,9 +173,14 @@ class Runner(object):
         action_dim=self.buffer[0].actions.shape[-1]
         factor = np.ones((self.episode_length, self.n_rollout_threads, 1), dtype=np.float32)
 
+        print('num agents', self.num_agents)
+
         for agent_id in torch.randperm(self.num_agents):
+            print('agent id', agent_id)
             self.trainer[agent_id].prep_training()
+            print('a1')
             self.buffer[agent_id].update_factor(factor)
+            print('a2')
             available_actions = None if self.buffer[agent_id].available_actions is None \
                 else self.buffer[agent_id].available_actions[:-1].reshape(-1, *self.buffer[agent_id].available_actions.shape[2:])
             
@@ -195,7 +200,11 @@ class Runner(object):
                                                             available_actions,
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
             
+            print('a3')
+
             train_info = self.trainer[agent_id].train(self.buffer[agent_id])
+
+            print('a4')
             
             if self.all_args.algorithm_name == "hatrpo":
                 new_actions_logprob, _, _, _, _ =self.trainer[agent_id].policy.actor.evaluate_actions(self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
@@ -213,9 +222,14 @@ class Runner(object):
                                                             available_actions,
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
 
+            print('a5')
+
             factor = factor*_t2n(torch.prod(torch.exp(new_actions_logprob-old_actions_logprob),dim=-1).reshape(self.episode_length,self.n_rollout_threads,1))
-            train_infos.append(train_info)      
+            print('a6')
+            train_infos.append(train_info)
+            print('a7')      
             self.buffer[agent_id].after_update()
+            print('a8')
 
         return train_infos
 

@@ -158,7 +158,7 @@ def get_config():
 
     # prepare parameters
     parser.add_argument("--algorithm_name", type=str,
-                        default='mappo', choices=["rmappo", "mappo"])
+                        default='mappo', choices=["rmappo", "mappo", "ippo"])
 
     parser.add_argument("--experiment_name", type=str, default="check", help="an identifier to distinguish different experiment.")
     parser.add_argument("--seed", type=int, default=1, help="Random seed for numpy/torch")
@@ -228,12 +228,12 @@ def get_config():
                         default=False, help='Whether to use a naive recurrent policy')
     parser.add_argument("--use_recurrent_policy", action='store_false',
                         default=True, help='use a recurrent policy')
-    parser.add_argument("--recurrent_N", type=int, default=1, help="The number of recurrent layers.")
+    parser.add_argument("--recurrent_N", type=int, default=2, help="The number of recurrent layers.")
     parser.add_argument("--data_chunk_length", type=int, default=10,
                         help="Time length of chunks used to train a recurrent_policy")
 
     # optimizer parameters
-    parser.add_argument("--lr", type=float, default=5e-4,
+    parser.add_argument("--lr", type=float, default=1e-4,
                         help='learning rate (default: 5e-4)')
     parser.add_argument("--critic_lr", type=float, default=5e-4,
                         help='critic learning rate (default: 5e-4)')

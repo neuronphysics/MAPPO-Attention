@@ -69,7 +69,7 @@ class R_Actor(nn.Module):
                 self.rnn =  RIM(device, self.hidden_size, self.hidden_size, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, batch_first = True)
            elif self._attention_module == "SCOFF":
                 print("We are using SCOFF...")
-                self.rnn =  SCOFF(device, self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, batch_first = False, version= self._use_version_scoff)
+                self.rnn =  SCOFF(device, self.hidden_size, self.hidden_size, 9, 8, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, batch_first = False, version= self._use_version_scoff)
                                                
         elif not self.use_attention:
             #print(f"value of use attention is {self.use_attention} ")
@@ -235,7 +235,7 @@ class R_Critic(nn.Module):
                                               
            elif self._attention_module == "SCOFF":
                 #print(f"we are using SCOFF attention module in critic network.... {cent_obs_shape} {len(self._obs_shape)}")
-                self.rnn = SCOFF(device,  self.hidden_size, self.hidden_size, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, batch_first = False, version = self._use_version_scoff)
+                self.rnn = SCOFF(device,  self.hidden_size, self.hidden_size, 9, 8, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, batch_first = False, version = self._use_version_scoff)
         elif not self.use_attention:
             #print(f"value of use attention in critic network is {self.use_attention} ")
             base = CNNBase if len(cent_obs_shape) >= 3 else MLPBase

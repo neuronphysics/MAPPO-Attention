@@ -65,18 +65,26 @@ class MeltingpotRunner(Runner):
                 self.insert(data)
 
             # compute return and update network
+            print('at 1')
             self.compute()
+            print('at 2')
             train_infos = self.train()
+
+            print('at 3')
             
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
             
             # save model
             if (episode % self.save_interval == 0 or episode == episodes - 1):
+                print('saving!')
                 self.save()
+
+            print('at 4')
 
             # log information
             if episode % self.log_interval == 0:
+                print('logging!')
                 end = time.time()
                 print("\n Scenario {} Algo {} Exp {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}.\n"
                         .format(self.all_args.scenario_name,
@@ -105,6 +113,7 @@ class MeltingpotRunner(Runner):
                 print(f"finish log training")
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
+                print('eval!')
                 self.eval(total_num_steps)
 
     def warmup(self):
