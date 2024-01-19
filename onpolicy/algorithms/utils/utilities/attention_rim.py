@@ -22,8 +22,8 @@ class Identity(torch.autograd.Function):
     def forward(ctx, input):
         return input * 1.0
     def backward(ctx, grad_output):
-        print(torch.sqrt(torch.sum(torch.pow(grad_output,2))))
-        print('-----------')
+        #print(torch.sqrt(torch.sum(torch.pow(grad_output,2))))
+        #print('-----------')
         return grad_output * 1.0
 
 class ScaledDotProductAttention(nn.Module):
@@ -48,9 +48,9 @@ class ScaledDotProductAttention(nn.Module):
         # print("v: ", v.size())
         # print("k transpose: ", k.transpose(1,2).size())
         # input()
-        print('scaledDotProduct in forward q shape', q.shape)
-        print('in forward k shape', k.shape)
-        print('in forward v shape', v.shape)
+        #print('scaledDotProduct in forward q shape', q.shape)
+        #print('in forward k shape', k.shape)
+        #print('in forward v shape', v.shape)
         
         #if k.dim() == 3:
          #   q=q.transpose(-2,-1)
@@ -63,7 +63,7 @@ class ScaledDotProductAttention(nn.Module):
         #attn = torch.bmm(q, k.transpose(1,2))
         attn = torch.einsum('ijk,ilk->ijl', (q, k))
         #attn = torch.matmul(q, k.transpose(-2, -1))          #ERROR: RuntimeError: The size of tensor a (4) must match the size of tensor b (8) at non-singleton dimension 0
-        print('in forward attn shape', attn.shape)
+        #print('in forward attn shape', attn.shape)
         
         attn = attn / self.temperature
         attn=torch.max(attn, dim= -1,keepdim=True)[0]
@@ -109,7 +109,7 @@ class ScaledDotProductAttention(nn.Module):
         #output = torch.bmm(attn, v)
         #output = torch.matmul(attn, v)
         output =torch.einsum('ijk,ikl->ijl', (attn, v))
-        print('in forward output shape', output.shape , attn.shape, extra_loss) 
+        #print('in forward output shape', output.shape , attn.shape, extra_loss) 
         
         return output, attn, extra_loss
 
@@ -126,14 +126,14 @@ class MultiHeadAttention(nn.Module):
         self.d_v = d_v
 
         # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Initialize Multi-Head Attention~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        print('d model read: ', d_model_read)
-        print('d_model_write: ', d_model_write)
-        print('d_model_out: ', d_model_out)
-        print('n_head: ', n_head)
-        print('d_k: ', d_k)
-        print('d_v: ', d_v)
-        print('num_blocks_read: ', num_blocks_read)
-        print('num_blocks_write: ', num_blocks_write)
+        #print('d model read: ', d_model_read)
+        #print('d_model_write: ', d_model_write)
+        #print('d_model_out: ', d_model_out)
+        #print('n_head: ', n_head)
+        #print('d_k: ', d_k)
+        #print('d_v: ', d_v)
+        #print('num_blocks_read: ', num_blocks_read)
+        #print('num_blocks_write: ', num_blocks_write)
         # input()
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.GLN_qs = GroupLinearLayer(d_model_read, n_head * d_k, num_blocks_read, device=self.device)
@@ -174,11 +174,11 @@ class MultiHeadAttention(nn.Module):
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
 
         sz_b, len_q, _ = q.size()
-        print("q_value",sz_b, len_q, n_head, d_k,q.shape)
+        #print("q_value",sz_b, len_q, n_head, d_k,q.shape)
         sz_b2, len_k, _ = k.size()
-        print("k_value",sz_b2, len_k, n_head, d_k,k.shape)
+        #print("k_value",sz_b2, len_k, n_head, d_k,k.shape)
         sz_b3, len_v, _ = v.size()
-        print("v_value",sz_b3, len_v,n_head, d_v,v.shape)
+        #print("v_value",sz_b3, len_v,n_head, d_v,v.shape)
 
         residual = q
 
@@ -189,13 +189,13 @@ class MultiHeadAttention(nn.Module):
         # print("k: ", k.size())
         # print("v: ", v.size())
         # input()
-        print("shapes attention RIM 1ST STEP",q.shape,k.shape,v.shape)
+        #print("shapes attention RIM 1ST STEP",q.shape,k.shape,v.shape)
         q = self.GLN_qs(q).view(sz_b, len_q, n_head, d_k)
         #q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
         k = self.GLN_ks(k).view(sz_b2, len_k, n_head, d_k)
         v = self.GLN_vs(v).reshape(sz_b3, len_v, n_head, d_v)
         #v = v.view(sz_b, len_v, n_head, d_v)
-        print("shapes attention RIM 2ND STEP",q.shape,k.shape,v.shape)
+        #print("shapes attention RIM 2ND STEP",q.shape,k.shape,v.shape)
 
         # print("GLN q: ", q.size())
         # print("GLN k: ", k.size())
@@ -204,7 +204,7 @@ class MultiHeadAttention(nn.Module):
         q = q.permute(2, 0, 1, 3).contiguous().view(-1, len_q, d_k) # (n*b) x lq x dk
         k = k.permute(2, 0, 1, 3).contiguous().view(-1, len_k, d_k) # (n*b) x lk x dk
         v = v.permute(2, 0, 1, 3).contiguous().view(-1, len_v, d_v) # (n*b) x lv x dv
-        print("shapes attention RIM 3RD STEP",q.shape,k.shape,v.shape)
+        #print("shapes attention RIM 3RD STEP",q.shape,k.shape,v.shape)
 
         # print("Permute q: ", q.size())
         # print("Permute k: ", k.size())
@@ -227,6 +227,7 @@ class MultiHeadAttention(nn.Module):
         #TODO: probably shouldn't just apply residual layer in the forward pass.
 
         output_init = output*1.0
+        output_init = output_init.to(self.gate_fc.weight.device) # BEN ADDED
 
         output = self.dropout(self.fc(output_init))
 
@@ -312,4 +313,4 @@ if __name__ == "__main__":
 
     out, attn = mha(x,x,x)
 
-    print('out shape', out.shape)
+    #print('out shape', out.shape)

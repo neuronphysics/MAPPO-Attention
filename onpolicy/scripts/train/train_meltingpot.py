@@ -14,6 +14,7 @@ from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
 import gc
 #import ptvsd
 import time
+import cProfile
 
 
 """Train script for Meltingpot."""
@@ -194,7 +195,8 @@ def main(args):
 
     ###################
     runner = Runner(config)
-    runner.run()
+    cProfile.runctx('runner.run()', globals(), locals(), 'profile_run.prof')
+    # runner.run()
     
     # post process
     envs.close()

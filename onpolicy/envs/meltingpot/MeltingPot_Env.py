@@ -163,14 +163,15 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     super().__init__()
 
   def reset(self, *args, **kwargs):
-    """See base class."""
-    timestep = self._env.reset()
-    self.num_cycles = 0
-    return timestep_to_observations(timestep), {}
+      """See base class."""
+      timestep = self._env.reset()
+      self.num_cycles = 0
+      return timestep_to_observations(timestep), {}
 
   def step(self, action_dict):
     """See base class."""
-    
+    print('action dict', action_dict)
+    print('ordred agent ids', self._ordered_agent_ids)
     actions = [list(map(int, action_dict[agent_id])) for agent_id, player in enumerate(self._ordered_agent_ids)]
     actions = np.array(actions)
     #print(f"size of action in step {actions.shape}")

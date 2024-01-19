@@ -166,10 +166,10 @@ if __name__ == "__main__":
         #print(p.shape)
         #print(torch.Size([Blocks.nhid*4]))
         if p.shape == torch.Size([Blocks.nhid*4]):
-            print(p.shape, 'a')
+            #print(p.shape, 'a')
             #print(p)
             '''biases, don't need to change anything here'''
         if p.shape == torch.Size([Blocks.nhid*4, Blocks.nhid]) or p.shape == torch.Size([Blocks.nhid*4, Blocks.ninp]):
-            print(p.shape, 'b')
+            #print(p.shape, 'b')
             for e in range(0,4):
                 print(p[Blocks.nhid*e : Blocks.nhid*(e+1)])

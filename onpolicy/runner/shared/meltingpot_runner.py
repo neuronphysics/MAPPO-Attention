@@ -10,7 +10,12 @@ from onpolicy.runner.shared.base_runner import Runner
 import imageio
 
 def _t2n(x):
-    return x.detach().cpu().numpy()
+    if isinstance(x, torch.Tensor):
+        return x.detach().cpu().numpy()
+    elif isinstance(x, tuple):
+        return tuple(tensor.detach().cpu().numpy() for tensor in x)
+    else:
+        return x
 
 class MeltingpotRunner(Runner):
     def __init__(self, config):
@@ -22,6 +27,8 @@ class MeltingpotRunner(Runner):
         start = time.time()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
 
+        print('num episodes to run (shared):', episodes) 
+
         for episode in range(episodes):
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
@@ -32,16 +39,19 @@ class MeltingpotRunner(Runner):
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
                     
                 # Obser reward and next obs
-                obs, rewards, dones, truncations, infos = self.envs.step(actions_env)
+                obs, rewards, dones, infos = self.envs.step(actions)
 
-                data = obs, rewards, dones, truncations, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                 
                 # insert data into buffer
                 self.insert(data)
 
             # compute return and update network
+            print('at 1')
             self.compute()
+            print('at 2')
             train_infos = self.train()
+            print('at 3')
             
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
@@ -49,6 +59,8 @@ class MeltingpotRunner(Runner):
             # save model
             if (episode % self.save_interval == 0 or episode == episodes - 1):
                 self.save()
+
+            print('at 4')
 
             # log information
             if episode % self.log_interval == 0:
@@ -66,66 +78,137 @@ class MeltingpotRunner(Runner):
                 if self.env_name == "Meltingpot":
                     idv_rews = []
                     for agent_id in range(self.num_agents):
-                        train_infos["average_episode_rewards"]= np.mean(self.buffer[agent_id].rewards) * self.episode_length})
+                        train_infos["average_episode_rewards"] = np.mean(self.buffer[agent_id].rewards) * self.episode_length
                     print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
+
+            print('at 5')
 
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
 
+            print('at 6')
+
     def warmup(self):
         # reset env
+        #if --n_rollout_threads 6 && --substrate_name "territory__rooms"
         obs = self.envs.reset()
-
         # replay buffer
-        if self.use_centralized_V:
-            share_obs = obs.reshape(self.n_rollout_threads, -1)
-            share_obs = np.expand_dims(share_obs, 1).repeat(self.num_agents, axis=1)
-        else:
-            share_obs = obs
+        share_obs = []
+        agent_obs = []
+        for sublist in obs:
+            for item in sublist:
+                if item:
+                    rgb_player=[]
+                    arrays = []
+                    for agent_id in range(self.num_agents):
+                        player= f"player_{agent_id}"
+                        if player in item:
+                              rgb_player.append(item[player]['WORLD.RGB'])
+                              arrays.append(item[player]['RGB'])
+                              #player_i obs: (11, 11, 3), share_obs: (168, 168, 3)
+                    result = np.stack(arrays)
+                    image  = np.stack(rgb_player)
+            share_obs.append(image)
+            agent_obs.append(result)
+        share_obs = np.array(share_obs)
+        agent_obs = np.array(agent_obs)
+        #share_obs shape: (6, 9, 168, 168, 3), agent obs shape: (6, 9, 11, 11, 3)
+        # for agent_id in range(self.num_agents):
+            #size of buffer share_obs (6, 168, 168, 3)--- obs (6, 11, 11, 3)
+        self.buffer.share_obs[0] = share_obs[:,0,:,:,:].transpose(0, 2, 1, 3).copy()
+        self.buffer.obs[0]       = agent_obs[:,0,:,:,:].copy()
 
-        self.buffer.share_obs[0] = share_obs.copy()
-        self.buffer.obs[0] = obs.copy()
+        # # reset env
+        # obs = self.envs.reset()
+
+        # # replay buffer
+        # if self.use_centralized_V:
+        #     share_obs = obs.reshape(self.n_rollout_threads, -1)
+        #     share_obs = np.expand_dims(share_obs, 1).repeat(self.num_agents, axis=1)
+        # else:
+        #     share_obs = obs
+
+        # print('share obs?', share_obs)
+
+        # self.buffer.share_obs[0] = share_obs.copy()
+        # self.buffer.obs[0] = obs.copy()
 
 
+    # @torch.no_grad()
+    # def collect(self, step):
+    #     self.trainer.prep_rollout()
+    #     value, action, action_log_prob, rnn_states, rnn_states_critic \
+    #         = self.trainer.policy.get_actions(np.concatenate(self.buffer.share_obs[step]),
+    #                         np.concatenate(self.buffer.obs[step]),
+    #                         np.concatenate(self.buffer.rnn_states[step]),
+    #                         np.concatenate(self.buffer.rnn_states_critic[step]),
+    #                         np.concatenate(self.buffer.masks[step]))
+    #     # [self.envs, agents, dim]
+    #     values = np.array(np.split(_t2n(value), self.n_rollout_threads))
+    #     actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
+    #     action_log_probs = np.array(np.split(_t2n(action_log_prob), self.n_rollout_threads))
+    #     rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
+    #     rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic), self.n_rollout_threads))
+    #     # rearrange action
+    #     if self.envs.action_space[0].__class__.__name__ == 'MultiDiscrete':
+    #         for i in range(self.envs.action_space[0].shape):
+    #             uc_actions_env = np.eye(self.envs.action_space[0].high[i] + 1)[actions[:, :, i]]
+    #             if i == 0:
+    #                 actions_env = uc_actions_env
+    #             else:
+    #                 actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
+    #     elif self.envs.action_space[0].__class__.__name__ == 'Discrete':
+    #         actions_env = np.squeeze(np.eye(self.envs.action_space[0].n)[actions], 2)
+    #     else:
+    #         raise NotImplementedError
+
+    #     return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
     @torch.no_grad()
     def collect(self, step):
         self.trainer.prep_rollout()
-        value, action, action_log_prob, rnn_states, rnn_states_critic \
-            = self.trainer.policy.get_actions(np.concatenate(self.buffer.share_obs[step]),
-                            np.concatenate(self.buffer.obs[step]),
-                            np.concatenate(self.buffer.rnn_states[step]),
-                            np.concatenate(self.buffer.rnn_states_critic[step]),
-                            np.concatenate(self.buffer.masks[step]))
-        # [self.envs, agents, dim]
-        values = np.array(np.split(_t2n(value), self.n_rollout_threads))
-        actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
-        action_log_probs = np.array(np.split(_t2n(action_log_prob), self.n_rollout_threads))
-        rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
-        rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic), self.n_rollout_threads))
-        # rearrange action
-        if self.envs.action_space[0].__class__.__name__ == 'MultiDiscrete':
-            for i in range(self.envs.action_space[0].shape):
-                uc_actions_env = np.eye(self.envs.action_space[0].high[i] + 1)[actions[:, :, i]]
-                if i == 0:
-                    actions_env = uc_actions_env
-                else:
-                    actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
-        elif self.envs.action_space[0].__class__.__name__ == 'Discrete':
-            actions_env = np.squeeze(np.eye(self.envs.action_space[0].n)[actions], 2)
+        value, action, action_log_prob, rnn_states, rnn_states_critic = self.trainer.policy.get_actions(
+            np.concatenate(self.buffer.share_obs[step]),
+            np.concatenate(self.buffer.obs[step]),
+            np.concatenate(self.buffer.rnn_states[step]),
+            np.concatenate(self.buffer.rnn_states_critic[step]),
+            np.concatenate(self.buffer.masks[step])
+        )
+
+        # Convert tensors to numpy arrays
+        values = _t2n(value)
+        actions = _t2n(action)
+        action_log_probs = _t2n(action_log_prob)
+        rnn_states = _t2n(rnn_states)
+        rnn_states_critic = _t2n(rnn_states_critic)
+
+        # Process actions based on action space type
+        action_space_type = self.envs.action_space['player_0'].__class__.__name__
+        if action_space_type == 'MultiDiscrete':
+            actions_env = np.stack([np.eye(space.n)[actions[:, i]] for i, space in enumerate(self.envs.action_space.nvec)], axis=-1)
+        elif action_space_type == 'Discrete':
+            actions_env = np.eye(self.envs.action_space['player_0'].n)[actions]
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"Action space type '{action_space_type}' not supported.")
 
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
 
     def insert(self, data):
         
-        obs, rewards, done, truncations, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
+        obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
 
-        rnn_states[done == True] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-        rnn_states_critic[done == True] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        print('len rnn states', len(rnn_states))
+        print('rnn states', rnn_states)
+
+        # rnn_states[done == True] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        # rnn_states_critic[done == True] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        for i in range(len(rnn_states)):
+            print('rnn shape', rnn_states[i].shape)
+            rnn_states[i][done] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        for i in range(len(rnn_states_critic)):
+            rnn_states_critic[i][done] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
         masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
         masks[done == True] = np.zeros(((done == True).sum(), 1), dtype=np.float32)
 

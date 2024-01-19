@@ -236,11 +236,12 @@ class SeparatedReplayBuffer(object):
             active_masks_batch = []
             old_action_log_probs_batch = []
             adv_targ = []
-            
+
             for offset in range(num_envs_per_batch):
                 ind = perm[start_ind + offset]
                 share_obs_batch.append(self.share_obs[:-1, ind])
                 obs_batch.append(self.obs[:-1, ind])
+                print(f"inside separated_buffer.py, self.rnn_states.shape is {self.rnn_states} and its shape is {self.rnn_states.shape} and self.rnn_states_critic.shape is {self.rnn_states_critic.shape}")
                 rnn_states_batch.append(self.rnn_states[0:1, ind])
                 rnn_states_critic_batch.append(self.rnn_states_critic[0:1, ind])
                 actions_batch.append(self.actions[:, ind])
@@ -269,10 +270,8 @@ class SeparatedReplayBuffer(object):
             adv_targ = np.stack(adv_targ, 1)
 
             # States is just a (N, -1) from_numpy [N[1,dim]]
-            
             rnn_states_batch = np.stack(rnn_states_batch, 1).reshape(N, *self.rnn_states.shape[2:])
             rnn_states_critic_batch = np.stack(rnn_states_critic_batch, 1).reshape(N, *self.rnn_states_critic.shape[2:])
-            print(f"inside separated_buffer.py, rnn_states_batch.shape is {rnn_states_batch.shape} and rnn_states_critic_batch.shape is {rnn_states_critic_batch.shape}")
 
             # Flatten the (T, N, ...) from_numpys to (T * N, ...)
             share_obs_batch = _flatten(T, N, share_obs_batch)

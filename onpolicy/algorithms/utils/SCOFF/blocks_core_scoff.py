@@ -76,15 +76,15 @@ class BlocksCore(nn.Module):
         self.set_transformer = perm_inv
         self.n_templates = n_templates
 
-        print('topk is', self.topkval)
-        print('bs in', self.block_size_in)
-        print('bs out', self.block_size_out)
-        print('inp_heads is', self.inp_heads)
-        print('num_modules_read_input', self.num_modules_read_input)
-        print('share inp and comm', share_inp, share_comm)
-        print("communication is happening", self.step_att)
-        print('n_templates:'+str(n_templates))
-        print('using set transformer', self.set_transformer)
+        #print('topk is', self.topkval)
+        #print('bs in', self.block_size_in)
+        #print('bs out', self.block_size_out)
+        #print('inp_heads is', self.inp_heads)
+        #print('num_modules_read_input', self.num_modules_read_input)
+        #print('share inp and comm', share_inp, share_comm)
+        #print("communication is happening", self.step_att)
+        #print('n_templates:'+str(n_templates))
+        #print('using set transformer', self.set_transformer)
 
         if n_templates == 0:
             self.set_transformer = False
@@ -103,7 +103,7 @@ class BlocksCore(nn.Module):
         self.version = version
         if self.version:
             self.att_out = self.block_size_out
-            print('Using version 1 att_out is', self.att_out)
+            #print('Using version 1 att_out is', self.att_out)
             self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out,
                                            d_model_write=int(ninp / self.num_blocks_out),
                                            d_model_out=self.att_out, d_k=64, d_v=self.att_out, num_blocks_read=1,
@@ -112,7 +112,7 @@ class BlocksCore(nn.Module):
 
         else:
             self.att_out = attention_out
-            print('Using version 0 att_out is', self.att_out)
+            #print('Using version 0 att_out is', self.att_out)
             d_v = self.att_out//self.inp_heads
             self.inp_att = MultiHeadAttention(n_head=self.inp_heads, d_model_read=self.block_size_out,
                                           d_model_write=self.block_size_in, d_model_out=self.att_out,
@@ -135,8 +135,8 @@ class BlocksCore(nn.Module):
         self.use_rules = rule_config is not None and rule_config['num_rules'] > 0
 
         if rule_config is not None and rule_config['num_rules'] > 0:
-            print('Num Rules:' + str(rule_config['num_rules']))
-            print('Rule Time Steps:' + str(rule_config['rule_time_steps']))
+            #print('Num Rules:' + str(rule_config['num_rules']))
+            #print('Rule Time Steps:' + str(rule_config['rule_time_steps']))
             self.rule_time_steps = rule_config['rule_time_steps']
             self.rule_network = RuleNetwork(self.block_size_out, num_blocks_out, num_rules = rule_config['num_rules'],
                 rule_dim = rule_config['rule_emb_dim'], query_dim = rule_config['rule_query_dim'],
@@ -146,24 +146,24 @@ class BlocksCore(nn.Module):
 
 
         if do_gru:
-            print('USING GRU!')
+            #print('USING GRU!')
             if n_templates!=0 :
                 self.block_lstm = SharedBlockGRU(self.att_out*self.num_blocks_out, self.nhid, k=self.num_blocks_out, n_templates= n_templates)
             else:
-                print('Using Normal RIMs')
+                #print('Using Normal RIMs')
                 self.block_lstm = BlockGRU(self.att_out*self.num_blocks_out, self.nhid, k=self.num_blocks_out)
         else:
-            print('USING LSTM!')
+            #print('USING LSTM!')
             if n_templates!=0 :
                 self.block_lstm = SharedBlockLSTM(self.att_out*self.num_blocks_out, self.nhid, k=self.num_blocks_out, n_templates= n_templates)
             else:
-                print('Using Normal RIMs')
+                #print('Using Normal RIMs')
                 self.block_lstm = BlockLSTM(self.att_out*self.num_blocks_out, self.nhid, k=self.num_blocks_out)
 
         if self.do_rel:
             memory_key_size = 32
             gate_style = 'unit'
-            print('gate_style is', gate_style, memory_slots, num_memory_heads, memory_head_size, memory_key_size, memory_mlp)
+            #print('gate_style is', gate_style, memory_slots, num_memory_heads, memory_head_size, memory_key_size, memory_mlp)
             self.relational_memory = RelationalMemory(
                 mem_slots=memory_slots,
                 head_size=memory_head_size,
@@ -208,7 +208,7 @@ class BlocksCore(nn.Module):
         cx=cx.to(self.device)
         #hxl = []
         #cxl = []
-        print(f"block core scoff input {inp.shape} cx: {cx.shape}")
+        #print(f"block core scoff input {inp.shape} cx: {cx.shape}")
         sz_b = inp.shape[0]
         batch_size = inp.shape[0]
 
@@ -227,7 +227,7 @@ class BlocksCore(nn.Module):
              input_to_attention = [_process_input(_input) for _input in
                           torch.chunk(inp_use, chunks=self.num_blocks_out, dim=1)
                          ]
-             print(f"In block core scoff hx shape: {hx.shape}, batch size: {batch_size} version : {self.version}")
+             #print(f"In block core scoff hx shape: {hx.shape}, batch size: {batch_size} version : {self.version}")
              if hx.shape[0] != 1:
                 hx = hx.unsqueeze(0)
 
@@ -249,7 +249,7 @@ class BlocksCore(nn.Module):
         else:
              #use attention here.
              inp_use =inp_use.permute(1,0,2) #new line
-             print(f"In block core scoff input shape {inp_use.shape}, hx shape: {hx.shape}, batch size: {batch_size} version : {self.version} num_blocks_in {self.num_blocks_in}, block_size_in , {self.block_size_in}")
+             #print(f"In block core scoff input shape {inp_use.shape}, hx shape: {hx.shape}, batch size: {batch_size} version : {self.version} num_blocks_in {self.num_blocks_in}, block_size_in , {self.block_size_in}")
              inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.block_size_in))
              inp_use = inp_use.repeat(1,self.num_modules_read_input-1,1)
              inp_use = torch.cat([torch.zeros_like(inp_use[:,0:1,:]).to(self.device), inp_use], dim=1).to(self.device)
@@ -351,7 +351,7 @@ class BlocksCore(nn.Module):
              hx = self.set(hx).reshape((batch_size, self.num_blocks_out, self.block_size_out)).reshape(batch_size, self.nhid)
         
         #hx = Identity().apply(hx)
-        print(f"block core scoff output hx {hx.shape} cx: {cx.shape}, mask {mask.shape}, block_mask {block_mask.shape}")
+        #print(f"block core scoff output hx {hx.shape} cx: {cx.shape}, mask {mask.shape}, block_mask {block_mask.shape}")
         return hx, cx, mask, block_mask, temp_attention, entropy
 
     def reset_relational_memory(self, batch_size: int):
