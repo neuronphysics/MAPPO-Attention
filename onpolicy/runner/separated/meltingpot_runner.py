@@ -182,8 +182,8 @@ class MeltingpotRunner(Runner):
             actions.append(action)
             temp_actions_env.append(action_env)
             action_log_probs.append(_t2n(action_log_prob))
-            rnn_states.append(_t2n(rnn_state[0]))
-            rnn_states_critic.append( _t2n(rnn_state_critic[0]))
+            rnn_states.append(_t2n(rnn_state))
+            rnn_states_critic.append(_t2n(rnn_state_critic[0]))
             
 
         # [envs, agents, dim]
@@ -237,8 +237,11 @@ class MeltingpotRunner(Runner):
         done_new = np.expand_dims(done_new, axis=0)
         rewards  = np.expand_dims(rewards, axis=0)
         # Create a boolean mask with the same shape as rnn_states
-        
-        rnn_states[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
+        num_done = done_new == True
+        sum_done = num_done.shape
+        zeros = np.zeros(((sum_done[0],sum_done[1],1,)+(self.hidden_size,)), dtype=np.float32)
+       # sizes = rnn_states[done_new == True].shape
+       # rnn_states[done_new == True] = zeros #np.zeros(((done_new == True), self.hidden_size), dtype=np.float32)
 
         
         rnn_states_critic[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
@@ -286,7 +289,7 @@ class MeltingpotRunner(Runner):
             
             self.buffer[agent_id].insert(share_obs[:, agent_id],
                                          agent_obs[:, agent_id],
-                                         rnn_states[:, agent_id].swapaxes( 1, 0),
+                                         rnn_states[:, agent_id],#.swapaxes( 1, 0),
                                          rnn_states_critic[:, agent_id].swapaxes( 1, 0),
                                          actions[:, agent_id].swapaxes( 1, 0),
                                          action_log_probs[:, agent_id].swapaxes( 1, 0),

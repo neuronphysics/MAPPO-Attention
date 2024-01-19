@@ -1,0 +1,66 @@
+name: install-meltingpot
+
+inputs:
+  python-version:
+    description: Python version
+    required: false
+    default: '3.11'
+    type: string
+
+runs:
+  using: composite
+  steps:
+    - name: Get current runner
+      id: os-info
+      shell: bash
+      run: |
+        if [ "${RUNNER_OS}" = 'macOS' ]; then
+          echo "name=$(sw_vers -productName)" >> $GITHUB_OUTPUT
+          echo "version=$(sw_vers -productVersion)" >> $GITHUB_OUTPUT
+        elif [ "${RUNNER_OS}" = 'Linux' ]; then
+          echo "name=$(lsb_release -i -s)" >> $GITHUB_OUTPUT
+          echo "version=$(lsb_release -r -s)" >> $GITHUB_OUTPUT
+        else
+          exit 1
+        fi
+
+    - name: Set up Python ${{ inputs.python-version }}
+      id: setup-python
+      uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Restore Melting Pot installation
+      id: restore
+      uses: actions/cache/restore@v3
+      with:
+        path: |
+          meltingpot/assets
+          venv
+        key: install-meltingpot-${{ steps.os-info.outputs.name }}-${{ steps.os-info.outputs.version }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('setup.py') }}
+        restore-keys: |
+          install-meltingpot-${{ steps.os-info.outputs.name }}-${{ steps.os-info.outputs.version }}-py${{ steps.setup-python.outputs.python-version }}-
+
+    - name: Install Melting Pot
+      if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --editable .[dev]
+
+    - name: Save Melting Pot installation
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
+      with:
+        path:  |
+          meltingpot/assets
+          venv
+        key: ${{ steps.restore.outputs.cache-primary-key }}
+
+    - name: Activate virtual environment
+      shell: bash
+      run: |
+        source venv/bin/activate
+        pip list
+        echo "PATH=${PATH}" >> $GITHUB_ENV

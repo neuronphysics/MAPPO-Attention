@@ -135,6 +135,7 @@ class RNNModel(nn.Module):
                     if idx_step % self.layer_dilation[idx_layer] == 0:
                         if idx_step % self.block_dilation[idx_layer] == 0:
                             print(f"RNNModel class RIM --- hx {hx.shape} {idx_step} emb size : {emb.shape}")
+
                             hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx.to(input.device), cx.to(input.device), idx_step, do_block = True, message_to_rule_network = message_to_rule_network)
                             #RuntimeError: shape '[4, 2, 1, 64]' is invalid for input of size 1024
                             

@@ -29,7 +29,7 @@ class CNNLayer(nn.Module):
         active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
         gain = nn.init.calculate_gain(['tanh', 'relu'][use_ReLU])
-        
+
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
         if obs_shape[0]==3:
@@ -64,6 +64,8 @@ class CNNLayer(nn.Module):
         return x
 
 
+
+
 class CNNBase(nn.Module):
     def __init__(self, args, obs_shape):
         super(CNNBase, self).__init__()
@@ -77,6 +79,8 @@ class CNNBase(nn.Module):
     def forward(self, x):
         x = self.cnn(x)
         return x
+
+
 
 
 class MultiConvNet(nn.Module):
@@ -701,7 +705,9 @@ class Decoder(nn.Module):
 
         decoder_layers.append(self.activation)
         # Unflatten to a shape of (Channels, Height, Width)
-        decoder_layers.append(nn.Unflatten(1, (int(extend_dim / (image_height * image_width)), image_height, image_width)))
+        ff = int(torch.multiply(image_height, image_width))
+        u_size = (int(extend_dim / ff), image_height, image_width)
+        decoder_layers.append(nn.Unflatten(1,(u_size)))
         # Decoder Convolutions
 
         for i, (out_channels, in_channels) in enumerate(channel_sizes[::-1]):

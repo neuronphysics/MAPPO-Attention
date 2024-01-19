@@ -9,10 +9,10 @@ from pathlib import Path
 import torch
 from onpolicy.config import get_config
 from onpolicy.envs.meltingpot.MeltingPot_Env import env_creator
-from meltingpot import substrate
+from meltingpot.meltingpot import substrate
 from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
 import gc
-import ptvsd
+#import ptvsd
 import time
 
 
@@ -70,16 +70,16 @@ def make_eval_env(all_args):
 
 
 def parse_args(args, parser):
-    parser.add_argument('--substrate_name', type=str, default='collaborative_cooking', help="a physical environment which is paired with different scenarios")
-    parser.add_argument('--scenario_name', type=str,
-                        default='collaborative_cooking__circuit_0', help="Which scenario to run on [SC 0: killed chef, SC 1: semi-skilled apprentice chef, SC 2:an unhelpful partner ]")
-    parser.add_argument("--roles", type=str, default='default')
-    parser.add_argument('--num_agents', type=int,
-                        default=2, help="number of players")
+  #  parser.add_argument('--substrate_name', type=str, default='collaborative_cooking', help="a physical environment which is paired with different scenarios")
+  #  parser.add_argument('--scenario_name', type=str,
+    #                    default='collaborative_cooking__circuit_0', help="Which scenario to run on [SC 0: killed chef, SC 1: semi-skilled apprentice chef, SC 2:an unhelpful partner ]")
+   # parser.add_argument("--roles", type=str, default='default')
+  #  parser.add_argument('--num_agents', type=int,
+   #                     default=2, help="number of players")
     
-    parser.add_argument('--scale_factor', type=int, default=1, help="the scale factor for the observation")
+   # parser.add_argument('--scale_factor', type=int, default=1, help="the scale factor for the observation")
     
-    all_args = parser.parse_known_args(args)[0]
+    all_args = args #parser.parse_known_args(args)[0]
 
     return all_args
 
@@ -88,7 +88,7 @@ def main(args):
     torch.cuda.empty_cache()
     gc.collect()
     parser = get_config()
-    all_args = parse_args(args, parser)
+    all_args = args.parse_args() #parse_args(args, parser)
 
     if all_args.algorithm_name == "rmappo":
         print("u are choosing to use rmappo, we set use_recurrent_policy to be True")

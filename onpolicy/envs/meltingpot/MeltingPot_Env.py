@@ -10,7 +10,7 @@ import dmlab2d
 import gymnasium as gym
 from matplotlib import pyplot as plt
 from gymnasium import spaces
-from meltingpot import substrate as meltingpot_substrate
+from meltingpot.meltingpot import substrate as meltingpot_substrate
 from ml_collections import config_dict
 import numpy as np
 from ray.rllib.env import multi_agent_env
@@ -20,9 +20,9 @@ from gym.vector import VectorEnv
 from ray import cloudpickle
 from ray.util.iter import ParallelIteratorWorker
 from collections.abc import Mapping, Sequence
-from meltingpot.utils.substrates.wrappers import observables
+from meltingpot.meltingpot.utils.substrates.wrappers import observables
 import cv2
-from meltingpot.utils.substrates import substrate
+from meltingpot.meltingpot.utils.substrates import substrate
 PLAYER_STR_FORMAT = 'player_{index}'
 _WORLD_PREFIX = ['WORLD.RGB', 'INTERACTION_INVENTORIES', 'NUM_OTHERS_WHO_CLEANED_THIS_STEP']
 MAX_CYCLES = 400

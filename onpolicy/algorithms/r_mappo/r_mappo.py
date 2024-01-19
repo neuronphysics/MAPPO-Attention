@@ -20,7 +20,7 @@ class R_MAPPO():
         self.device = device
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.policy = policy
-
+        self.recon = args.use_recon_loss
         self.clip_param = args.clip_param
         self.ppo_epoch = args.ppo_epoch
         self.num_mini_batch = args.num_mini_batch
@@ -190,6 +190,7 @@ class R_MAPPO():
         train_info['actor_grad_norm'] = 0
         train_info['critic_grad_norm'] = 0
         train_info['ratio'] = 0
+        train_info['recon'] = 0
 
         for _ in range(self.ppo_epoch):
             if self._use_recurrent_policy:
