@@ -32,7 +32,7 @@ class R_Actor(nn.Module):
         obs_shape = get_shape_from_obs_space(obs_space)
         
         ##Zahra added
-        self.use_attention = True
+        self.use_attention = False
         #self.use_attention = args.use_attention
         self._attention_module = args.attention_module
         #print(f"value of use attention is {self.use_attention} ")
@@ -200,7 +200,7 @@ class R_Critic(nn.Module):
         
         ## Zahra added
         self._use_version_scoff = args.use_version_scoff
-        self.use_attention = True
+        self.use_attention = False
         #self.use_attention = args.use_attention
         self._attention_module = args.attention_module
         

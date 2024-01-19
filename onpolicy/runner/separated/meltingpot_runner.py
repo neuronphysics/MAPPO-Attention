@@ -47,6 +47,7 @@ class MeltingpotRunner(Runner):
         print('num episodes to run (separated):', episodes) 
 
         for episode in range(episodes):
+            episode_start_time = time.time()
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
@@ -63,6 +64,12 @@ class MeltingpotRunner(Runner):
 
                 # insert data into buffer
                 self.insert(data)
+
+                current_time = time.time()
+                elapsed_time = current_time - episode_start_time
+                if elapsed_time > 0:
+                    steps_per_minute = (step + 1) / (elapsed_time / 60)  # step + 1 to account for the 0 index
+                    print(f"Episode: {episode}, Step: {step}, Steps per minute: {steps_per_minute:.2f}")
 
             # compute return and update network
             print('at 1')
@@ -399,6 +406,8 @@ class MeltingpotRunner(Runner):
                     #                                                    rnn_states[:, agent_id],
                     #                                                    masks[:, agent_id],
                     #                                                    deterministic=True)
+                    print(obs[0][player]['RGB'].shape)
+                    assert 1==2
                     action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(np.expand_dims(obs[0][player]['RGB'], axis=0))),
                                                                         rnn_states[:, agent_id],
                                                                         masks[:, agent_id],

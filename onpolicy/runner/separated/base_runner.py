@@ -248,7 +248,8 @@ class Runner(object):
             policy_actor_state_dict = torch.load(str(self.model_dir) + '/actor_agent' + str(agent_id) + '.pt')
             self.policy[agent_id].actor.load_state_dict(policy_actor_state_dict)
             policy_critic_state_dict = torch.load(str(self.model_dir) + '/critic_agent' + str(agent_id) + '.pt')
-            self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
+            # print('agent id', agent_id, 'state dict:\n', policy_critic_state_dict)
+            # self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
             if self.trainer[agent_id]._use_valuenorm:
                 policy_vnrom_state_dict = torch.load(str(self.model_dir) + '/vnrom_agent' + str(agent_id) + '.pt')
                 self.trainer[agent_id].value_normalizer.load_state_dict(policy_vnrom_state_dict)

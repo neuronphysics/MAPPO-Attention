@@ -13,6 +13,8 @@ import socket
 import numpy as np
 import setproctitle
 import torch
+import json
+from argparse import Namespace
 
 # code repository sub-packages
 from onpolicy.config import get_config
@@ -44,6 +46,11 @@ def make_train_env(all_args):
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(
             all_args.n_rollout_threads)])
+
+
+def save_config_to_json(config, filename):
+    with open(filename, 'w') as file:
+        json.dump(vars(config), file, indent=4)
 
 
 def parse_args(args, parser):
@@ -90,6 +97,8 @@ def parse_args(args, parser):
 def main(args):
     parser = get_config()
     all_args = parse_args(args, parser)
+
+    save_config_to_json(all_args, 'config.json')
 
     if all_args.algorithm_name == "rmappo":
         print("u are choosing to use rmappo, we set use_recurrent_policy to be True")
