@@ -1,5 +1,5 @@
 from collections import OrderedDict
-
+from . import losses
 import torch
 from torch import nn
 

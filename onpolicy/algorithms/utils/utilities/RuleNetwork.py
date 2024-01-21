@@ -473,6 +473,7 @@ class RuleNetwork(nn.Module):
 			penultimate_representation = torch.cat((hidden, hidden_, rule_emb), dim = 2)
 			final_representation = self.variable_mlp_2(penultimate_representation) * original_variable_mask
 			return final_representation
+
 		elif self.design_config['application_option'] == 6: # compositional search, 2 phase with temperature
 			variables = hidden  # (B, num_variables, variable_dim)
 			variable_combinations = self.variable_combinations #(num_combinations, r)

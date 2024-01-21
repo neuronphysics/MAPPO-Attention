@@ -11,7 +11,7 @@ from onpolicy.algorithms.utils.act import ACTLayer
 from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 from absl import logging
-from onpolicy.algorithms.utils.cnn import Decoder
+from onpolicy.algorithms.utils.cnn import Decoder, Decoder_base
 class R_Actor(nn.Module):
     """
     Actor network class for MAPPO. Outputs actions given observations.
@@ -88,17 +88,53 @@ class R_Actor(nn.Module):
 
            if self._attention_module == "RIM":
                 print("We are using RIM...")
-                self.rnn =  RIM(device, self.hidden_size, self.hidden_size, num_units = args.rim_num_units, k = args.rim_topk, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, batch_first = True, num_rules = 4, rule_time_steps = 1)
+                self.rnn =  RIM(device, self.hidden_size, self.hidden_size,
+                                num_units = args.rim_num_units,
+                                k = args.rim_topk,
+                                rnn_cell = 'GRU',
+                                n_layers = 1,
+                                bidirectional = False,
+                                batch_first = True, num_rules = 4, rule_time_steps = 1,
+                                )
+
            elif self._attention_module == "SCOFF":
                 print("We are using SCOFF...")
-                self.rnn =  SCOFF(device, self.hidden_size, self.hidden_size, num_units = args.scoff_num_units, k = args.scoff_topk, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, batch_first = False, version= self._use_version_scoff, num_rules = 4, rule_time_steps = 1)
+                self.rnn =  SCOFF(device, self.hidden_size, self.hidden_size,
+                                  num_units = args.scoff_num_units,
+                                  k = args.scoff_topk, num_templates = 2,
+                                  rnn_cell = 'GRU', n_layers = 1,
+                                  bidirectional = False, batch_first = False,
+                                  version= self._use_version_scoff,
+                                  num_rules = 4, rule_time_steps = 1)
                                                
-        elif not self.use_attention == True:
+        elif not self.use_attention :
             print(f"value of use attention is {self.use_attention} ")
             base = CNNBase if len(obs_shape) >= 3 else MLPBase
             #----------------------------
+            if obs_shape[0] == 3:
+                input_channel = obs_shape[0]
+                input_width = obs_shape[1]
+                input_height = obs_shape[2]
+            elif obs_shape[2] == 3:
+                input_channel = obs_shape[2]
+                input_width = obs_shape[0]
+                input_height = obs_shape[1]
 
-            # ---------------------------------
+            kernel_size, stride, padding = calculate_conv_params((input_width, input_height, input_channel))
+            self.decode = Decoder_base(in_channel=input_channel,
+                                    image_height=input_height,
+                                    image_width=input_width,
+                                    hidden_dim=96,
+                                    extend_dim=input_height*input_width*256,
+                                    max_filters=256,
+                                    num_layers=1,
+                                    kernel_size=kernel_size, #3
+                                    stride_size=stride,
+                                    padding_size=padding).to(device)
+
+
+
+                # ---------------------------------
             logging.info("observation space %s number of dimensions of observation space is %d", str(obs_space.shape), len(obs_shape))
             if len(obs_shape) == 3: 
                logging.info('Not using any attention module, input width: %d ', obs_shape[1]) 
@@ -145,10 +181,11 @@ class R_Actor(nn.Module):
             actor_features, rnn_states = self.rnn(actor_features, rnn_states)
             print(f"actor features shape after normal RNN in an actor network (attention).... {actor_features[0].shape} {rnn_states[0].shape}")
             if self._attention_module == "RIM":
-                rnn_states = torch.Tensor(np.array(list(tuple( t.permute(1,0,2) for t in rnn_states ))))
+                rnn_states = tuple( t.permute(1,0,2) for t in rnn_states )
         else:
 
             actor_features = self.base(obs)
+
             if self._recon:
                 recon_features = self.decode(actor_features)
             print(f"actor features shape base CNN and RNN.... {actor_features.shape} {rnn_states.shape}")
@@ -156,6 +193,8 @@ class R_Actor(nn.Module):
                actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
                print(f"actor features shape after normal RNN in an actor network (lstm).... {actor_features.shape} {rnn_states.shape}")
                rnn_states = rnn_states.permute(1, 0, 2)
+
+
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
         if self._recon:

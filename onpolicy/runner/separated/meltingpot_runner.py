@@ -53,13 +53,19 @@ class MeltingpotRunner(Runner):
 
             for step in range(self.episode_length):
                 # Sample actions
-                values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
+                if self.all_args.use_recon_loss == True:
+                    values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env, recon_fs = self.collect(step)
+                else:
+                    values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
 
                 # Obser reward and next obs
                 obs, rewards, dones, infos = self.envs.step(actions)
                 print(f"After envs.step {step} in MeltingpotRunner (separate) for action size {actions.shape}, the reward {rewards} dones {dones}")
 
-                data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                if self.all_args.use_recon_loss == True:
+                    data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic, recon_fs
+                else:
+                    data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic
 
                 # insert data into buffer
                 self.insert(data)
@@ -155,10 +161,19 @@ class MeltingpotRunner(Runner):
         action_log_probs = []
         rnn_states = []
         rnn_states_critic = []
+        recon_fs = []
 
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
-            value, action, action_log_prob, rnn_state, rnn_state_critic \
+            if self.all_args.use_recon_loss == True:
+                value, action, action_log_prob, rnn_state, rnn_state_critic, recon_features \
+                = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
+                                                            self.buffer[agent_id].obs[step],
+                                                            self.buffer[agent_id].rnn_states[step],
+                                                            self.buffer[agent_id].rnn_states_critic[step],
+                                                            self.buffer[agent_id].masks[step])
+            else:
+                value, action, action_log_prob, rnn_state, rnn_state_critic \
                 = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
                                                             self.buffer[agent_id].obs[step],
                                                             self.buffer[agent_id].rnn_states[step],
@@ -197,7 +212,8 @@ class MeltingpotRunner(Runner):
             action_log_probs.append(_t2n(action_log_prob))
             rnn_states.append(_t2n(rnn_state))
             rnn_states_critic.append(_t2n(rnn_state_critic[0]))
-            
+            if self.all_args.use_recon_loss == True:
+                recon_fs.append(recon_features)
 
         # [envs, agents, dim]
         actions_env = []
@@ -213,8 +229,12 @@ class MeltingpotRunner(Runner):
         action_log_probs = np.array(action_log_probs) if isinstance(action_log_probs, list) else action_log_probs
         rnn_states = np.array(rnn_states) if isinstance(rnn_states, list) else rnn_states
         rnn_states_critic = np.array(rnn_states_critic) if isinstance(rnn_states_critic, list) else rnn_states_critic
-
         values = values.squeeze(-1).transpose(1, 0, 2)
+        if self.all_args.use_recon_loss == True:
+            recon_fs = np.array(recon_fs) if isinstance(recon_fs, list) else recon_fs
+
+
+
         if actions.ndim==3:
             actions = actions.transpose(2, 0, 1)
         else:
@@ -235,12 +255,18 @@ class MeltingpotRunner(Runner):
         #ctions (1, num_agent, n_rollout)
         #rnn states (1, num_agent, n_rollout, hidden_size)
         #rnn_states_critic (1, num_agent, n_rollout, hidden_size)
-        
-        return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
+
+        if self.all_args.use_recon_loss == True:
+            return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env, recon_fs
+        else:
+            return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env,
 
     def insert(self, data):
-        
-        obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
+
+        if self.all_args.use_recon_loss == True:
+            obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic, recon_fs = data
+        else:
+            obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
         
         print('rnn states sep', rnn_states.shape)
 
@@ -256,11 +282,12 @@ class MeltingpotRunner(Runner):
         sum_done = num_done.shape
         zeros = np.zeros(((sum_done[0],sum_done[1],1,)+(self.hidden_size,)), dtype=np.float32)
        # sizes = rnn_states[done_new == True].shape
-       # rnn_states[done_new == True] = zeros #np.zeros(((done_new == True), self.hidden_size), dtype=np.float32)
+        rnn_states[(done_new == True), :] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
 
         
-        rnn_states_critic[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
-        
+        rnn_states_critic[(done_new == True),:] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
+
+
         masks = np.ones(( 1, self.num_agents, self.n_rollout_threads, 1), dtype=np.float32)
         masks[done_new == True] = np.zeros(((done_new == True).sum(), 1), dtype=np.float32)
         
@@ -304,7 +331,7 @@ class MeltingpotRunner(Runner):
             
             self.buffer[agent_id].insert(share_obs[:, agent_id],
                                          agent_obs[:, agent_id],
-                                         rnn_states[:, agent_id],#.swapaxes( 1, 0),
+                                         rnn_states[:, agent_id].swapaxes( 1, 0),
                                          rnn_states_critic[:, agent_id].swapaxes( 1, 0),
                                          actions[:, agent_id].swapaxes( 1, 0),
                                          action_log_probs[:, agent_id].swapaxes( 1, 0),

@@ -19,7 +19,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--scale-factor', type=int, default=1, help="the scale factor for the observation")
 
-    parser.add_argument('--use-valuenorm', type=bool, default=False, help="whether to use")
+    parser.add_argument('--use-valuenorm', type=bool, default=True, help="whether to use")
 
 
     parser.add_argument('--algorithm-name',type=str,default="mappo")
@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
 
 
-    parser.add_argument('--use-attention', type=bool, default=True)
+    parser.add_argument('--use-attention', type=bool, default=False)
 
     parser.add_argument('--use-eval', type=bool, default=False)
 
@@ -50,11 +50,11 @@ if __name__ == '__main__':
 
     parser.add_argument('--n-training-threads', type=int, default=1)
 
-    parser.add_argument('--n-rollout-threads', type=int, default=2)
+    parser.add_argument('--n-rollout-threads', type=int, default=5)
 
     parser.add_argument('--num-mini-batch', type=int, default=1)
 
-    parser.add_argument('--episode-length', type=int, default=25)
+    parser.add_argument('--episode-length', type=int, default=10)
 
     parser.add_argument('--num-env-steps', type=int, default=2000000)
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     parser.add_argument("--n_render_rollout_threads", type=int, default=1,
                         help="Number of parallel envs for rendering rollouts")
 
-    parser.add_argument("--num_env_steps", type=int, default=10e6,
+    parser.add_argument("--num_env_steps", type=int, default=10,
                         help='Number of environment steps to train (default: 10e6)')
 
 
@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
 
     parser.add_argument("--use_centralized_V", action='store_false',
-                        default=True, help="Whether to use centralized V function")
+                        default=False, help="Whether to use centralized V function")
     parser.add_argument("--stacked_frames", type=int, default=1,
                         help="Dimension of hidden layers for actor/critic networks")
     parser.add_argument("--use_stacked_frames", action='store_true',
@@ -129,7 +129,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_naive_recurrent_policy", action='store_true',
                         default=False, help='Whether to use a naive recurrent policy')
     parser.add_argument("--use_recurrent_policy", action='store_false',
-                        default=False, help='use a recurrent policy')
+                        default=True, help='use a recurrent policy')
     parser.add_argument("--recurrent_N", type=int, default=1, help="The number of recurrent layers.")
     parser.add_argument("--data_chunk_length", type=int, default=10,
                         help="Time length of chunks used to train a recurrent_policy")
@@ -151,7 +151,7 @@ if __name__ == '__main__':
                         help="by default, clip loss value. If set, do not clip loss value.")
     parser.add_argument("--clip_param", type=float, default=0.2,
                         help='ppo clip parameter (default: 0.2)')
-    parser.add_argument("--num_mini_batch", type=int, default=1,
+    parser.add_argument("--num_mini_batch", type=int, default=20,
                         help='number of batches for ppo (default: 1)')
     parser.add_argument("--entropy_coef", type=float, default=0.01,
                         help='entropy term coefficient (default: 0.01)')
@@ -188,7 +188,7 @@ if __name__ == '__main__':
                         help="time duration between contiunous twice models saving.")
 
     # log parameters
-    parser.add_argument("--log_interval", type=int, default=5,
+    parser.add_argument("--log_interval", type=int, default=1,
                         help="time duration between contiunous twice log printing.")
 
     # eval parameters

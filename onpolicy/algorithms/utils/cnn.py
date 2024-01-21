@@ -83,6 +83,11 @@ class CNNBase(nn.Module):
 
 
 
+
+
+
+
+
 class MultiConvNet(nn.Module):
     def __init__(self, in_channels, num_layers, num_channels, activation, use_batchnorm=False):
         super(MultiConvNet, self).__init__()
@@ -762,5 +767,87 @@ class Decoder(nn.Module):
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.to(device=self.device)
         #print(f"decode network:\n{self.decoder}")
+    def forward(self, x):
+        return self.decoder(x)
+
+
+class Decoder_base(nn.Module):
+
+    def __init__(self,
+                 in_channel,
+                 hidden_dim,
+                 extend_dim,
+                 image_height,
+                 image_width,
+                 max_filters=512,
+                 num_layers=2,
+                 small_conv=False,
+
+
+                 kernel_size=4,
+                 stride_size=2,
+                 padding_size=1,
+                 activation=nn.GELU()):
+        super(Decoder_base, self).__init__()
+
+        self.nchannel = in_channel
+        self.hidden_dim = hidden_dim
+        self.img_width = image_width
+        self.dec_kernel = kernel_size
+        self.dec_stride = stride_size
+        self.dec_padding = padding_size
+        self.res_kernel = 3
+        self.res_stride = 1
+        self.res_padding = 1
+        self.activation = activation
+
+        if small_conv:
+            num_layers += 1
+        channel_sizes = calculate_channel_sizes(
+            self.nchannel, max_filters, num_layers
+        )
+
+        # Decoder
+        decoder_layers = nn.ModuleList()
+        # Feedforward/Dense Layer to expand our latent dimensions
+        decoder_layers.append(nn.Linear(hidden_dim, hidden_dim)) # last linear
+
+        decoder_layers.append(self.activation) # activate
+        decoder_layers.append(torch.nn.Linear(hidden_dim, extend_dim, bias=False)) ## mid linear
+
+        decoder_layers.append(self.activation)
+        # Unflatten to a shape of (Channels, Height, Width)
+        ff = int(torch.multiply(image_height, image_width))
+        u_size = (int(extend_dim / ff), image_height, image_width)
+        decoder_layers.append(nn.Unflatten(1, (u_size))) # unflatten
+        # Decoder Convolutions
+        decoder_layers.append(self.activation) # next relu
+        for i, (out_channels, in_channels) in enumerate(channel_sizes[::-1]):
+            if i == num_layers - 1:
+                # 1x1 Transposed Convolution
+                decoder_layers.append(
+                    nn.ConvTranspose2d(
+                        in_channels=in_channels,
+                        out_channels=out_channels,
+                        kernel_size=self.dec_kernel,
+                        stride=self.dec_stride,
+                        padding=self.dec_padding,
+                    )
+                )
+
+
+            # ReLU if not final layer
+            if i != num_layers - 1:
+                decoder_layers.append(self.activation)
+            # Sigmoid if final layer
+            else:
+                decoder_layers.append(nn.Sigmoid())
+
+
+        self.decoder = nn.Sequential(*decoder_layers)
+        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.to(device=self.device)
+        # print(f"decode network:\n{self.decoder}")
+
     def forward(self, x):
         return self.decoder(x)
