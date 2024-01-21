@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
 
 
-    parser.add_argument('--use-attention', type=bool, default=False)
+
 
     parser.add_argument('--use-eval', type=bool, default=False)
 
