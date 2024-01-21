@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--episode-length', type=int, default=10)
 
-    parser.add_argument('--num-env-steps', type=int, default=2000000)
+    parser.add_argument('--num-env-steps', type=int, default=200)
 
     parser.add_argument('--ppo-epoch', type=int, default=15)
 

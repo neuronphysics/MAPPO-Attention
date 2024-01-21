@@ -137,9 +137,10 @@ class R_MAPPO():
         policy_loss = policy_action_loss
 
         self.policy.actor_optimizer.zero_grad()
+        recon_loss = image_loss(recon_batch ,obs_batch)
 
         if update_actor:
-            (policy_loss - dist_entropy * self.entropy_coef + image_loss(recon_batch ,obs_batch) ).backward()
+            (policy_loss - dist_entropy * self.entropy_coef  ).backward()
 
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
@@ -162,7 +163,7 @@ class R_MAPPO():
 
         self.policy.critic_optimizer.step()
 
-        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
+        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, recon_loss
 
     def train(self, buffer, update_actor=True):
         """
@@ -210,7 +211,7 @@ class R_MAPPO():
 
             for sample in data_generator:
 
-                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
+                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, recon_loss \
                     = self.ppo_update(sample, update_actor)
 
                 train_info['value_loss'] += value_loss.item()
@@ -219,6 +220,7 @@ class R_MAPPO():
                 train_info['actor_grad_norm'] += actor_grad_norm
                 train_info['critic_grad_norm'] += critic_grad_norm
                 train_info['ratio'] += imp_weights.mean()
+                train_info['recon'] += recon_loss
 
             print('in b4')
 
