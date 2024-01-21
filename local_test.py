@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
     # network parameters
     parser.add_argument("--use_attention", type=bool,
-                        default=True, help='Whether agent use the attention module or not')
+                        default=False, help='Whether agent use the attention module or not')
     parser.add_argument("--attention_module", type=str,
                         default='RIM', help='specify the name of attention module')
     parser.add_argument("--use_version_scoff", type=int, default=0, help="specify the version of SCOFF")

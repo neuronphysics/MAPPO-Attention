@@ -137,10 +137,10 @@ class R_MAPPO():
         policy_loss = policy_action_loss
 
         self.policy.actor_optimizer.zero_grad()
-        recon_loss = image_loss(recon_batch ,obs_batch)
+        recon_loss = image_loss(recon_batch, obs_batch)
 
         if update_actor:
-            (policy_loss - dist_entropy * self.entropy_coef +recon_loss ).backward()
+            (policy_loss - dist_entropy * self.entropy_coef + recon_loss ).backward()
 
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
@@ -220,7 +220,7 @@ class R_MAPPO():
                 train_info['actor_grad_norm'] += actor_grad_norm
                 train_info['critic_grad_norm'] += critic_grad_norm
                 train_info['ratio'] += imp_weights.mean()
-                train_info['recon'] += recon_loss
+                train_info['recon'] += recon_loss.item()
 
             print('in b4')
 
