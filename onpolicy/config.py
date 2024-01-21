@@ -158,7 +158,7 @@ def get_config():
 
     # prepare parameters
     parser.add_argument("--algorithm_name", type=str,
-                        default='ippo', choices=["rmappo", "mappo", "ippo"])
+                        default='ippo', choices=["ippo","rmappo", "mappo"])
 
     parser.add_argument("--experiment_name", type=str, default="check", help="an identifier to distinguish different experiment.")
     parser.add_argument("--seed", type=int, default=1, help="Random seed for numpy/torch")
@@ -173,7 +173,7 @@ def get_config():
                         help="Number of parallel envs for evaluating rollouts")
     parser.add_argument("--n_render_rollout_threads", type=int, default=1,
                         help="Number of parallel envs for rendering rollouts")
-    parser.add_argument("--num_env_steps", type=int, default=70e5,
+    parser.add_argument("--num_env_steps", type=int, default=7e5,
                         help='Number of environment steps to train (default: 10e6)')
     parser.add_argument("--user_name", type=str, default='marl',help="[for wandb usage], to specify user's name for simply collecting training data.")
     parser.add_argument("--use_wandb", action='store_false', default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
@@ -191,7 +191,7 @@ def get_config():
     parser.add_argument("--use_attention", type=bool,
                         default=False, help='Whether agent use the attention module or not')
     parser.add_argument("--attention_module", type=str, 
-                        default= 'RIM', help='specify the name of attention module')
+                        default= 'SCOFF', help='specify the name of attention module')
     parser.add_argument("--use_version_scoff", type=int, default=0, help="specify the version of SCOFF")
     parser.add_argument("--scoff_num_units", type=int, default=4, help="specify the number of units in SCOFF")
     parser.add_argument("--scoff_topk", type=int, default=3, help="specify the number of topk in SCOFF") 
@@ -228,7 +228,7 @@ def get_config():
                         default=False, help='Whether to use a naive recurrent policy')
     parser.add_argument("--use_recurrent_policy", action='store_false',
                         default=True, help='use a recurrent policy')
-    parser.add_argument("--recurrent_N", type=int, default=2, help="The number of recurrent layers.")
+    parser.add_argument("--recurrent_N", type=int, default=1, help="The number of recurrent layers.")
     parser.add_argument("--data_chunk_length", type=int, default=10,
                         help="Time length of chunks used to train a recurrent_policy")
 

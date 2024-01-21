@@ -173,14 +173,9 @@ class Runner(object):
         action_dim=self.buffer[0].actions.shape[-1]
         factor = np.ones((self.episode_length, self.n_rollout_threads, 1), dtype=np.float32)
 
-        print('num agents', self.num_agents)
-
         for agent_id in torch.randperm(self.num_agents):
-            print('agent id', agent_id)
             self.trainer[agent_id].prep_training()
-            print('a1')
             self.buffer[agent_id].update_factor(factor)
-            print('a2')
             available_actions = None if self.buffer[agent_id].available_actions is None \
                 else self.buffer[agent_id].available_actions[:-1].reshape(-1, *self.buffer[agent_id].available_actions.shape[2:])
             
@@ -200,11 +195,7 @@ class Runner(object):
                                                             available_actions,
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
             
-            print('a3')
-
             train_info = self.trainer[agent_id].train(self.buffer[agent_id])
-
-            print('a4')
             
             if self.all_args.algorithm_name == "hatrpo":
                 new_actions_logprob, _, _, _, _ =self.trainer[agent_id].policy.actor.evaluate_actions(self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
@@ -222,14 +213,9 @@ class Runner(object):
                                                             available_actions,
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
 
-            print('a5')
-
             factor = factor*_t2n(torch.prod(torch.exp(new_actions_logprob-old_actions_logprob),dim=-1).reshape(self.episode_length,self.n_rollout_threads,1))
-            print('a6')
-            train_infos.append(train_info)
-            print('a7')      
+            train_infos.append(train_info)      
             self.buffer[agent_id].after_update()
-            print('a8')
 
         return train_infos
 
@@ -244,13 +230,22 @@ class Runner(object):
                 torch.save(policy_vnrom.state_dict(), str(self.save_dir) + "/vnrom_agent" + str(agent_id) + ".pt")
 
     def restore(self):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        evaluating = hasattr(self.all_args, 'evaluating') and self.all_args.evaluating
+        
         for agent_id in range(self.num_agents):
-            policy_actor_state_dict = torch.load(str(self.model_dir) + '/actor_agent' + str(agent_id) + '.pt')
+            actor_path = str(self.model_dir) + '/actor_agent' + str(agent_id) + '.pt'
+            policy_actor_state_dict = torch.load(actor_path, map_location=device)
             self.policy[agent_id].actor.load_state_dict(policy_actor_state_dict)
-            policy_critic_state_dict = torch.load(str(self.model_dir) + '/critic_agent' + str(agent_id) + '.pt')
-            self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
+
+            if not evaluating:
+                critic_path = str(self.model_dir) + '/critic_agent' + str(agent_id) + '.pt'
+                policy_critic_state_dict = torch.load(critic_path, map_location=device)
+                self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
+
             if self.trainer[agent_id]._use_valuenorm:
-                policy_vnrom_state_dict = torch.load(str(self.model_dir) + '/vnrom_agent' + str(agent_id) + '.pt')
+                vnrom_path = str(self.model_dir) + '/vnrom_agent' + str(agent_id) + '.pt'
+                policy_vnrom_state_dict = torch.load(vnrom_path, map_location=device)
                 self.trainer[agent_id].value_normalizer.load_state_dict(policy_vnrom_state_dict)
 
     def log_train(self, train_infos, total_num_steps): 

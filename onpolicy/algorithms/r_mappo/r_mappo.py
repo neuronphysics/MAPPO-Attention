@@ -175,14 +175,12 @@ class R_MAPPO():
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(buffer.value_preds[:-1])
         else:
             advantages = buffer.returns[:-1] - buffer.value_preds[:-1]
-        print('in b1')
         advantages_copy = advantages.copy()
         advantages_copy[buffer.active_masks[:-1] == 0.0] = np.nan
         mean_advantages = np.nanmean(advantages_copy)
         std_advantages = np.nanstd(advantages_copy)
         advantages = (advantages - mean_advantages) / (std_advantages + 1e-5)
         
-        print('in b2')
 
         train_info = {}
 
@@ -195,16 +193,11 @@ class R_MAPPO():
 
         for _ in range(self.ppo_epoch):
             if self._use_recurrent_policy:
-                print('in c1')
                 data_generator = buffer.recurrent_generator(advantages, self.num_mini_batch, self.data_chunk_length)
             elif self._use_naive_recurrent:
-                print('in d1')
                 data_generator = buffer.naive_recurrent_generator(advantages, self.num_mini_batch)
             else:
-                print('in e1')
                 data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
-
-            print('in b3')
 
             for sample in data_generator:
 
@@ -218,14 +211,10 @@ class R_MAPPO():
                 train_info['critic_grad_norm'] += critic_grad_norm
                 train_info['ratio'] += imp_weights.mean()
 
-            print('in b4')
-
         num_updates = self.ppo_epoch * self.num_mini_batch
 
         for k in train_info.keys():
             train_info[k] /= num_updates
-
-        print('in b5')
  
         return train_info
 

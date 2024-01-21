@@ -65,26 +65,18 @@ class MeltingpotRunner(Runner):
                 self.insert(data)
 
             # compute return and update network
-            print('at 1')
             self.compute()
-            print('at 2')
             train_infos = self.train()
-
-            print('at 3')
             
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
             
             # save model
             if (episode % self.save_interval == 0 or episode == episodes - 1):
-                print('saving!')
                 self.save()
-
-            print('at 4')
 
             # log information
             if episode % self.log_interval == 0:
-                print('logging!')
                 end = time.time()
                 print("\n Scenario {} Algo {} Exp {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}.\n"
                         .format(self.all_args.scenario_name,
@@ -97,23 +89,34 @@ class MeltingpotRunner(Runner):
                                 int(total_num_steps / (end - start))))
 
                 if self.env_name == "Meltingpot":
+                    
+                    #JUAN ADDED, OVERALL AVERAGE EPISODE REWARDS
+                    total_average_episode_rewards = 0
+
                     for agent_id in range(self.num_agents):
                         idv_rews = []
-                        #print(f"Details of 'SubprocVecEnv' object {self.envs.__dict__}")
+                        # Existing code to calculate individual rewards
                         print(f"rewards after run {rewards} here")
                         for index in list(self.envs.observation_space.keys()):
                             idv_rews.append(rewards[0][index])
                         train_infos[agent_id].update({'individual_rewards': np.mean(idv_rews)})
 
-                        train_infos[agent_id].update({"average_episode_rewards": np.mean(self.buffer[agent_id].rewards) * self.episode_length})
-                        print("average episode rewards for agent {} is {}".format(agent_id, train_infos[agent_id]["average_episode_rewards"]))
+                        # Calculate the average episode reward for the current agent
+                        average_episode_reward = np.mean(self.buffer[agent_id].rewards) * self.episode_length
+                        train_infos[agent_id].update({"average_episode_rewards": average_episode_reward})
+                        print("Average episode rewards for agent {} is {}".format(agent_id, average_episode_reward))
 
-                        #print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
+                        # Add the average reward of this agent to the total
+                        total_average_episode_rewards += average_episode_reward
+
+                    # Calculate the overall average episode reward for all agents
+                    overall_average_episode_reward = total_average_episode_rewards / self.num_agents
+                    print("Overall average episode reward for all agents:", overall_average_episode_reward)
+                    
                 self.log_train(train_infos, total_num_steps)
                 print(f"finish log training")
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
-                print('eval!')
                 self.eval(total_num_steps)
 
     def warmup(self):

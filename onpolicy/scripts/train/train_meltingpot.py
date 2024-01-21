@@ -15,6 +15,7 @@ import gc
 import ptvsd
 import time
 import cProfile
+import json
 
 
 """Train script for Meltingpot."""
@@ -84,12 +85,29 @@ def parse_args(args, parser):
 
     return all_args
 
+def save_config_to_json(config, filename):
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    # Modify filename to avoid overwriting
+    base_filename, file_extension = os.path.splitext(filename)
+    counter = 1
+    unique_filename = base_filename
+    while os.path.exists('logs/'+ unique_filename + file_extension):
+        unique_filename = f"{base_filename}_{counter}"
+        counter += 1
+
+    # Save the config to the file
+    with open('logs/' + unique_filename + file_extension, 'w') as file:
+        json.dump(vars(config), file, indent=4)
+
 
 def main(args):
     torch.cuda.empty_cache()
     gc.collect()
     parser = get_config()
     all_args = parse_args(args, parser)
+
+    save_config_to_json(all_args, 'all_args.json')
 
     if all_args.algorithm_name == "rmappo":
         print("u are choosing to use rmappo, we set use_recurrent_policy to be True")

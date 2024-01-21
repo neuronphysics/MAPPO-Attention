@@ -202,13 +202,19 @@ class MeltingpotRunner(Runner):
         print('len rnn states', len(rnn_states))
         print('rnn states', rnn_states)
 
+        # Extract the boolean values for each player and convert to a boolean array -JUAN ADDED
+        done  = np.array([player_dict[f'player_{0}'] for player_dict in done for i in range(self.num_agents)], dtype=np.bool_)        
+        print("dones", done)
+        print("rewards", np.array([player_dict[f'player_{i}'] for player_dict in rewards for i in range(self.num_agents)], dtype=np.float32))
+        
         # rnn_states[done == True] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
         # rnn_states_critic[done == True] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
         for i in range(len(rnn_states)):
             print('rnn shape', rnn_states[i].shape)
-            rnn_states[i][done] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+            rnn_states[i][done] = np.zeros(((done == True).sum(), self.hidden_size), dtype=np.float32)
         for i in range(len(rnn_states_critic)):
-            rnn_states_critic[i][done] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+            rnn_states_critic[i][done] = np.zeros(((done == True).sum(), self.hidden_size), dtype=np.float32)
+            
         masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
         masks[done == True] = np.zeros(((done == True).sum(), 1), dtype=np.float32)
 
