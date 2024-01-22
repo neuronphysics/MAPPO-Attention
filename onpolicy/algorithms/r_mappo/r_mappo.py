@@ -137,7 +137,7 @@ class R_MAPPO():
         policy_loss = policy_action_loss
 
         self.policy.actor_optimizer.zero_grad()
-        recon_loss = image_loss(recon_batch, obs_batch)
+        recon_loss = image_loss(torch.from_numpy(recon_batch), torch.from_numpy(obs_batch))
 
         if update_actor:
             (policy_loss - dist_entropy * self.entropy_coef + recon_loss ).backward()

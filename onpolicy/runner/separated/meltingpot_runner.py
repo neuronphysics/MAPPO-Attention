@@ -283,7 +283,9 @@ class MeltingpotRunner(Runner):
         zeros = np.zeros(((sum_done[0],sum_done[1],1,)+(self.hidden_size,)), dtype=np.float32)
        # sizes = rnn_states[done_new == True].shape
         rnn_states[(done_new == True), :] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
-
+        if self.all_args.use_recon_loss == True:
+            reconstructions = np.array(recon_fs) if isinstance(recon_fs, list) else recon_fs
+            reconstructions = reconstructions.swapaxes(2,4)
         
         rnn_states_critic[(done_new == True),:] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
 
@@ -328,8 +330,8 @@ class MeltingpotRunner(Runner):
             #if not self.use_centralized_V:
             #    share_obs = np.array(list(obs[:, agent_id]))
             #print(f"share_obs {share_obs.shape} again")
-            
-            self.buffer[agent_id].insert(share_obs[:, agent_id],
+            if self.all_args.use_recon_loss == True:
+                self.buffer[agent_id].insert(share_obs[:, agent_id],
                                          agent_obs[:, agent_id],
                                          rnn_states[:, agent_id].swapaxes( 1, 0),
                                          rnn_states_critic[:, agent_id].swapaxes( 1, 0),
@@ -337,7 +339,19 @@ class MeltingpotRunner(Runner):
                                          action_log_probs[:, agent_id].swapaxes( 1, 0),
                                          values[:, agent_id].swapaxes( 1, 0),
                                          rewards[:, agent_id].swapaxes( 1, 0),
-                                         masks[:, agent_id])
+                                         masks[:, agent_id],
+                                        reconstructions= reconstructions[agent_id,:])
+            else:
+                self.buffer[agent_id].insert(share_obs[:, agent_id],
+                                         agent_obs[:, agent_id],
+                                         rnn_states[:, agent_id].swapaxes( 1, 0),
+                                         rnn_states_critic[:, agent_id].swapaxes( 1, 0),
+                                         actions[:, agent_id].swapaxes( 1, 0),
+                                         action_log_probs[:, agent_id].swapaxes( 1, 0),
+                                         values[:, agent_id].swapaxes( 1, 0),
+                                         rewards[:, agent_id].swapaxes( 1, 0),
+                                         masks[:, agent_id],
+                                         )
 
     @torch.no_grad()
     def eval(self, total_num_steps):
