@@ -72,9 +72,14 @@ class R_Actor(nn.Module):
                                kernel_size= kernel, 
                                stride_size=stride, 
                                padding_size=padding)
-           
 
-              # ------------------- Dane Addition
+           if self.use_kl_loss: #
+
+                self.mu = nn.Linear(self.hidden_size, self.hidden_size)
+                self.logvar = nn.Linear(self.hidden_size, self.hidden_size)
+
+
+                # ------------------- Dane Addition
            self.decode = Decoder(in_channel=input_channel,
                                     image_height=input_height,
                                     image_width=input_width,

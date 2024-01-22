@@ -89,7 +89,7 @@ class R_MAPPO():
 
         return value_loss
 
-    def ppo_update(self, sample, update_actor=True):
+    def ppo_update(self, sample, update_actor=True, use_recon_loss = True):
         """
         Update actor and critic networks.
         :param sample: (Tuple) contains data batch with which to update networks.
@@ -136,11 +136,15 @@ class R_MAPPO():
 
         policy_loss = policy_action_loss
 
-        self.policy.actor_optimizer.zero_grad()
+        self.policy.actor_optimizer.zero_grad() # optimizer for decoder & encoder
         recon_loss = image_loss(torch.from_numpy(recon_batch), torch.from_numpy(obs_batch))
+        #recon_loss.backward() # flows through the encoder
 
         if update_actor:
-            (policy_loss - dist_entropy * self.entropy_coef + recon_loss ).backward()
+          #  if self._use_recon_loss:
+                (policy_loss - dist_entropy * self.entropy_coef + recon_loss).backward()  # flows through the actor
+         #   else:
+          #      (policy_loss - dist_entropy * self.entropy_coef + recon_loss).backward() # flows through the actor
 
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)

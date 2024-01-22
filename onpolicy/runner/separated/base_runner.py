@@ -193,7 +193,7 @@ class Runner(object):
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
             else:
                 #print(f"old obs_space base_runner: {self.buffer[agent_id].obs[:-1].shape} rnn shape {self.buffer[agent_id].rnn_states[0:1].shape}")
-                old_actions_logprob  = self.trainer[agent_id].policy.actor.evaluate_actions(self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
+                old_actions_logprob,   = self.trainer[agent_id].policy.actor.evaluate_actions(self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
                                                             self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
                                                             self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
                                                             self.buffer[agent_id].masks[:-1].reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
@@ -226,10 +226,10 @@ class Runner(object):
             print('a5')
 
             new_actions_logprob = torch.Tensor([new_actions_logprob]) if isinstance(new_actions_logprob, tuple) else new_actions_logprob
-            old_actions_logprob = old_actions_logprob[0] if isinstance(old_actions_logprob,
+            old_actions_logprob = old_actions_logprob[0][0] if isinstance(old_actions_logprob,
                                                                                     tuple) else old_actions_logprob
 
-            factor = factor*_t2n(torch.prod(torch.exp(new_actions_logprob-old_actions_logprob),dim=-1).reshape(self.episode_length,self.n_rollout_threads,1))
+            factor = factor*_t2n(torch.prod(torch.exp(new_actions_logprob-old_actions_logprob), dim=-1).reshape(self.episode_length,self.n_rollout_threads,1))
             print('a6')
             train_infos.append(train_info)
             print('a7')      

@@ -72,7 +72,7 @@ class SeparatedReplayBuffer(object):
         self.value_preds[self.step] = value_preds.copy()
         self.rewards[self.step] = rewards.copy()
         self.masks[self.step + 1] = masks.copy()
-        self.reconstructions[self.step] = reconstructions.copy()
+        self.reconstructions[self.step+1] = reconstructions.copy()
         if bad_masks is not None:
             self.bad_masks[self.step + 1] = bad_masks.copy()
         if active_masks is not None:
@@ -83,7 +83,7 @@ class SeparatedReplayBuffer(object):
         self.step = (self.step + 1) % self.episode_length
 
     def chooseinsert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
-                     value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
+                     value_preds, rewards, masks, reconstructions, bad_masks=None, active_masks=None, available_actions=None):
         self.share_obs[self.step] = share_obs.copy()
         self.obs[self.step] = obs.copy()
         self.rnn_states[self.step + 1] = rnn_states.copy()
@@ -93,6 +93,7 @@ class SeparatedReplayBuffer(object):
         self.value_preds[self.step] = value_preds.copy()
         self.rewards[self.step] = rewards.copy()
         self.masks[self.step + 1] = masks.copy()
+        self.reconstructions[self.step] = reconstructions.copy()
         if bad_masks is not None:
             self.bad_masks[self.step + 1] = bad_masks.copy()
         if active_masks is not None:
@@ -110,6 +111,7 @@ class SeparatedReplayBuffer(object):
         self.masks[0] = self.masks[-1].copy()
         self.bad_masks[0] = self.bad_masks[-1].copy()
         self.active_masks[0] = self.active_masks[-1].copy()
+        self.reconstructions[0] = self.reconstructions[-1].copy()
         if self.available_actions is not None:
             self.available_actions[0] = self.available_actions[-1].copy()
 
@@ -390,7 +392,7 @@ class SeparatedReplayBuffer(object):
             # States is just a (N, -1) from_numpy
             rnn_states_batch = np.stack(rnn_states_batch).reshape(N, *self.rnn_states.shape[2:])
             rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(N, *self.rnn_states_critic.shape[2:])
-            reconstructions_batch =  np.stack(reconstructions_batch)
+            reconstructions_batch = np.stack(reconstructions_batch)
             # Flatten the (L, N, ...) from_numpys to (L * N, ...)
             share_obs_batch = _flatten(L, N, share_obs_batch)
             obs_batch = _flatten(L, N, obs_batch)
