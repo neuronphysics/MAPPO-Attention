@@ -47,11 +47,8 @@ class MeltingpotRunner(Runner):
                 self.insert(data)
 
             # compute return and update network
-            print('at 1')
             self.compute()
-            print('at 2')
             train_infos = self.train()
-            print('at 3')
             
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
@@ -59,8 +56,6 @@ class MeltingpotRunner(Runner):
             # save model
             if (episode % self.save_interval == 0 or episode == episodes - 1):
                 self.save()
-
-            print('at 4')
 
             # log information
             if episode % self.log_interval == 0:
@@ -76,156 +71,97 @@ class MeltingpotRunner(Runner):
                                 int(total_num_steps / (end - start))))
 
                 if self.env_name == "Meltingpot":
-                    idv_rews = []
-                    for agent_id in range(self.num_agents):
-                        train_infos["average_episode_rewards"] = np.mean(self.buffer[agent_id].rewards) * self.episode_length
+                    train_infos["average_episode_rewards"] = np.sum(self.buffer.rewards) / self.buffer.rewards.shape[2]
+                    train_infos["performance_score"] = min_max_normalize(train_infos["average_episode_rewards"], 
+                                                                         self.all_args.substrate_name)
+                    # train_infos["average_episode_rewards"] = np.mean(self.buffer.rewards) * self.episode_length
                     print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
-
-            print('at 5')
 
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
 
-            print('at 6')
 
     def warmup(self):
-        # reset env
-        #if --n_rollout_threads 6 && --substrate_name "territory__rooms"
         obs = self.envs.reset()
-        # replay buffer
-        share_obs = []
-        agent_obs = []
-        for sublist in obs:
-            for item in sublist:
-                if item:
-                    rgb_player=[]
-                    arrays = []
-                    for agent_id in range(self.num_agents):
-                        player= f"player_{agent_id}"
-                        if player in item:
-                              rgb_player.append(item[player]['WORLD.RGB'])
-                              arrays.append(item[player]['RGB'])
-                              #player_i obs: (11, 11, 3), share_obs: (168, 168, 3)
-                    result = np.stack(arrays)
-                    image  = np.stack(rgb_player)
-            share_obs.append(image)
-            agent_obs.append(result)
-        share_obs = np.array(share_obs)
-        agent_obs = np.array(agent_obs)
-        #share_obs shape: (6, 9, 168, 168, 3), agent obs shape: (6, 9, 11, 11, 3)
-        # for agent_id in range(self.num_agents):
-            #size of buffer share_obs (6, 168, 168, 3)--- obs (6, 11, 11, 3)
-        self.buffer.share_obs[0] = share_obs[:,0,:,:,:].transpose(0, 2, 1, 3).copy()
-        self.buffer.obs[0]       = agent_obs[:,0,:,:,:].copy()
 
-        # # reset env
-        # obs = self.envs.reset()
+        data_dict = obs[0][0]
+        stacked_data = np.stack([np.squeeze(data_dict[f'player_{i}']['RGB']) for i in range(self.num_agents)])
+        new_obs = stacked_data[np.newaxis, ...]
 
-        # # replay buffer
-        # if self.use_centralized_V:
-        #     share_obs = obs.reshape(self.n_rollout_threads, -1)
-        #     share_obs = np.expand_dims(share_obs, 1).repeat(self.num_agents, axis=1)
-        # else:
-        #     share_obs = obs
+        stacked_share_data = np.stack([np.squeeze(data_dict[f'player_{i}']['WORLD.RGB']) for i in range(self.num_agents)])
+        new_share_obs = stacked_share_data[np.newaxis, ...]
 
-        # print('share obs?', share_obs)
+        if self.use_centralized_V:
+            new_share_obs = new_share_obs.reshape(self.n_rollout_threads, -1)
+            new_share_obs = np.expand_dims(new_share_obs, 1).repeat(self.num_agents, axis=1)
 
-        # self.buffer.share_obs[0] = share_obs.copy()
-        # self.buffer.obs[0] = obs.copy()
+        self.buffer.share_obs[0] = new_share_obs.copy()
+        self.buffer.obs[0] = new_obs.copy()
 
 
-    # @torch.no_grad()
-    # def collect(self, step):
-    #     self.trainer.prep_rollout()
-    #     value, action, action_log_prob, rnn_states, rnn_states_critic \
-    #         = self.trainer.policy.get_actions(np.concatenate(self.buffer.share_obs[step]),
-    #                         np.concatenate(self.buffer.obs[step]),
-    #                         np.concatenate(self.buffer.rnn_states[step]),
-    #                         np.concatenate(self.buffer.rnn_states_critic[step]),
-    #                         np.concatenate(self.buffer.masks[step]))
-    #     # [self.envs, agents, dim]
-    #     values = np.array(np.split(_t2n(value), self.n_rollout_threads))
-    #     actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
-    #     action_log_probs = np.array(np.split(_t2n(action_log_prob), self.n_rollout_threads))
-    #     rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
-    #     rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic), self.n_rollout_threads))
-    #     # rearrange action
-    #     if self.envs.action_space[0].__class__.__name__ == 'MultiDiscrete':
-    #         for i in range(self.envs.action_space[0].shape):
-    #             uc_actions_env = np.eye(self.envs.action_space[0].high[i] + 1)[actions[:, :, i]]
-    #             if i == 0:
-    #                 actions_env = uc_actions_env
-    #             else:
-    #                 actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
-    #     elif self.envs.action_space[0].__class__.__name__ == 'Discrete':
-    #         actions_env = np.squeeze(np.eye(self.envs.action_space[0].n)[actions], 2)
-    #     else:
-    #         raise NotImplementedError
-
-    #     return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
     @torch.no_grad()
     def collect(self, step):
         self.trainer.prep_rollout()
-        value, action, action_log_prob, rnn_states, rnn_states_critic = self.trainer.policy.get_actions(
-            np.concatenate(self.buffer.share_obs[step]),
-            np.concatenate(self.buffer.obs[step]),
-            np.concatenate(self.buffer.rnn_states[step]),
-            np.concatenate(self.buffer.rnn_states_critic[step]),
-            np.concatenate(self.buffer.masks[step])
-        )
-
-        # Convert tensors to numpy arrays
-        values = _t2n(value)
-        actions = _t2n(action)
-        action_log_probs = _t2n(action_log_prob)
-        rnn_states = _t2n(rnn_states)
-        rnn_states_critic = _t2n(rnn_states_critic)
-
-        # Process actions based on action space type
-        action_space_type = self.envs.action_space['player_0'].__class__.__name__
-        if action_space_type == 'MultiDiscrete':
-            actions_env = np.stack([np.eye(space.n)[actions[:, i]] for i, space in enumerate(self.envs.action_space.nvec)], axis=-1)
-        elif action_space_type == 'Discrete':
-            actions_env = np.eye(self.envs.action_space['player_0'].n)[actions]
+        value, action, action_log_prob, rnn_states, rnn_states_critic \
+            = self.trainer.policy.get_actions(np.concatenate(self.buffer.share_obs[step]),
+                            np.concatenate(self.buffer.obs[step]),
+                            np.concatenate(self.buffer.rnn_states[step]),
+                            np.concatenate(self.buffer.rnn_states_critic[step]),
+                            np.concatenate(self.buffer.masks[step]))
+        # [self.envs, agents, dim]
+        values = np.array(np.split(_t2n(value), self.n_rollout_threads))
+        actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
+        action_log_probs = np.array(np.split(_t2n(action_log_prob), self.n_rollout_threads))
+        rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
+        rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic), self.n_rollout_threads))
+        # rearrange action
+        if self.envs.action_space['player_0'].__class__.__name__ == 'MultiDiscrete':
+            for i in range(self.envs.action_space['player_0'].shape):
+                uc_actions_env = np.eye(self.envs.action_space['player_0'].high[i] + 1)[actions[:, :, i]]
+                if i == 0:
+                    actions_env = uc_actions_env
+                else:
+                    actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
+        elif self.envs.action_space['player_0'].__class__.__name__ == 'Discrete':
+            actions_env = np.squeeze(np.eye(self.envs.action_space['player_0'].n)[actions], 2)
         else:
-            raise NotImplementedError(f"Action space type '{action_space_type}' not supported.")
+            raise NotImplementedError
 
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
 
     def insert(self, data):
-        
-        obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
+        obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
 
-        print('len rnn states', len(rnn_states))
-        print('rnn states', rnn_states)
+        data_dict = obs[0]
+        stacked_data = np.stack([np.squeeze(data_dict[f'player_{i}']['RGB']) for i in range(self.num_agents)])
+        new_obs = stacked_data[np.newaxis, ...]
 
-        # Extract the boolean values for each player and convert to a boolean array -JUAN ADDED
-        done  = np.array([player_dict[f'player_{0}'] for player_dict in done for i in range(self.num_agents)], dtype=np.bool_)        
-        print("dones", done)
-        print("rewards", np.array([player_dict[f'player_{i}'] for player_dict in rewards for i in range(self.num_agents)], dtype=np.float32))
-        
-        # rnn_states[done == True] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-        # rnn_states_critic[done == True] = np.zeros(((done == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-        for i in range(len(rnn_states)):
-            print('rnn shape', rnn_states[i].shape)
-            rnn_states[i][done] = np.zeros(((done == True).sum(), self.hidden_size), dtype=np.float32)
-        for i in range(len(rnn_states_critic)):
-            rnn_states_critic[i][done] = np.zeros(((done == True).sum(), self.hidden_size), dtype=np.float32)
-            
+        stacked_share_data = np.stack([np.squeeze(data_dict[f'player_{i}']['WORLD.RGB']) for i in range(self.num_agents)])
+        new_share_obs = stacked_share_data[np.newaxis, ...]
+
+        rewards = np.array([player_dict[f'player_{i}'] for player_dict in rewards for i in range(self.num_agents)], dtype=np.float32)
+
+        if (dones == True).sum() > 0:
+            rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)   
+            rnn_states_critic[dones == True] = np.zeros(((dones == True).sum(), *self.buffer.rnn_states_critic.shape[3:]), dtype=np.float32)
         masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-        masks[done == True] = np.zeros(((done == True).sum(), 1), dtype=np.float32)
+        if (dones == True).sum() > 0:
+            masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
 
-        share_obs = []
         if self.use_centralized_V:
-            share_obs = obs.reshape(self.n_rollout_threads, -1)
-            share_obs = np.expand_dims(share_obs, 1).repeat(self.num_agents, axis=1)
-        else:
-            share_obs = obs
+            new_share_obs = new_share_obs.reshape(self.n_rollout_threads, -1)
+            new_share_obs = np.expand_dims(new_share_obs, 1).repeat(self.num_agents, axis=1)
 
-        self.buffer.insert(share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs, values, rewards, masks)
+        _, _, dim1, dim2 = rnn_states.shape
+        rnn_states = rnn_states.reshape((1, dim1, 1, dim2))
+        rnn_states_critic = rnn_states_critic.reshape((1, dim1, 1, dim2))
+        action_log_probs = action_log_probs.reshape((1, dim1, 1))
+
+        self.buffer.insert(new_share_obs, new_obs, rnn_states, rnn_states_critic, actions, action_log_probs, values, rewards, masks)
+
 
     @torch.no_grad()
     def eval(self,total_num_steps):
@@ -334,3 +270,16 @@ class MeltingpotRunner(Runner):
 
         if self.all_args.save_gifs:
             imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
+
+
+def min_max_normalize(value, substrate):
+    """Return the Elo score for the given substrate. Scores are min-max normalized based on 
+    deepmind's reported min score and max score achieved using self-play with a set of different 
+    algorithms for the given substrate"""
+    minmax_map = {
+        'allelopathic_harvest__open': {'min': -17.8, 'max': 92.4},
+        'clean_up': {'min': 0.0, 'max': 188.6},
+        'prisoners_dilemma_in_the_matrix__arena': {'min': 0.9, 'max': 22.8},
+        'territory__rooms': {'min': 10.4, 'max': 236.3}
+    }
+    return (value - minmax_map[substrate]['min']) / (minmax_map[substrate]['max'] - minmax_map[substrate]['min'])
