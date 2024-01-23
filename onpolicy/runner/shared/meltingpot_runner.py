@@ -92,6 +92,7 @@ class MeltingpotRunner(Runner):
 
         stacked_share_data = np.stack([np.squeeze(data_dict[f'player_{i}']['WORLD.RGB']) for i in range(self.num_agents)])
         new_share_obs = stacked_share_data[np.newaxis, ...]
+        new_share_obs = np.transpose(new_share_obs, (0, 1, 3, 2, 4))
 
         if self.use_centralized_V:
             new_share_obs = new_share_obs.reshape(self.n_rollout_threads, -1)
@@ -141,6 +142,7 @@ class MeltingpotRunner(Runner):
 
         stacked_share_data = np.stack([np.squeeze(data_dict[f'player_{i}']['WORLD.RGB']) for i in range(self.num_agents)])
         new_share_obs = stacked_share_data[np.newaxis, ...]
+        new_share_obs = np.transpose(new_share_obs, (0, 1, 3, 2, 4))
 
         rewards = np.array([player_dict[f'player_{i}'] for player_dict in rewards for i in range(self.num_agents)], dtype=np.float32)
 
