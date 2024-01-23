@@ -393,16 +393,17 @@ class MeltingpotRunner(Runner):
                 temp_actions_env = []
                 for agent_id in range(self.num_agents):
                     player= f"player_{agent_id}"
-                    if not self.use_centralized_V:
-                        #share_obs = np.array(list(obs[:, agent_id]))
-                        share_obs=np.array(list(np.expand_dims(obs[0][player]['WORLD.RGB'], axis=0)))
-                        #share_obs = np.array(list(np.expand_dims(obs[0][player]['RGB'], axis=0)))
+                    # if not self.use_centralized_V:
+                    #     #share_obs = np.array(list(obs[:, agent_id]))
+                    #     share_obs=np.array(list(np.expand_dims(obs[0][player]['WORLD.RGB'], axis=0)))
+                    #     #share_obs = np.array(list(np.expand_dims(obs[0][player]['RGB'], axis=0)))
                     self.trainer[agent_id].prep_rollout()
                     #action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(obs[:, agent_id])),
                     #                                                    rnn_states[:, agent_id],
                     #                                                    masks[:, agent_id],
                     #                                                    deterministic=True)
-                    action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(np.expand_dims(obs[0][player]['RGB'], axis=0))),
+                    rgb_data = obs[0][player]['RGB'] if isinstance(obs, np.ndarray) else obs[player]['RGB']
+                    action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(np.expand_dims(rgb_data, axis=0))),
                                                                         rnn_states[:, agent_id],
                                                                         masks[:, agent_id],
                                                                         deterministic=True)
