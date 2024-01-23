@@ -170,8 +170,13 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
   def step(self, action_dict):
     """See base class."""
-    print('action dict', action_dict)
-    print('ordred agent ids', self._ordered_agent_ids)
+    def is_iterable(obj):
+      try:
+          iter(obj)
+          return True
+      except TypeError:
+          return False
+    action_dict = action_dict if is_iterable(action_dict[0]) else [[item] for item in action_dict]
     actions = [list(map(int, action_dict[agent_id])) for agent_id, player in enumerate(self._ordered_agent_ids)]
     actions = np.array(actions)
     #print(f"size of action in step {actions.shape}")
@@ -326,7 +331,6 @@ class DownSamplingSubstrateWrapper(observables.ObservableLab2dWrapper):
         return _downsample_multi_timestep(timestep, self._scaled)
 
     def step(self, actions) -> dm_env.TimeStep:
-        print(f"step downsampled Substrate")
         timestep = super().step(actions)
         
         return _downsample_multi_timestep(timestep, self._scaled)
