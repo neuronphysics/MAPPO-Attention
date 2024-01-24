@@ -24,7 +24,7 @@ class R_Actor(nn.Module):
         super(R_Actor, self).__init__()
         self.hidden_size = args.hidden_size
         self._recon = args.use_recon_loss
-        self._kl = args.use_kl_loss
+        self.use_kl_loss = args.use_kl_loss
         self._gain = args.gain
         self._use_orthogonal = args.use_orthogonal
         self._use_policy_active_masks = args.use_policy_active_masks
@@ -99,7 +99,7 @@ class R_Actor(nn.Module):
                                 rnn_cell = 'GRU',
                                 n_layers = 1,
                                 bidirectional = False,
-                                batch_first = True, num_rules = 4, rule_time_steps = 1,
+                                batch_first = True, num_rules = 0, rule_time_steps = 1,
                                 )
 
            elif self._attention_module == "SCOFF":
@@ -110,7 +110,7 @@ class R_Actor(nn.Module):
                                   rnn_cell = 'GRU', n_layers = 1,
                                   bidirectional = False, batch_first = False,
                                   version= self._use_version_scoff,
-                                  num_rules = 4, rule_time_steps = 1)
+                                  num_rules = 0, rule_time_steps = 1)
                                                
         elif not self.use_attention :
             print(f"value of use attention is {self.use_attention} ")
@@ -179,8 +179,22 @@ class R_Actor(nn.Module):
             
         if self.use_attention and len(self._obs_shape) >= 3:
             actor_features = self.base(obs)
+
             if self._recon:
                 recon_features = self.decode(actor_features)
+
+            if self.use_kl_loss:
+                sp = nn.functional.softplus
+                mu = self.mu(actor_features)
+                logvar = sp(self.logvar(actor_features))
+
+                std = torch.exp(0.5*logvar)
+                eps = torch.randn_like(std)
+                z = std * eps + mu
+
+                kl_div = torch.nn.functional.kl_div(actor_features, z)
+
+                actor_features = z
             
             print(f"actor features shape.... {actor_features.shape} {rnn_states.shape}")#torch.Size([9, 64]) torch.Size([9, 1, 64])
             actor_features, rnn_states = self.rnn(actor_features, rnn_states)
@@ -190,6 +204,19 @@ class R_Actor(nn.Module):
         else:
 
             actor_features = self.base(obs)
+
+            if self.use_kl_loss:
+                sp = nn.functional.softplus
+                mu = self.mu(actor_features)
+                logvar = sp(self.logvar(actor_features))
+
+                std = torch.exp(0.5 * logvar)
+                eps = torch.randn_like(std)
+                z = std * eps + mu
+
+                kl_div = torch.nn.functional.kl_div(actor_features,z)
+
+                actor_features = z
 
             if self._recon:
                 recon_features = self.decode(actor_features)
@@ -202,7 +229,11 @@ class R_Actor(nn.Module):
 
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
-        if self._recon:
+        if self._recon and self.use_kl_loss:
+
+                return actions, action_log_probs, rnn_states, recon_features, kl_div
+
+        elif self._recon:
 
             return actions, action_log_probs, rnn_states, recon_features
 
@@ -360,7 +391,7 @@ class R_Critic(nn.Module):
             critic_features, rnn_states = self.rnn(critic_features, rnn_states)
             print(f"critic features shape after rnn using attention.... {critic_features.shape} {rnn_states[0].shape}") # torch.Size([1, rollout,hidden_size]) torch.Size([1, rollout, hidden_size])
             if self._attention_module == "RIM":
-                rnn_states = torch.Tensor(np.array(list(tuple( t.permute(1,0,2) for t in rnn_states ))))
+                rnn_states = tuple( t.permute(1,0,2) for t in rnn_states )
         else:
 
            critic_features = self.base(cent_obs)

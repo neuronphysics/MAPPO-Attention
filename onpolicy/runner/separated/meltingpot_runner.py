@@ -53,8 +53,12 @@ class MeltingpotRunner(Runner):
 
             for step in range(self.episode_length):
                 # Sample actions
-                if self.all_args.use_recon_loss == True:
+                if self.all_args.use_recon_loss == True and self.all_args.use_kl_loss == True :
+                    values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env, recon_fs, kls = self.collect(step)
+
+                elif self.all_args.use_recon_loss == True:
                     values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env, recon_fs = self.collect(step)
+
                 else:
                     values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
 
@@ -62,8 +66,12 @@ class MeltingpotRunner(Runner):
                 obs, rewards, dones, infos = self.envs.step(actions)
                 print(f"After envs.step {step} in MeltingpotRunner (separate) for action size {actions.shape}, the reward {rewards} dones {dones}")
 
-                if self.all_args.use_recon_loss == True:
+                if self.all_args.use_recon_loss == True and self.all_args.use_kl_loss == True:
+                    data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic, recon_fs, kls
+
+                elif self.all_args.use_recon_loss == True:
                     data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic, recon_fs
+
                 else:
                     data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic
 
@@ -162,16 +170,24 @@ class MeltingpotRunner(Runner):
         rnn_states = []
         rnn_states_critic = []
         recon_fs = []
+        kl_losses = []
 
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
-            if self.all_args.use_recon_loss == True:
-                value, action, action_log_prob, rnn_state, rnn_state_critic, recon_features \
+            if self.all_args.use_recon_loss == True and  self.all_args.use_kl_loss == True:
+                value, action, action_log_prob, rnn_state, rnn_state_critic, recon_features, kl_divs \
                 = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
                                                             self.buffer[agent_id].obs[step],
                                                             self.buffer[agent_id].rnn_states[step],
                                                             self.buffer[agent_id].rnn_states_critic[step],
                                                             self.buffer[agent_id].masks[step])
+            elif self.all_args.use_recon_loss == True:
+                value, action, action_log_prob, rnn_state, rnn_state_critic, recon_features \
+                    = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
+                                                                self.buffer[agent_id].obs[step],
+                                                                self.buffer[agent_id].rnn_states[step],
+                                                                self.buffer[agent_id].rnn_states_critic[step],
+                                                                self.buffer[agent_id].masks[step])
             else:
                 value, action, action_log_prob, rnn_state, rnn_state_critic \
                 = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
@@ -210,10 +226,13 @@ class MeltingpotRunner(Runner):
             actions.append(action)
             temp_actions_env.append(action_env)
             action_log_probs.append(_t2n(action_log_prob))
-            rnn_states.append(_t2n(rnn_state))
+            rnn_states.append(_t2n(rnn_state[0]))
             rnn_states_critic.append(_t2n(rnn_state_critic[0]))
             if self.all_args.use_recon_loss == True:
                 recon_fs.append(recon_features)
+
+            if self.all_args.use_kl_loss == True:
+                kl_losses.append(kl_divs)
 
         # [envs, agents, dim]
         actions_env = []
@@ -233,6 +252,8 @@ class MeltingpotRunner(Runner):
         if self.all_args.use_recon_loss == True:
             recon_fs = np.array(recon_fs) if isinstance(recon_fs, list) else recon_fs
 
+        if self.all_args.use_kl_loss == True:
+            kl_losses = np.array(kl_losses) if isinstance(kl_losses, list) else kl_losses
 
 
         if actions.ndim==3:
@@ -256,15 +277,23 @@ class MeltingpotRunner(Runner):
         #rnn states (1, num_agent, n_rollout, hidden_size)
         #rnn_states_critic (1, num_agent, n_rollout, hidden_size)
 
-        if self.all_args.use_recon_loss == True:
+        if self.all_args.use_recon_loss == True and self.all_args.use_kl_loss == True:
+            return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env, recon_fs, kl_losses
+
+        elif self.all_args.use_recon_loss == True:
             return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env, recon_fs
+
         else:
             return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env,
 
     def insert(self, data):
 
-        if self.all_args.use_recon_loss == True:
+        if self.all_args.use_recon_loss == True and self.all_args.use_kl_loss == True:
+            obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic, recon_fs, kl_divs = data
+
+        elif self.all_args.use_recon_loss == True:
             obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic, recon_fs = data
+
         else:
             obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
         
@@ -330,7 +359,20 @@ class MeltingpotRunner(Runner):
             #if not self.use_centralized_V:
             #    share_obs = np.array(list(obs[:, agent_id]))
             #print(f"share_obs {share_obs.shape} again")
-            if self.all_args.use_recon_loss == True:
+            if self.all_args.use_recon_loss == True and self.all_args.use_kl_loss == True:
+                self.buffer[agent_id].insert(share_obs[:, agent_id],
+                                         agent_obs[:, agent_id],
+                                         rnn_states[:, agent_id].swapaxes( 1, 0),
+                                         rnn_states_critic[:, agent_id].swapaxes( 1, 0),
+                                         actions[:, agent_id].swapaxes( 1, 0),
+                                         action_log_probs[:, agent_id].swapaxes( 1, 0),
+                                         values[:, agent_id].swapaxes( 1, 0),
+                                         rewards[:, agent_id].swapaxes( 1, 0),
+                                         masks[:, agent_id],
+                                        reconstructions= reconstructions[agent_id,:],
+                                        kl_divs = kl_divs[agent_id,:])
+
+            elif self.all_args.use_recon_loss == True:
                 self.buffer[agent_id].insert(share_obs[:, agent_id],
                                          agent_obs[:, agent_id],
                                          rnn_states[:, agent_id].swapaxes( 1, 0),
@@ -341,6 +383,7 @@ class MeltingpotRunner(Runner):
                                          rewards[:, agent_id].swapaxes( 1, 0),
                                          masks[:, agent_id],
                                         reconstructions= reconstructions[agent_id,:])
+
             else:
                 self.buffer[agent_id].insert(share_obs[:, agent_id],
                                          agent_obs[:, agent_id],

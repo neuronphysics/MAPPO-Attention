@@ -2,6 +2,8 @@ import torch
 import numpy as np
 from collections import defaultdict
 
+from torch.distributions import kl
+
 from onpolicy.utils.util import check, get_shape_from_obs_space, get_shape_from_act_space
 
 def _flatten(T, N, x):
@@ -56,13 +58,14 @@ class SeparatedReplayBuffer(object):
         self.bad_masks = np.ones_like(self.masks)
         self.active_masks = np.ones_like(self.masks)
         self.reconstructions = np.zeros((self.episode_length + 1, self.n_rollout_threads, *obs_shape), dtype=np.float32)
+        self.kl_divs = None
         self.step = 0
         
     def update_factor(self, factor):
         self.factor = factor.copy()
 
     def insert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
-               value_preds, rewards, masks, reconstructions, bad_masks=None, active_masks=None, available_actions=None,):
+               value_preds, rewards, masks, reconstructions = None, kl_divs = None, bad_masks=None, active_masks=None, available_actions=None,):
         self.share_obs[self.step + 1] = share_obs.copy()
         self.obs[self.step + 1] = obs.copy()
         self.rnn_states[self.step + 1] = rnn_states.copy()
@@ -72,7 +75,12 @@ class SeparatedReplayBuffer(object):
         self.value_preds[self.step] = value_preds.copy()
         self.rewards[self.step] = rewards.copy()
         self.masks[self.step + 1] = masks.copy()
-        self.reconstructions[self.step+1] = reconstructions.copy()
+
+        if reconstructions is not None:
+            self.reconstructions[self.step+1] = reconstructions.copy()
+        if kl_divs is not None:
+            self.kl_divs[self.step] = kl_divs.copy()
+
         if bad_masks is not None:
             self.bad_masks[self.step + 1] = bad_masks.copy()
         if active_masks is not None:
@@ -83,7 +91,7 @@ class SeparatedReplayBuffer(object):
         self.step = (self.step + 1) % self.episode_length
 
     def chooseinsert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
-                     value_preds, rewards, masks, reconstructions, bad_masks=None, active_masks=None, available_actions=None):
+                     value_preds, rewards, masks, reconstructions = None, kl_divs = None, bad_masks=None, active_masks=None, available_actions=None):
         self.share_obs[self.step] = share_obs.copy()
         self.obs[self.step] = obs.copy()
         self.rnn_states[self.step + 1] = rnn_states.copy()
@@ -93,7 +101,12 @@ class SeparatedReplayBuffer(object):
         self.value_preds[self.step] = value_preds.copy()
         self.rewards[self.step] = rewards.copy()
         self.masks[self.step + 1] = masks.copy()
-        self.reconstructions[self.step] = reconstructions.copy()
+
+        if reconstructions is not None:
+            self.reconstructions[self.step] = reconstructions.copy()
+        if kl_divs is not None:
+            self.kl_divs[self.step] = kl_divs.copy()
+
         if bad_masks is not None:
             self.bad_masks[self.step + 1] = bad_masks.copy()
         if active_masks is not None:
@@ -111,7 +124,12 @@ class SeparatedReplayBuffer(object):
         self.masks[0] = self.masks[-1].copy()
         self.bad_masks[0] = self.bad_masks[-1].copy()
         self.active_masks[0] = self.active_masks[-1].copy()
-        self.reconstructions[0] = self.reconstructions[-1].copy()
+
+        if self.reconstructions is not None:
+            self.reconstructions[0] = self.reconstructions[-1].copy()
+        if self.kl_divs is not None:
+            self.kl_divs[0] = self.kl_divs[-1].copy()
+
         if self.available_actions is not None:
             self.available_actions[0] = self.available_actions[-1].copy()
 
@@ -315,14 +333,17 @@ class SeparatedReplayBuffer(object):
             share_obs = _cast(self.share_obs[:-1])
             obs = _cast(self.obs[:-1])
 
-        if len(self.reconstructions) > 3:
+        if self.reconstructions is not None:
+            if len(self.reconstructions) > 3:
+                reconstructions = self.reconstructions[:-1].transpose(1, 0, 2, 3, 4).reshape(-1, *self.obs.shape[2:])
 
-            reconstructions = self.reconstructions[:-1].transpose(1, 0, 2, 3, 4).reshape(-1, *self.obs.shape[2:])
-        else:
-            reconstructions = _cast(self.reconstructions[-1])
+            else:
+                reconstructions = _cast(self.reconstructions[-1])
 
 
         actions = _cast(self.actions)
+        if self.kl_divs is not None:
+            kl_divs = _cast(self.kl_divs)
         action_log_probs = _cast(self.action_log_probs)
         advantages = _cast(advantages)
         value_preds = _cast(self.value_preds[:-1])
@@ -352,13 +373,17 @@ class SeparatedReplayBuffer(object):
             old_action_log_probs_batch = []
             adv_targ = []
             reconstructions_batch = []
+            kl_batch = []
 
             for index in indices:
                 ind = index * data_chunk_length
                 # size [T+1 N M Dim]-->[T N Dim]-->[N T Dim]-->[T*N,Dim]-->[L,Dim]
                 share_obs_batch.append(share_obs[ind:ind+data_chunk_length])
                 obs_batch.append(obs[ind:ind+data_chunk_length])
-                reconstructions_batch.append(reconstructions[ind:ind+data_chunk_length])
+                if self.reconstructions is not None:
+                    reconstructions_batch.append(reconstructions[ind:ind+data_chunk_length])
+                if self.kl_divs is not None:
+                    kl_batch.append(kl_divs[ind:ind+data_chunk_length])
                 actions_batch.append(actions[ind:ind+data_chunk_length])
                 if self.available_actions is not None:
                     available_actions_batch.append(available_actions[ind:ind+data_chunk_length])
@@ -378,6 +403,9 @@ class SeparatedReplayBuffer(object):
             # These are all from_numpys of size (N, L, Dim)
             share_obs_batch = np.stack(share_obs_batch)
             obs_batch = np.stack(obs_batch)
+            if self.kl_divs is not None:
+                kl_batch = np.stack(kl_batch)
+                kl_batch = _flatten(L, N, kl_batch)
 
             actions_batch = np.stack(actions_batch)
             if self.available_actions is not None:
@@ -392,11 +420,14 @@ class SeparatedReplayBuffer(object):
             # States is just a (N, -1) from_numpy
             rnn_states_batch = np.stack(rnn_states_batch).reshape(N, *self.rnn_states.shape[2:])
             rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(N, *self.rnn_states_critic.shape[2:])
-            reconstructions_batch = np.stack(reconstructions_batch)
+            if self.reconstructions is not None:
+                reconstructions_batch = np.stack(reconstructions_batch)
+                reconstructions_batch = _flatten(L, N, reconstructions_batch)
+
             # Flatten the (L, N, ...) from_numpys to (L * N, ...)
             share_obs_batch = _flatten(L, N, share_obs_batch)
             obs_batch = _flatten(L, N, obs_batch)
-            reconstructions_batch = _flatten(L, N, reconstructions_batch)
+
             actions_batch = _flatten(L, N, actions_batch)
             if self.available_actions is not None:
                 available_actions_batch = _flatten(L, N, available_actions_batch)
@@ -409,4 +440,5 @@ class SeparatedReplayBuffer(object):
             old_action_log_probs_batch = _flatten(L, N, old_action_log_probs_batch)
             adv_targ = _flatten(L, N, adv_targ)
 
-            yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch, reconstructions_batch
+
+            yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch, reconstructions_batch, kl_batch

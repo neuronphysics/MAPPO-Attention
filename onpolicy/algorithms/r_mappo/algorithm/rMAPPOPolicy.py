@@ -27,6 +27,7 @@ class R_MAPPOPolicy:
 
         self.actor = R_Actor(args, self.obs_space, self.act_space, self.device)
         self._recon = self.actor._recon
+        self.use_kl_loss = args.use_kl_loss
         self.critic = R_Critic(args, self.share_obs_space, self.device)
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
@@ -66,13 +67,20 @@ class R_MAPPOPolicy:
         :return rnn_states_critic: (torch.Tensor) updated critic network RNN states.
         """
 
-        if self._recon:
-            actions, action_log_probs, rnn_states_actor, recon_features = self.actor(obs,
+        if self._recon and self.use_kl_loss:
+            actions, action_log_probs, rnn_states_actor, recon_features, kl_div = self.actor(obs,
                                                                      rnn_states_actor,
                                                                      masks,
                                                                      available_actions,
                                                                      deterministic
                                                                      )
+        elif self._recon:
+            actions, action_log_probs, rnn_states_actor, recon_features = self.actor(obs,
+                                                                                             rnn_states_actor,
+                                                                                             masks,
+                                                                                             available_actions,
+                                                                                             deterministic
+                                                                                             )
         else:
             actions, action_log_probs, rnn_states_actor = self.actor(obs,
                                                                  rnn_states_actor,
@@ -83,8 +91,12 @@ class R_MAPPOPolicy:
 
         values, rnn_states_critic = self.critic(cent_obs, rnn_states_critic, masks)
 
-        if self._recon:
+        if self._recon and self.use_kl_loss:
+            return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic, recon_features, kl_div
+
+        elif self._recon:
             return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic, recon_features
+
         else:
             return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic
 
@@ -138,10 +150,17 @@ class R_MAPPOPolicy:
                                   (if None, all actions available)
         :param deterministic: (bool) whether the action should be mode of distribution or should be sampled.
         """
-        if self._recon:
+        if self._recon and self.use_kl_loss:
+
+            actions, _, rnn_states_actor, recon_features, kl_div = self.actor(obs, rnn_states_actor, masks, available_actions, deterministic)
+            return actions, rnn_states_actor, recon_features, kl_div
+
+        elif self._recon:
+
             actions, _, rnn_states_actor, recon_features = self.actor(obs, rnn_states_actor, masks, available_actions, deterministic)
             return actions, rnn_states_actor, recon_features
+
         else:
-            actions, _, rnn_states_actor = self.actor(obs, rnn_states_actor, masks, available_actions,
-                                                                      deterministic)
+
+            actions, _, rnn_states_actor = self.actor(obs, rnn_states_actor, masks, available_actions, deterministic)
             return actions, rnn_states_actor
