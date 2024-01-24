@@ -142,7 +142,8 @@ class R_MAPPO():
         if self.use_recon is not None:
             recon_loss = image_loss(torch.from_numpy(recon_batch), torch.from_numpy(obs_batch))
             if self.use_kl is not None:
-                recon_loss += kl_batch
+
+                recon_loss += kl_batch[0]
 
         if update_actor and self.use_recon:
 
@@ -173,8 +174,11 @@ class R_MAPPO():
 
         self.policy.critic_optimizer.step()
 
-        if self.use_recon:
-         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, recon_loss
+        if self.use_recon and self.use_kl:
+         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, recon_loss, kl_batch[0]
+
+        elif self.use_recon:
+          return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, recon_loss,
 
         else:
             return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights,

@@ -12,6 +12,7 @@ from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 from absl import logging
 from onpolicy.algorithms.utils.cnn import Decoder, Decoder_base
+from Causal_MRBL.models.losses import kl_loss
 class R_Actor(nn.Module):
     """
     Actor network class for MAPPO. Outputs actions given observations.
@@ -192,7 +193,7 @@ class R_Actor(nn.Module):
                 eps = torch.randn_like(std)
                 z = std * eps + mu
 
-                kl_div = torch.nn.functional.kl_div(actor_features, z)
+                kl_div = kl_loss(mu,logvar)
 
                 actor_features = z
             
@@ -214,7 +215,7 @@ class R_Actor(nn.Module):
                 eps = torch.randn_like(std)
                 z = std * eps + mu
 
-                kl_div = torch.nn.functional.kl_div(actor_features,z)
+                kl_div =  kl_loss(mu,logvar)
 
                 actor_features = z
 

@@ -218,7 +218,7 @@ if __name__ == '__main__':
     parser.add_argument("--use-recon-loss",  default=True,
                         help="Reconstruction loss for Actor")
 
-    parser.add_argument("--use_kl_loss", default=False,
+    parser.add_argument("--use_kl_loss", default=True,
                         help="kl divergence loss for Actor")
 
     train_meltingpot.main(parser)

@@ -58,7 +58,7 @@ class SeparatedReplayBuffer(object):
         self.bad_masks = np.ones_like(self.masks)
         self.active_masks = np.ones_like(self.masks)
         self.reconstructions = np.zeros((self.episode_length + 1, self.n_rollout_threads, *obs_shape), dtype=np.float32)
-        self.kl_divs = None
+        self.kl_divs = 0
         self.step = 0
         
     def update_factor(self, factor):
@@ -79,7 +79,7 @@ class SeparatedReplayBuffer(object):
         if reconstructions is not None:
             self.reconstructions[self.step+1] = reconstructions.copy()
         if kl_divs is not None:
-            self.kl_divs[self.step] = kl_divs.copy()
+            self.kl_divs = kl_divs
 
         if bad_masks is not None:
             self.bad_masks[self.step + 1] = bad_masks.copy()
@@ -105,7 +105,7 @@ class SeparatedReplayBuffer(object):
         if reconstructions is not None:
             self.reconstructions[self.step] = reconstructions.copy()
         if kl_divs is not None:
-            self.kl_divs[self.step] = kl_divs.copy()
+            self.kl_divs= kl_divs
 
         if bad_masks is not None:
             self.bad_masks[self.step + 1] = bad_masks.copy()
@@ -127,8 +127,7 @@ class SeparatedReplayBuffer(object):
 
         if self.reconstructions is not None:
             self.reconstructions[0] = self.reconstructions[-1].copy()
-        if self.kl_divs is not None:
-            self.kl_divs[0] = self.kl_divs[-1].copy()
+
 
         if self.available_actions is not None:
             self.available_actions[0] = self.available_actions[-1].copy()
@@ -343,7 +342,7 @@ class SeparatedReplayBuffer(object):
 
         actions = _cast(self.actions)
         if self.kl_divs is not None:
-            kl_divs = _cast(self.kl_divs)
+            kl_divs = self.kl_divs
         action_log_probs = _cast(self.action_log_probs)
         advantages = _cast(advantages)
         value_preds = _cast(self.value_preds[:-1])
@@ -374,7 +373,8 @@ class SeparatedReplayBuffer(object):
             adv_targ = []
             reconstructions_batch = []
             kl_batch = []
-
+            if self.kl_divs is not None:
+             kl_batch.append(kl_divs)
             for index in indices:
                 ind = index * data_chunk_length
                 # size [T+1 N M Dim]-->[T N Dim]-->[N T Dim]-->[T*N,Dim]-->[L,Dim]
@@ -382,8 +382,8 @@ class SeparatedReplayBuffer(object):
                 obs_batch.append(obs[ind:ind+data_chunk_length])
                 if self.reconstructions is not None:
                     reconstructions_batch.append(reconstructions[ind:ind+data_chunk_length])
-                if self.kl_divs is not None:
-                    kl_batch.append(kl_divs[ind:ind+data_chunk_length])
+
+
                 actions_batch.append(actions[ind:ind+data_chunk_length])
                 if self.available_actions is not None:
                     available_actions_batch.append(available_actions[ind:ind+data_chunk_length])
@@ -405,7 +405,6 @@ class SeparatedReplayBuffer(object):
             obs_batch = np.stack(obs_batch)
             if self.kl_divs is not None:
                 kl_batch = np.stack(kl_batch)
-                kl_batch = _flatten(L, N, kl_batch)
 
             actions_batch = np.stack(actions_batch)
             if self.available_actions is not None:

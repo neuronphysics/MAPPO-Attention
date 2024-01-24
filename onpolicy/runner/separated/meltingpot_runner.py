@@ -370,7 +370,7 @@ class MeltingpotRunner(Runner):
                                          rewards[:, agent_id].swapaxes( 1, 0),
                                          masks[:, agent_id],
                                         reconstructions= reconstructions[agent_id,:],
-                                        kl_divs = kl_divs[agent_id,:])
+                                        kl_divs = kl_divs[agent_id])
 
             elif self.all_args.use_recon_loss == True:
                 self.buffer[agent_id].insert(share_obs[:, agent_id],
