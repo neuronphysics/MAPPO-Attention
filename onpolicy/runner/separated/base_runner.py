@@ -262,7 +262,7 @@ class Runner(object):
         for agent_id in range(self.num_agents):
             for k, v in train_infos[agent_id].items():
                 agent_k = "agent%i/" % agent_id + k
-                if self.use_wandb and not self.use_render:
+                if (self.use_wandb and not self.use_render) == True:
                     wandb.log({agent_k: v}, step=total_num_steps)
                 else:
                     self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)

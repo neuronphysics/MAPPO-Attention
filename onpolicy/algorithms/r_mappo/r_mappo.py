@@ -140,7 +140,9 @@ class R_MAPPO():
         self.policy.actor_optimizer.zero_grad() # optimizer for decoder & encoder
 
         if self.use_recon is not None:
-            recon_loss = image_loss(torch.from_numpy(recon_batch), torch.from_numpy(obs_batch))
+            a = torch.from_numpy(recon_batch)
+            b = torch.from_numpy(obs_batch)
+            recon_loss = image_loss((a-a.min())/(a.max()-a.min()), (b-b.min())/(b.max()-b.min()))
             if self.use_kl is not None:
 
                 recon_loss += kl_batch[0]

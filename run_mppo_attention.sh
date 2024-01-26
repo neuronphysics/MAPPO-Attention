@@ -1,37 +1,37 @@
 #!/bin/bash
-#SBATCH --job-name=MAPPO
+#SBATCH --job-name=MP_dane
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:v100:4
-#SBATCH --mem=95000M   
-#SBATCH --time=1-10:00:00
+#SBATCH --mem=16G
+#SBATCH --time=20:00:00
 #SBATCH --account=def-gdumas85
-#SBATCH --output=/home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/logs/MAPPO-attention-seed-1_%N-%j.out
-#SBATCH --error=/home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/logs/MAPPO-attention-seed-1_%N-%j.err
-#SBATCH --mail-user=sheikhbahaee@gmail.com              # notification for job conditions
+#SBATCH --mail-user=dane.malenfant@mila.quebec              # notification for job conditions
 #SBATCH --mail-type=END
 #SBATCH --mail-type=FAIL
 
-module load gcc python/3.10 opencv/4.7 mujoco mpi4py
-module load scipy-stack
-module load rust/1.65.0
-DIR=/home/memole//projects/def-gdumas85/memole/MPPO-ATTENTIOAN
+#module load gcc python/3.10 opencv/4.7 mujoco mpi4py
+#module load scipy-stack
+#module load rust/1.65.0
+#DIR=/home/memole//projects/def-gdumas85/memole/MPPO-ATTENTIOAN
 
 #virtualenv --no-download --clear /home/memole/MAPPO
-source /home/memole/MAPPO/bin/activate
+#source /home/memole/MAPPO/bin/activate
 
 
 CURRENT_PATH=`pwd`
 echo "current path ---> $CURRENT_PATH"
-pip install --no-index --upgrade pip
+#pip install --no-index --upgrade pip
 #pip install --no-index --no-cache-dir numpy 
 #pip install --no-index torch torchvision torchtext torchaudio
 #pip install --no-index wandb
 #pip install --no-cache-dir -r ~/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/requirements.txt
 #python -m pip install git+https://github.com/mpi4py/mpi4py
 #pip install --no-cache-dir mpyq
-
+module load python/3.10
+source /Users/blake/PycharmProjects/MAPPO-ATTENTIOAN/att/bin/activate
+pip install -r requirements.txt
 
 #pip install 'git+https://github.com/lcswillems/torch-ac.git'
 #pip install 'git+https://github.com/IntelPython/mkl_fft.git'
@@ -41,11 +41,11 @@ pip install --no-index --upgrade pip
 # install this package first
 # install on-policy package
 
-cd /home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/
-pip install -e .
+#cd /home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/
+#pip install -e .
 #install starcraft
 #mkdir 3rdparty
-export SC2PATH="/home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/3rdparty/StarCraftII"
+#export SC2PATH="/home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/3rdparty/StarCraftII"
 
 #cd 3rdparty
 #echo 'SC2PATH is set to '$SC2PATH
@@ -63,14 +63,14 @@ export SC2PATH="/home/memole/projects/def-gdumas85/memole/MPPO-ATTENTIOAN/3rdpar
 
 #Hanabi
 
-echo "Install Hanabi...."
+#echo "Install Hanabi...."
 #cd $DIR/onpolicy/envs/hanabi/
 #cmake -B _build -S .
 #cmake --build _build
 #python -c 'import pyhanabi'
 
 # install on-policy package
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+#export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 ##install this package first
 ##football environment
 #python3 -m pip install --upgrade pip setuptools psutil wheel
@@ -88,11 +88,7 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 #cd meltingpot
 #pip install --editable .[dev]
 #pip install  --no-index --no-cache-dir dm-acme
-wandb login a2a1bab96ebbc3869c65e3632485e02fcae9cc42
+wandb login 312073ec61b7abf9e385955c376fdeccc55d1086
 echo "Start running the train_mpe_comm.sh script ..."
-cd $DIR/onpolicy/scripts/train
-CUDA_VISIBLE_DEVICES=0,1 python train_mpe.py --use_valuenorm --use_popart --env_name "MPE" --algorithm_name "mappo" --experiment_name "check" \
-    --scenario_name "simple_speaker_listener" --num_agents 2 --num_landmarks 3 --seed 1 --use_render \
-    --n_training_threads 1 --n_rollout_threads 128 --num_mini_batch 1 --episode_length 25 --num_env_steps 2000000 \
-    --ppo_epoch 15 --gain 0.01 --lr 7e-4 --critic_lr 7e-4 --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy
 
+CUDA_VISIBLE_DEVICES=0,1 python "/Users/blake/PycharmProjects/MAPPO-ATTENTIOAN/local_test.py" --hidden_size 72 --use_attention True --env_name 'Meltingpot' --substrate_name 'territory__rooms' --num_agents 9 --algorithm_name 'mappo' --seed 1 --lr 2e-4

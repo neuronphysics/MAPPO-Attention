@@ -78,6 +78,7 @@ class R_Actor(nn.Module):
 
                 self.mu = nn.Linear(self.hidden_size, self.hidden_size)
                 self.logvar = nn.Linear(self.hidden_size, self.hidden_size)
+                self.logvar.weight.data.fill_(0.00)
 
 
                 # ------------------- Dane Addition
@@ -113,7 +114,7 @@ class R_Actor(nn.Module):
                                   version= self._use_version_scoff,
                                   num_rules = 0, rule_time_steps = 1)
                                                
-        elif not self.use_attention :
+        else:
             print(f"value of use attention is {self.use_attention} ")
             base = CNNBase if len(obs_shape) >= 3 else MLPBase
             #----------------------------
@@ -138,7 +139,11 @@ class R_Actor(nn.Module):
                                     stride_size=stride,
                                     padding_size=padding).to(device)
 
+            if self.use_kl_loss:  #
 
+                self.mu = nn.Linear(self.hidden_size, self.hidden_size)
+                self.logvar = nn.Linear(self.hidden_size, self.hidden_size)
+                self.logvar.weight.data.fill_(0.00)
 
                 # ---------------------------------
             logging.info("observation space %s number of dimensions of observation space is %d", str(obs_space.shape), len(obs_shape))
@@ -215,7 +220,7 @@ class R_Actor(nn.Module):
                 eps = torch.randn_like(std)
                 z = std * eps + mu
 
-                kl_div =  kl_loss(mu,logvar)
+                kl_div = kl_loss(mu,logvar)
 
                 actor_features = z
 

@@ -89,7 +89,7 @@ def main(args):
     torch.cuda.empty_cache()
     gc.collect()
     parser = get_config()
-    all_args = args.parse_args() #parse_args(args, parser)
+    all_args = args #parse_args(args, parser)
 
     if all_args.algorithm_name == "rmappo":
         print("u are choosing to use rmappo, we set use_recurrent_policy to be True")
@@ -134,7 +134,8 @@ def main(args):
 
     # wandb
     if all_args.use_wandb:
-        run = wandb.init(config=all_args,
+
+       run = wandb.init(config=all_args,
                          project=all_args.env_name,
                          entity=all_args.user_name,
                          notes=socket.gethostname(),
@@ -145,6 +146,8 @@ def main(args):
                          dir=str(run_dir),
                          job_type="training",
                          reinit=True)
+
+
     else:
         if not run_dir.exists():
             curr_run = 'run1'
@@ -196,8 +199,8 @@ def main(args):
     ###################
     runner = Runner(config)
     cProfile.runctx('runner.run()', globals(), locals(), 'profile_run.prof')
-    # runner.run()
-    
+    #runner.run()
+
     # post process
     envs.close()
     if all_args.use_eval and eval_envs is not envs:
@@ -208,6 +211,8 @@ def main(args):
     else:
         runner.writter.export_scalars_to_json(str(runner.log_dir + '/summary.json'))
         runner.writter.close()
+
+
 
 
 if __name__ == "__main__":

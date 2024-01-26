@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="0af8ab48-3a83-4a4e-b951-2309cc5763cb" name="mila">
+        <fileTransfer rootFolder="/home/mila/d/dane.malenfant/MAPPO_ATT/" accessType="SFTP" host="login.server.mila.quebec" port="2222" sshConfigId="d43339ad-2453-43d4-a375-4cbdfcdc4fb1" sshConfig="dane.malenfant@login.server.mila.quebec:2222 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

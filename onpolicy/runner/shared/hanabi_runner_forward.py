@@ -110,6 +110,7 @@ class HanabiRunner(Runner):
                     average_score = np.mean(self.scores) if len(self.scores) > 0 else 0.0
                     print("average score is {}.".format(average_score))
                     if self.use_wandb:
+
                         wandb.log({'average_score': average_score}, step = self.true_total_num_steps)
                     else:
                         self.writter.add_scalars('average_score', {'average_score': average_score}, self.true_total_num_steps)
