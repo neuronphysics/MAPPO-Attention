@@ -89,6 +89,7 @@ class R_Actor(nn.Module):
                                     extend_dim=input_height*input_width*256,
                                     max_filters=256,
                                     num_layers=3, kernel_size=kernel, stride_size=stride, padding_size=padding).to(device)
+           self.decode.optimizer = torch.optim.Adam(self.decode.parameters(), lr = 1e-3, weight_decay= 1e-7,)
               # ---------------------------------
 
 
@@ -131,13 +132,14 @@ class R_Actor(nn.Module):
             self.decode = Decoder_base(in_channel=input_channel,
                                     image_height=input_height,
                                     image_width=input_width,
-                                    hidden_dim=96,
+                                    hidden_dim=self.hidden_size,
                                     extend_dim=input_height*input_width*256,
                                     max_filters=256,
                                     num_layers=1,
                                     kernel_size=kernel_size, #3
                                     stride_size=stride,
                                     padding_size=padding).to(device)
+            self.decode.optimizer = torch.optim.Adam(self.decode.parameters(), lr=1e-3, weight_decay=1e-7, )
 
             if self.use_kl_loss:  #
 

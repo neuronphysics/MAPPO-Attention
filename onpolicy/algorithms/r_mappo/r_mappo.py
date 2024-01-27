@@ -145,13 +145,13 @@ class R_MAPPO():
             recon_loss = image_loss((a-a.min())/(a.max()-a.min()), (b-b.min())/(b.max()-b.min()))
             if self.use_kl is not None:
 
-                recon_loss += kl_batch[0]
+                recon_loss += kl_batch[0]*1e-6
 
         if update_actor and self.use_recon:
-
+                self.policy.actor.decode.optimizer.zero_grad()
 
                 (policy_loss - dist_entropy * self.entropy_coef + recon_loss).backward()  # flows through the actor
-
+                self.policy.actor.decode.optimizer.step()
         else:
             (policy_loss - dist_entropy * self.entropy_coef ).backward()
 
