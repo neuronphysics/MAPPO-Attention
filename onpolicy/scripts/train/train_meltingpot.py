@@ -12,8 +12,6 @@ from onpolicy.envs.meltingpot.MeltingPot_Env import env_creator
 from meltingpot import substrate
 from onpolicy.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
 import gc
-import ptvsd
-import time
 import cProfile
 import json
 

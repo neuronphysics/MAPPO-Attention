@@ -5,21 +5,23 @@ from .util import init, calculate_conv_params
 
 """CNN Modules and utils."""
 
+
 class Flatten(nn.Module):
     def forward(self, x):
         return x.reshape(x.size(0), -1)
-    
-def calculate_channel_sizes( image_channels, max_filters, num_layers):
-        channel_sizes = [(image_channels, max_filters // np.power(2, num_layers - 1))]
-        for i in range(1, num_layers):
-            prev = channel_sizes[-1][-1]
-            new = prev * 2
-            channel_sizes.append((prev, new))
-        return channel_sizes
 
-def calculate_layer_size( input_size, kernel_size, stride, padding=0):
-        return ((input_size - kernel_size + 2*padding) // stride) + 1
 
+def calculate_channel_sizes(image_channels, max_filters, num_layers):
+    channel_sizes = [(image_channels, max_filters // np.power(2, num_layers - 1))]
+    for i in range(1, num_layers):
+        prev = channel_sizes[-1][-1]
+        new = prev * 2
+        channel_sizes.append((prev, new))
+    return channel_sizes
+
+
+def calculate_layer_size(input_size, kernel_size, stride, padding=0):
+    return ((input_size - kernel_size + 2 * padding) // stride) + 1
 
 
 class CNNLayer(nn.Module):
@@ -29,19 +31,20 @@ class CNNLayer(nn.Module):
         active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
         gain = nn.init.calculate_gain(['tanh', 'relu'][use_ReLU])
-        
+
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
-        if obs_shape[0]==3:
-           input_channel = obs_shape[0]
-           input_width = obs_shape[1]
-           input_height = obs_shape[2]
-        elif obs_shape[2]==3:
-            #print(f"obs_shape inside CNN {obs_shape}")
+
+        if obs_shape[0] == 3:
+            input_channel = obs_shape[0]
+            input_width = obs_shape[1]
+            input_height = obs_shape[2]
+        elif obs_shape[2] == 3:
+            # print(f"obs_shape inside CNN {obs_shape}")
             input_channel = obs_shape[2]
             input_width = obs_shape[0]
             input_height = obs_shape[1]
-        kernel_size, stride, padding = calculate_conv_params((input_width,input_height,input_channel))
+        kernel_size, stride, padding = calculate_conv_params((input_width, input_height, input_channel))
         self.cnn = nn.Sequential(
             init_(nn.Conv2d(in_channels=input_channel,
                             out_channels=hidden_size // 2,
@@ -50,15 +53,16 @@ class CNNLayer(nn.Module):
                   ),
             active_func,
             Flatten(),
-            init_(nn.Linear(hidden_size // 2 * (input_width - kernel_size + stride) * (input_height - kernel_size + stride),
-                            hidden_size)
+            init_(nn.Linear(
+                hidden_size // 2 * (input_width - kernel_size + stride) * (input_height - kernel_size + stride),
+                hidden_size)
                   ),
             active_func,
             init_(nn.Linear(hidden_size, hidden_size)), active_func)
 
     def forward(self, x):
-        x = 2.*(x / 255.0)- 1
-        #print(f"shape of the input to CNN base {x.shape}")
+        x = 2. * (x / 255.0) - 1
+        # print(f"shape of the input to CNN base {x.shape}")
         x = x.permute(0, 3, 1, 2)  # Rearrange the dimensions
         x = self.cnn(x)
         return x
@@ -86,40 +90,41 @@ class MultiConvNet(nn.Module):
         self.num_channels = num_channels
         self.activation = activation
         self.use_batchnorm = use_batchnorm
-        
+
         self.conv_layers = nn.ModuleList()
         self.batchnorm_layers = nn.ModuleList()
-        
+
         # RGB images have 3 input channels
-        
+
         for _ in range(self.num_layers):
             self.conv_layers.append(nn.Conv2d(in_channels, self.num_channels, kernel_size=3, padding=1))
             in_channels = self.num_channels
-            
+
             if self.use_batchnorm:
                 self.batchnorm_layers.append(nn.BatchNorm2d(self.num_channels))
-        
-        self.linear  = nn.Linear(self.num_channels, 1)
+
+        self.linear = nn.Linear(self.num_channels, 1)
         self.flatten = Flatten()
-        
+
     def forward(self, x):
         for i in range(self.num_layers):
             x = self.conv_layers[i](x)
-            
+
             if self.use_batchnorm:
                 x = self.batchnorm_layers[i](x)
-            
+
             x = self.activation(x)
-        
+
         # Flatten the output before passing through the linear layer
         x = self.flatten(x)
         x = self.linear(x)
-        
+
         return x
+
 
 class ResidualBlock(nn.Module):
 
-    def __init__(self, in_channels, kernel_size, stride, padding, norm_type='layer', num_groups=1, nonlinearity=None ):
+    def __init__(self, in_channels, kernel_size, stride, padding, norm_type='layer', num_groups=1, nonlinearity=None):
         """
             1. in_channels is the number of input channels to the first conv layer,
             2. out_channels is the number of output channels of the first conv layer
@@ -127,15 +132,15 @@ class ResidualBlock(nn.Module):
         """
         super(ResidualBlock, self).__init__()
         nl = nn.LeakyReLU(0.2) if nonlinearity is None else nonlinearity
-        layers=[]
+        layers = []
         layers.append(
-                        nn.Conv2d(
-                                in_channels,
-                                in_channels,
-                                kernel_size,
-                                stride,
-                                padding,
-                                bias    = False)
+            nn.Conv2d(
+                in_channels,
+                in_channels,
+                kernel_size,
+                stride,
+                padding,
+                bias=False)
 
         )
         if norm_type == 'batch':
@@ -145,13 +150,13 @@ class ResidualBlock(nn.Module):
 
         layers.append(nl)
         layers.append(
-                        nn.Conv2d(
-                                in_channels,
-                                in_channels,
-                                kernel_size,
-                                stride,
-                                padding,
-                                bias    = False)
+            nn.Conv2d(
+                in_channels,
+                in_channels,
+                kernel_size,
+                stride,
+                padding,
+                bias=False)
 
         )
         if norm_type == 'batch':
@@ -164,18 +169,20 @@ class ResidualBlock(nn.Module):
 
     def forward(self, x):
         out = self.layers(x)
-        out =  out + x
+        out = out + x
         # each residual block doesn't wrap (res_x + x) with an activation function
         # as the next block implement ReLU as the first layer
         return out
 
+
 class PrintLayer(nn.Module):
     def __init__(self):
         super(PrintLayer, self).__init__()
-    
+
     def forward(self, x):
         print(x.shape)
         return x
+
 
 def build_linear_positions(index_dims, output_range=(-1.0, 1.0)):
     """
@@ -193,7 +200,7 @@ def build_linear_positions(index_dims, output_range=(-1.0, 1.0)):
         return torch.linspace(start=output_range[0], end=output_range[1], steps=n_xels_per_dim, dtype=torch.float32)
 
     dim_ranges = [_linspace(n_xels_per_dim) for n_xels_per_dim in index_dims]
-    
+
     array_index_grid = torch.meshgrid(*dim_ranges)
 
     return torch.stack(array_index_grid, dim=-1)
@@ -224,6 +231,7 @@ def _check_or_build_spatial_positions(pos, index_dims, batch_size):
         if pos.shape[-1] != len(index_dims):
             raise ValueError("Spatial features have the wrong number of dimensions.")
     return pos
+
 
 def generate_fourier_features(pos, num_bands, max_resolution=(224, 224), concat_pos=True, sine_only=False):
     """
@@ -273,8 +281,8 @@ def generate_fourier_features(pos, num_bands, max_resolution=(224, 224), concat_
     if concat_pos:
         # Adds d bands to the encoding.
         per_pos_features = torch.cat([pos, per_pos_features.expand(batch_size, -1, -1)], dim=-1)
-        
-    #print(f"generate_fourier_features: per_pos_features shape {per_pos_features.shape} ")
+
+    # print(f"generate_fourier_features: per_pos_features shape {per_pos_features.shape} ")
 
     return per_pos_features
 
@@ -305,8 +313,8 @@ class FourierPositionEncoding(nn.Module):
         return encoding_size
 
     def forward(self, index_dims, batch_size, device, pos=None):
-        
-        #print(f"FourierPositionEncoding forward called with index_dims={index_dims}, batch_size={batch_size}")
+
+        # print(f"FourierPositionEncoding forward called with index_dims={index_dims}, batch_size={batch_size}")
         pos = _check_or_build_spatial_positions(pos, index_dims, batch_size)
         fourier_pos_enc = generate_fourier_features(
             pos,
@@ -338,7 +346,7 @@ class TrainablePositionEncoding(nn.Module):
         return self._num_channels
 
     def forward(self, batch_size):
-        #print(f"TrainablePositionEncoding forward called with batch_size={batch_size}")
+        # print(f"TrainablePositionEncoding forward called with batch_size={batch_size}")
         position_embeddings = self.position_embeddings
 
         if batch_size is not None:
@@ -347,11 +355,11 @@ class TrainablePositionEncoding(nn.Module):
 
 
 def build_position_encoding(
-    position_encoding_type,
-    out_channels=None,
-    project_pos_dim=-1,
-    trainable_position_encoding_kwargs=None,
-    fourier_position_encoding_kwargs=None,
+        position_encoding_type,
+        out_channels=None,
+        project_pos_dim=-1,
+        trainable_position_encoding_kwargs=None,
+        fourier_position_encoding_kwargs=None,
 ):
     """
     Builds the position encoding.
@@ -377,40 +385,41 @@ def build_position_encoding(
 
     return output_pos_enc, positions_projection
 
+
 class Encoder(nn.Module):
-    def __init__(self, 
-                 in_channel, 
+    def __init__(self,
+                 in_channel,
                  img_height,
-                 img_width, 
-                 hidden_dim, 
-                 device, 
-                 max_filters=512, 
-                 num_layers=4, 
-                 small_conv=False, 
-                 norm_type = 'batch', 
-                 num_groups=1, 
-                 kernel_size=4, 
-                 stride_size=2, 
-                 padding_size=1, 
-                 activation = nn.GELU(),
+                 img_width,
+                 hidden_dim,
+                 device,
+                 max_filters=512,
+                 num_layers=4,
+                 small_conv=False,
+                 norm_type='batch',
+                 num_groups=1,
+                 kernel_size=4,
+                 stride_size=2,
+                 padding_size=1,
+                 activation=nn.GELU(),
                  project_pos_dim=-1,
                  position_encoding_type: str = "fourier",
                  concat_or_add_pos: str = "concat",
                  ):
-        super(Encoder,self).__init__()
-        self.nchannel    = in_channel
-        self.hidden_dim  = hidden_dim
-        self.img_width   = img_width
-        self.img_height  = img_height
-        self.device      = device
-        self.enc_kernel  = kernel_size
-        self.enc_stride  = stride_size
+        super(Encoder, self).__init__()
+        self.nchannel = in_channel
+        self.hidden_dim = hidden_dim
+        self.img_width = img_width
+        self.img_height = img_height
+        self.device = device
+        self.enc_kernel = kernel_size
+        self.enc_stride = stride_size
         self.enc_padding = padding_size
-        self.res_kernel  = 3
-        self.res_stride  = 1
+        self.res_kernel = 3
+        self.res_stride = 1
         self.res_padding = 1
-        self.activation  = activation
-        
+        self.activation = activation
+
         if concat_or_add_pos not in ["concat", "add"]:
             raise ValueError(f"Invalid value {concat_or_add_pos} for concat_or_add_pos.")
         self.position_encoding_type = position_encoding_type
@@ -431,57 +440,55 @@ class Encoder(nn.Module):
             if small_conv and i == 0:
                 # 1x1 Convolution
                 encoder_layers.append(nn.Conv2d(
-                        in_channels=in_channels,
-                        out_channels=out_channels,
-                        kernel_size=self.enc_kernel,
-                        stride=self.enc_stride,
-                        padding=self.enc_padding,
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=self.enc_kernel,
+                    stride=self.enc_stride,
+                    padding=self.enc_padding,
                 ))
-                #encoder_layers.append(PrintLayer())
+                # encoder_layers.append(PrintLayer())
             else:
-                encoder_layers.append( nn.Conv2d(
-                        in_channels=in_channels,
-                        out_channels=out_channels,
-                        kernel_size=self.enc_kernel,
-                        stride=self.enc_stride,
-                        padding=self.enc_padding,
-                        bias=False,
-                    ))
-                #encoder_layers.append(PrintLayer())
+                encoder_layers.append(nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=self.enc_kernel,
+                    stride=self.enc_stride,
+                    padding=self.enc_padding,
+                    bias=False,
+                ))
+                # encoder_layers.append(PrintLayer())
             # Batch Norm
             if norm_type == 'batch':
                 encoder_layers.append(nn.BatchNorm2d(out_channels))
             elif norm_type == 'layer':
-                encoder_layers.append(nn.GroupNorm(num_groups, out_channels ))
+                encoder_layers.append(nn.GroupNorm(num_groups, out_channels))
 
             # ReLU
             encoder_layers.append(self.activation)
 
-            if (i==num_layers//2):
-                #add a residual Layer
+            if (i == num_layers // 2):
+                # add a residual Layer
                 encoder_layers.append(ResidualBlock(
-                        out_channels,
-                        self.res_kernel,
-                        self.res_stride,
-                        self.res_padding,
-                        norm_type=norm_type,
-                        nonlinearity=self.activation
-                    ))
-                #encoder_layers.append(PrintLayer())
+                    out_channels,
+                    self.res_kernel,
+                    self.res_stride,
+                    self.res_padding,
+                    norm_type=norm_type,
+                    nonlinearity=self.activation
+                ))
+                # encoder_layers.append(PrintLayer())
 
-        #print("ENCODER LAYERS, cnn.py: ",encoder_layers)
         self.encoder = nn.Sequential(*encoder_layers)
         self.out_channels = out_channels
         # Calculate shape of the flattened image
-        self.h_dim, (self.height_image_dim, self.width_image_dim) = self.get_flattened_size((self.img_height,self.img_width))
-        #print(f"Calculate shape of the flattened image for linear layer: input of the layer {self.h_dim} hidden {hidden_dim} image height {self.img_height}, image width {self.img_width}")
-        #print(f"out channel (positional) :{out_channels}")
-        
+        self.h_dim, (self.height_image_dim, self.width_image_dim) = self.get_flattened_size(
+            (self.img_height, self.img_width))
         # Position embeddings
         position_encoding_kwargs = dict(
-            concat_pos=True, max_resolution=(self.img_height*out_channels//2 , self.img_width*out_channels//2), num_bands=16, sine_only=False
+            concat_pos=True, max_resolution=(self.img_height * out_channels // 2, self.img_width * out_channels // 2),
+            num_bands=10, sine_only=False
         )
-        #print("ENCODING, cnn.py: ",position_encoding_kwargs)
+        # print("ENCODING, cnn.py: ",position_encoding_kwargs)
         trainable_position_encoding_kwargs = dict(num_channels=out_channels, index_dims=1)
         self.position_embeddings, self.positions_projection = build_position_encoding(
             position_encoding_type=position_encoding_type,
@@ -490,31 +497,30 @@ class Encoder(nn.Module):
             trainable_position_encoding_kwargs=trainable_position_encoding_kwargs,
             fourier_position_encoding_kwargs=position_encoding_kwargs,
         )
-        
+
         # Adjust the input size of the first linear layer to account for the positional features
-        
-        print(f"CNN new input size for the linear layer {self.h_dim}, size of positional encoding {self.num_channels}")
-        #linear layers
+
+        # linear layers
         layers = []
         # Flatten Encoder Output
         layers.append(nn.Flatten())
-        layers.append(nn.Linear(self.num_channels*self.img_height*self.img_width, hidden_dim, bias=False))
+        layers.append(nn.Linear(self.num_channels * self.img_height * self.img_width, hidden_dim, bias=False))
         if norm_type == 'batch':
             layers.append(nn.BatchNorm1d(hidden_dim))
         elif norm_type == 'layer':
-            layers.append(nn.LayerNorm(hidden_dim ))
+            layers.append(nn.LayerNorm(hidden_dim))
         layers.append(self.activation)
 
         layers.append(nn.Linear(hidden_dim, hidden_dim, bias=False))
         if norm_type == 'batch':
             layers.append(nn.BatchNorm1d(hidden_dim))
         elif norm_type == 'layer':
-            layers.append(nn.LayerNorm(hidden_dim ))
+            layers.append(nn.LayerNorm(hidden_dim))
         layers.append(self.activation)
-        self.linear_layers = nn.Sequential( *layers)
-        
+        self.linear_layers = nn.Sequential(*layers)
+
         self.to(device=self.device)
-    
+
     @property
     def num_channels(self) -> int:
         # Let's assume that the number of resolutions (in the context of image preprocessing)
@@ -534,7 +540,6 @@ class Encoder(nn.Module):
         # inputs
         inp_dim = self.out_channels
 
-
         return inp_dim + pos_dim
 
     def _build_network_inputs(self, inputs: torch.Tensor, network_input_is_1d: bool = True):
@@ -543,10 +548,10 @@ class Encoder(nn.Module):
         This method expects the inputs to always have channels as last dimension.
         """
         batch_size = inputs.shape[0]
-        #print(f"input shape in _build_network_inputs {inputs.shape}")
+        # print(f"input shape in _build_network_inputs {inputs.shape}")
         index_dims = inputs.shape[1:-1]
         indices = np.prod(index_dims).item()
-        #print(f"Inside _build_network_inputs: {inputs.shape} batch_size: {batch_size}, index_dims: {index_dims} indices {indices}")
+        # print(f"Inside _build_network_inputs: {inputs.shape} batch_size: {batch_size}, index_dims: {index_dims} indices {indices}")
         # Flatten input features to a 1D index dimension if necessary.
         if len(inputs.shape) > 3 and network_input_is_1d:
             inputs = torch.reshape(inputs, [batch_size, indices, -1])
@@ -555,12 +560,12 @@ class Encoder(nn.Module):
         if self.position_encoding_type == "trainable":
             pos_enc = self.position_embeddings(batch_size)
         elif self.position_encoding_type == "fourier":
-            #print(f"Position Encoding forward args: index_dims={index_dims}, batch_size={batch_size}, device={inputs.device}")
+            # print(f"Position Encoding forward args: index_dims={index_dims}, batch_size={batch_size}, device={inputs.device}")
             pos_enc = self.position_embeddings(index_dims, batch_size, device=inputs.device)
 
         # Optionally project them to a target dimension.
         pos_enc = self.positions_projection(pos_enc)
-        #print(f"pos_enc size in build_network_inputs {pos_enc.shape} input {inputs.shape}")
+        # print(f"pos_enc size in build_network_inputs {pos_enc.shape} input {inputs.shape}")
         if not network_input_is_1d:
             # Reshape pos to match the input feature shape
             # if the network takes non-1D inputs
@@ -568,36 +573,35 @@ class Encoder(nn.Module):
             pos_enc = torch.reshape(pos_enc, list(sh)[:-1] + [-1])
         if self.concat_or_add_pos == "concat":
             inputs_with_pos = torch.cat([inputs, pos_enc], dim=-1)
-            #print(f"inputs_with_pos {inputs_with_pos.shape}")
+            # print(f"inputs_with_pos {inputs_with_pos.shape}")
         elif self.concat_or_add_pos == "add":
             inputs_with_pos = inputs + pos_enc
         return inputs_with_pos, inputs
 
     def normalize(slef, image):
-        return 2*(image / 255.0)- 1
-    
+        return 2 * (image / 255.0) - 1
+
     def forward(self, X: torch.Tensor, network_input_is_1d: bool = True):
         # Encode (note ensure input tensor has the shape [batch_size, channels, height, width])   
-        #print(f"size of input to CNN module {X.shape}") 
-        X=self.normalize(X) #normalize the input image to scale between 0,1
+        # print(f"size of input to CNN module {X.shape}")
+        X = self.normalize(X)  # normalize the input image to scale between 0,1
         if X.shape[1] != self.nchannel:
-           X = X.permute(0, 3, 1, 2)
-        #print(f"CNN module permuted iput shape {X.shape}")
+            X = X.permute(0, 3, 1, 2)
+        # print(f"CNN module permuted iput shape {X.shape}")
         inputs = self.encoder(X)
-        #print(f"size of output of encoder (CNN) {inputs.shape}")
-        #print (f"size of output of encoder (CNN) {inputs.shape}")
-        if inputs.ndim ==4 :
-           # move channels to last dimension, as the _build_network_inputs method below expects this
-           inputs = torch.permute(inputs, (0, 2, 3, 1))
+        # print(f"size of output of encoder (CNN) {inputs.shape}")
+        # print (f"size of output of encoder (CNN) {inputs.shape}")
+        if inputs.ndim == 4:
+            # move channels to last dimension, as the _build_network_inputs method below expects this
+            inputs = torch.permute(inputs, (0, 2, 3, 1))
         # Get latent variables
-        #print(f"Before _build_network_inputs: inputs shape: {inputs.shape}")
-        #print(f"size of output of encoder (CNN) before _build_network_inputs {inputs.shape}")
-        #print(network_input_is_1d,"network_input_is_1d")
+        # print(f"Before _build_network_inputs: inputs shape: {inputs.shape}")
+        # print(f"size of output of encoder (CNN) before _build_network_inputs {inputs.shape}")
+        # print(network_input_is_1d,"network_input_is_1d")
         inputs, inputs_without_pos = self._build_network_inputs(inputs, network_input_is_1d)
-        #print(f"size of output of encoder (CNN) after _build_network_inputs {inputs.shape}")
+        # print(f"size of output of encoder (CNN) after _build_network_inputs {inputs.shape}")
         return self.linear_layers(inputs)
-            
-    
+
     def get_flattened_size(self, image_dim):
         """
         image_dim is a tuple (height, width)
@@ -607,20 +611,20 @@ class Encoder(nn.Module):
 
         for layer in self.encoder.modules():
             if isinstance(layer, nn.Conv2d):
+                kernel_size_h, kernel_size_w = layer.kernel_size
+                stride_h, stride_w = layer.stride
+                padding_h, padding_w = layer.padding
+                filters = layer.out_channels
 
-              kernel_size_h, kernel_size_w = layer.kernel_size
-              stride_h, stride_w = layer.stride
-              padding_h, padding_w = layer.padding
-              filters = layer.out_channels
-
-              image_height = calculate_layer_size(
-                 image_height, kernel_size_h, stride_h, padding_h
-              )
-              image_width = calculate_layer_size(
-                 image_width, kernel_size_w, stride_w, padding_w
-              )
+                image_height = calculate_layer_size(
+                    image_height, kernel_size_h, stride_h, padding_h
+                )
+                image_width = calculate_layer_size(
+                    image_width, kernel_size_w, stride_w, padding_w
+                )
 
         return filters * image_height * image_width, (image_height, image_width)
+
 
 class ResidualBlock_deconv(nn.Module):
     def __init__(self, channel, kernel_size, stride, padding, norm_type="layer", num_groups=1, nonlinearity=None):
@@ -628,15 +632,15 @@ class ResidualBlock_deconv(nn.Module):
         nl = nn.LeakyReLU(0.2) if nonlinearity is None else nonlinearity
         self.conv1 = nn.ConvTranspose2d(channel, channel, kernel_size, stride, padding)
         if norm_type == "batch":
-           self.norm1 = nn.BatchNorm2d(channel)
+            self.norm1 = nn.BatchNorm2d(channel)
         elif norm_type == "layer":
-           self.norm1 = nn.GroupNorm(num_groups, channel)
+            self.norm1 = nn.GroupNorm(num_groups, channel)
         self.activation = nl
         self.conv2 = nn.ConvTranspose2d(channel, channel, kernel_size, stride, padding)
         if norm_type == "batch":
-           self.norm2 = nn.BatchNorm2d(channel)
+            self.norm2 = nn.BatchNorm2d(channel)
         elif norm_type == "layer":
-           self.norm2 = nn.GroupNorm(num_groups, channel)
+            self.norm2 = nn.GroupNorm(num_groups, channel)
 
     def forward(self, x):
         res = x
@@ -645,36 +649,36 @@ class ResidualBlock_deconv(nn.Module):
         out = out + res
         return out
 
+
 class Decoder(nn.Module):
-    
-    def __init__(self, 
-                 in_channel, 
-                 hidden_dim, 
-                 extend_dim, 
-                 image_height, 
-                 image_width, 
-                 max_filters=512, 
-                 num_layers=4, 
-                 small_conv=False, 
-                 norm_type = 'batch', 
-                 num_groups=1, 
-                 kernel_size=4, 
-                 stride_size=2, 
-                 padding_size=1, 
-                 activation = nn.GELU()):
-        super(Decoder,self).__init__()
-        
-        self.nchannel   = in_channel
+
+    def __init__(self,
+                 in_channel,
+                 hidden_dim,
+                 extend_dim,
+                 image_height,
+                 image_width,
+                 max_filters=512,
+                 num_layers=4,
+                 small_conv=False,
+                 norm_type='batch',
+                 num_groups=1,
+                 kernel_size=4,
+                 stride_size=2,
+                 padding_size=1,
+                 activation=nn.GELU()):
+        super(Decoder, self).__init__()
+
+        self.nchannel = in_channel
         self.hidden_dim = hidden_dim
-        self.img_width  = image_width
+        self.img_width = image_width
         self.dec_kernel = kernel_size
         self.dec_stride = stride_size
         self.dec_padding = padding_size
-        self.res_kernel  = 3
-        self.res_stride  = 1
+        self.res_kernel = 3
+        self.res_stride = 1
         self.res_padding = 1
-        self.activation  = activation
-
+        self.activation = activation
 
         if small_conv:
             num_layers += 1
@@ -690,18 +694,19 @@ class Decoder(nn.Module):
         if norm_type == 'batch':
             decoder_layers.append(nn.BatchNorm1d(hidden_dim))
         elif norm_type == 'layer':
-            decoder_layers.append(nn.LayerNorm(hidden_dim ))
+            decoder_layers.append(nn.LayerNorm(hidden_dim))
 
         decoder_layers.append(self.activation)
         decoder_layers.append(torch.nn.Linear(hidden_dim, extend_dim, bias=False))
         if norm_type == 'batch':
             decoder_layers.append(nn.BatchNorm1d(extend_dim))
         elif norm_type == 'layer':
-            decoder_layers.append(nn.LayerNorm(extend_dim ))
+            decoder_layers.append(nn.LayerNorm(extend_dim))
 
         decoder_layers.append(self.activation)
         # Unflatten to a shape of (Channels, Height, Width)
-        decoder_layers.append(nn.Unflatten(1, (int(extend_dim / (image_height * image_width)), image_height, image_width)))
+        decoder_layers.append(
+            nn.Unflatten(1, (int(extend_dim / (image_height * image_width)), image_height, image_width)))
         # Decoder Convolutions
 
         for i, (out_channels, in_channels) in enumerate(channel_sizes[::-1]):
@@ -731,8 +736,7 @@ class Decoder(nn.Module):
             if norm_type == 'batch':
                 decoder_layers.append(nn.BatchNorm2d(out_channels))
             elif norm_type == 'layer':
-                decoder_layers.append(nn.GroupNorm(num_groups, out_channels ))
-
+                decoder_layers.append(nn.GroupNorm(num_groups, out_channels))
 
             # ReLU if not final layer
             if i != num_layers - 1:
@@ -740,8 +744,8 @@ class Decoder(nn.Module):
             # Sigmoid if final layer
             else:
                 decoder_layers.append(nn.Sigmoid())
-            if (i==num_layers//2):
-                #add a residual Layer
+            if (i == num_layers // 2):
+                # add a residual Layer
                 decoder_layers.append(
                     ResidualBlock_deconv(
                         out_channels,
@@ -755,6 +759,7 @@ class Decoder(nn.Module):
         self.decoder = nn.Sequential(*decoder_layers)
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.to(device=self.device)
-        #print(f"decode network:\n{self.decoder}")
+        # print(f"decode network:\n{self.decoder}")
+
     def forward(self, x):
         return self.decoder(x)

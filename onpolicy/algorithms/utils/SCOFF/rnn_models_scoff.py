@@ -198,8 +198,6 @@ class RNNModel(nn.Module):
         #input inside SCOFF  embedding batch_size, hidden
         #comment the next line for MARL
         #timesteps, batch_size, _ = emb.shape
-        print(f'emb shape (rnn model scoff) {emb.shape}')
-        print(f'rnn scoff input shape:{input.shape} hidden shape:{hidden[0].shape}, nlayers: {self.nlayers}')
         
         hx, cx = hidden[0], hidden[1]
         hx  = hx.unsqueeze(0).repeat(self.nlayers, 1, 1)#new line
@@ -224,25 +222,22 @@ class RNNModel(nn.Module):
                 hx, cx = hidden[0][idx_layer], hidden[1][idx_layer]
                 if self.do_rel:
                     self.bc_lst[idx_layer].reset_relational_memory(input.shape[1])
-                
                 for idx_step in range(timesteps):#input shape: timesteps, batch_size, hidden 
                     #input shape torch.Size([10, 64]), hx torch.Size([10, 64]) cx :torch.Size([10, 64])
-                    print(f"rnn model scoff before block core input shape {layer_input[idx_step].shape}, hidden size {hx.shape} cx :{cx.shape} index of loop {idx_step} {input.shape[0]}") 
                     hx, cx, mask, bmask, temp_attn, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step,
                                                                  do_print=do_print, message_to_rule_network = message_to_rule_network)
-                    print(f"right after block core computation, hx shape {hx.shape}, cx shape {cx.shape}, mask shape {mask.shape}, bmask shape {bmask.shape}")
+
                     entropy += entropy_
                     output.append(hx)
                     masklst.append(mask)
                     bmasklst.append(bmask)
                     template_attn.append(temp_attn)
-                print(f"rnn model scoff output shape {len(output)}, {output[0].shape}, mask shape {masklst[0].shape}, bmask shape {bmasklst[0].shape}")
+
                 output = torch.stack(output)
                 mask = torch.stack(masklst)
                 bmask = torch.stack(bmasklst)
                 if type(template_attn[0])!= type(None):
                     template_attn = torch.stack(template_attn)
-                print(f"output shape {output.shape}, mask shape {mask.shape}, bmask shape {bmask.shape}")
                 layer_input = output
                 new_hidden[0].append(hx)
                 new_hidden[1].append(cx)
@@ -250,7 +245,6 @@ class RNNModel(nn.Module):
             new_hidden[1] = torch.stack(new_hidden[1])
             hidden = tuple(new_hidden)
         block_mask = bmask.squeeze(0)
-        print(f"rnn model scoff input shape {block_mask.shape}, hidden size {new_hidden[0].shape} ") # block_mask shape: torch.Size([10, 4, 1]), hidden size torch.Size([1, 10, 64]) 
         hx=hx.squeeze() 
         
         '''
