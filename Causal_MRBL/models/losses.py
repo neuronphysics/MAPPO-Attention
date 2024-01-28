@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-im_criterion = nn.MSELoss(reduction='sum')
+im_criterion = nn.BCEWithLogitsLoss(reduction='sum')
 transition_criterion = nn.MSELoss(reduction='sum')
 
 causal_criterion = nn.MSELoss(reduction='none')

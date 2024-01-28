@@ -36,7 +36,7 @@ class MeltingpotRunner(Runner):
 
             for step in range(self.episode_length):
                 # Sample actions
-                values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
+                values, actions, action_log_probs, rnn_states, rnn_states_critic,  = self.collect(step)
                     
                 # Obser reward and next obs
                 obs, rewards, dones, infos = self.envs.step(actions)
@@ -47,11 +47,11 @@ class MeltingpotRunner(Runner):
                 self.insert(data)
 
             # compute return and update network
-            print('at 1')
+
             self.compute()
-            print('at 2')
+
             train_infos = self.train()
-            print('at 3')
+
             
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
@@ -60,7 +60,7 @@ class MeltingpotRunner(Runner):
             if (episode % self.save_interval == 0 or episode == episodes - 1):
                 self.save()
 
-            print('at 4')
+
 
             # log information
             if episode % self.log_interval == 0:
@@ -82,13 +82,13 @@ class MeltingpotRunner(Runner):
                     print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
 
-            print('at 5')
+
 
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
 
-            print('at 6')
+
 
     def warmup(self):
         # reset env

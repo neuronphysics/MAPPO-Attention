@@ -280,28 +280,5 @@ def get_config():
     parser.add_argument("--save_interval", type=int, default=1, help="time duration between contiunous twice models saving.")
 
     # log parameters
-    parser.add_argument("--log_interval", type=int, default=1, help="time duration between contiunous twice log printing.")
 
-    # eval parameters
-    parser.add_argument("--use_eval", action='store_true', default=False, help="by default, do not start evaluation. If set`, start evaluation alongside with training.")
-    parser.add_argument("--eval_interval", type=int, default=25, help="time duration between contiunous twice evaluation progress.")
-    parser.add_argument("--eval_episodes", type=int, default=32, help="number of episodes of a single evaluation.")
-
-    # render parameters
-    parser.add_argument("--save_gifs", action='store_true', default=True, help="by default, do not save render video. If set, save video.")
-    parser.add_argument("--use_render", action='store_true', default=False, help="by default, do not render the env during training. If set, start render. Note: something, the environment has internal render process which is not controlled by this hyperparam.")
-    parser.add_argument("--render_episodes", type=int, default=5, help="the number of episodes to render a given env")
-    parser.add_argument("--ifi", type=float, default=0.1, help="the play interval of each rendered image in saved video.")
-
-    # pretrained parameters
-    parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")
-
-    # meltingpot parameter
-    parser.add_argument("--downsample", action='store_false', default=True, help="the scale factor of each rendered image in saved video.")
-
-    # skill learing parameters
-    parser.add_argument("--skill_hidden_dim", type= int, default=512, help="specify the number of hidden units in the skill dynamics network")
-    parser.add_argument("--skill_max_num_experts", type= int, default=10, help="specify the number of experts in the skill dynamics network")
-    parser.add_argument("--dynamics_lr", type= int, default=3e-4, help ="Skill dynamics learning rate.")
-    parser.add_argument("--skill_dim", type=int, default=10, help="skill dimension")
     return parser

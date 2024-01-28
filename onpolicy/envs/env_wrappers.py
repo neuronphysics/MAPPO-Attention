@@ -215,7 +215,7 @@ def worker(remote, parent_remote, env_fn_wrapper):
                 ob = env.reset_task()
                 remote.send(ob)
             elif cmd == 'close':
-                print("Closing worker.")
+        #        print("Closing worker.")
                 env.close()
                 remote.close()
                 break
@@ -228,7 +228,7 @@ def worker(remote, parent_remote, env_fn_wrapper):
         print('Worker: received KeyboardInterrupt')
     except Exception as e:
         print(f'Worker: encountered an exception {e}')
-        print(traceback.format_exc())
+      #  print(traceback.format_exc())
         remote.send(('error', str(e)))
     finally:
         if env:
@@ -252,7 +252,7 @@ class GuardSubprocVecEnv(ShareVecEnv):
                print(f"Process {i} is not alive!")
             p.daemon = False  # could cause zombie process
             p.start()
-            print(f"Process {p.pid} started GuardSubprocVecEnv.")
+      #      print(f"Process {p.pid} started GuardSubprocVecEnv.")
 
         for remote in self.work_remotes:
             remote.close()
@@ -272,7 +272,7 @@ class GuardSubprocVecEnv(ShareVecEnv):
     def step_wait(self):
         results = [remote.recv() for remote in self.remotes]
         self.waiting = False
-        print(f"inside step wait and before expanding the results")
+     #   print(f"inside step wait and before expanding the results")
         obs, rews, dones, infos = zip(*results)
         return np.stack(obs), np.stack(rews), np.stack(dones), infos
 
@@ -312,7 +312,7 @@ class SubprocVecEnv(ShareVecEnv):
         self.closed = False
         nenvs = len(env_fns)
         self.remotes, self.work_remotes = zip(*[Pipe() for _ in range(nenvs)])
-        print("Creating process objects...")
+      #  print("Creating process objects...")
         self.ps = [Process(target=worker, args=(work_remote, remote, CloudpickleWrapper(env_fn)))
                    for (work_remote, remote, env_fn) in zip(self.work_remotes, self.remotes, env_fns)]
 
@@ -322,8 +322,8 @@ class SubprocVecEnv(ShareVecEnv):
                 True  # if the main process crashes, we should not cause things to hang
             )
             p.start()
-            print(f"Process {p.pid} started SubprocVecEnv.")
-        print("Processes started.")    
+      #      print(f"Process {p.pid} started SubprocVecEnv.")
+      #  print("Processes started.")
         for remote in self.work_remotes:
             remote.close()
 
@@ -340,22 +340,15 @@ class SubprocVecEnv(ShareVecEnv):
     def step_async(self, actions):
         for remote, action in zip(self.remotes, actions):
             remote.send(('step', action))
-        print("Step commands sent in SubprocVecEnv.")    
+     #   print("Step commands sent in SubprocVecEnv.")
         self.waiting = True
 
     def step_wait(self):
         results = []
-        print("Waiting to receive step results...")
+      #  print("Waiting to receive step results...")
         for i, remote in enumerate(self.remotes):
             # Check if process is alive
-            if not self.ps[i].is_alive():
-                print(f"Error: Process {i} is not alive. Last return code: {self.ps[i].exitcode}.")
-                # Additional debugging information
-                if self.ps[i].exitcode is not None:
-                    print(f"Process {i} exited with code {self.ps[i].exitcode}")
-                else:
-                    print(f"Process {i} terminated without an exit code.")
-                continue
+
             # Implementing timeout for receiving data
             start_time = time.time()
             while True:
@@ -371,7 +364,7 @@ class SubprocVecEnv(ShareVecEnv):
 
                 elapsed_time = time.time() - start_time
                 if elapsed_time >= 20.0:  # 5 seconds timeout
-                    print(f"Timeout while waiting for process {i}.")
+                 #   print(f"Timeout while waiting for process {i}.")
                     break
 
         #... possible additional checks ...
@@ -430,9 +423,9 @@ def shareworker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
-            print("Step command received. Executing in shareworker...")
+          #  print("Step command received. Executing in shareworker...")
             ob, s_ob, reward, done, info, available_actions = env.step(data)
-            print(f"after step in the shareworker function observation {ob}")
+          #  print(f"after step in the shareworker function observation {ob}")
             if 'bool' in done.__class__.__name__:
                 if done:
                     ob, s_ob, available_actions = env.reset()
@@ -481,7 +474,7 @@ class ShareSubprocVecEnv(ShareVecEnv):
         for p in self.ps:
             p.daemon = True  # if the main process crashes, we should not cause things to hang
             p.start()
-            print(f"Process {p.pid} started ShareSubprocVecEnv.")
+           # print(f"Process {p.pid} started ShareSubprocVecEnv.")
         for remote in self.work_remotes:
             remote.close()
         self.remotes[0].send(('get_spaces', None))
@@ -491,10 +484,10 @@ class ShareSubprocVecEnv(ShareVecEnv):
                              share_observation_space, action_space)
 
     def step_async(self, actions):
-        print("Before sending step commands...")
+      #  print("Before sending step commands...")
         for remote, action in zip(self.remotes, actions):
             remote.send(('step', action))
-        print("Step commands sent in SubprocVecEnv.")
+      #  print("Step commands sent in SubprocVecEnv.")
         self.waiting = True
 
     def step_wait(self):
@@ -534,7 +527,7 @@ def choosesimpleworker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
-            print(f"inside choosesimpleworker, data: {data}")
+           # print(f"inside choosesimpleworker, data: {data}")
             ob, reward, done, info = env.step(data)
             remote.send((ob, reward, done, info))
         elif cmd == 'reset':
@@ -629,7 +622,7 @@ def chooseworker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
-            print(f"inside chooseworker func., data: {data}")
+          #  print(f"inside chooseworker func., data: {data}")
             ob, s_ob, reward, done, info, available_actions = env.step(data)
             remote.send((ob, s_ob, reward, done, info, available_actions))
         elif cmd == 'reset':
@@ -715,7 +708,7 @@ def chooseguardworker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
-            print(f"inside chooseguardworker step command ")
+          #  print(f"inside chooseguardworker step command ")
             ob, reward, done, info = env.step(data)
             remote.send((ob, reward, done, info))
         elif cmd == 'reset':
@@ -806,7 +799,7 @@ class DummyVecEnv(ShareVecEnv):
 
     def step_wait(self):
         results = [env.step(a) for (a, env) in zip(self.actions, self.envs)]
-        print(f"we are inside the DummyVecEnv class and step_wait func. results of step are {results}")
+       # print(f"we are inside the DummyVecEnv class and step_wait func. results of step are {results}")
         obs, rews, dones, infos = map(np.array, zip(*results))
 
         # for (i, done) in enumerate(dones):
@@ -855,7 +848,7 @@ class ShareDummyVecEnv(ShareVecEnv):
 
     def step_wait(self):
         results = [env.step(a) for (a, env) in zip(self.actions, self.envs)]
-        print(f"we are inside the ShareDummyVecEnv class and step_wait func. results of step are {results}")
+       # print(f"we are inside the ShareDummyVecEnv class and step_wait func. results of step are {results}")
         obs, share_obs, rews, dones, infos, available_actions = map(
             np.array, zip(*results))
 
@@ -902,7 +895,7 @@ class ChooseDummyVecEnv(ShareVecEnv):
 
     def step_wait(self):
         results = [env.step(a) for (a, env) in zip(self.actions, self.envs)]
-        print(f"we are inside the ChooseDummyVecEnv class and step_wait func. results of step are {results}")
+      #  print(f"we are inside the ChooseDummyVecEnv class and step_wait func. results of step are {results}")
         obs, share_obs, rews, dones, infos, available_actions = map(
             np.array, zip(*results))
         self.actions = None
@@ -940,7 +933,7 @@ class ChooseSimpleDummyVecEnv(ShareVecEnv):
 
     def step_wait(self):
         results = [env.step(a) for (a, env) in zip(self.actions, self.envs)]
-        print(f"we are inside the ChooseSimpleDummyVecEnv class and step_wait func. results of step are {results}")
+     #   print(f"we are inside the ChooseSimpleDummyVecEnv class and step_wait func. results of step are {results}")
         obs, rews, dones, infos = map(np.array, zip(*results))
         self.actions = None
         return obs, rews, dones, infos

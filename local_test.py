@@ -3,7 +3,7 @@ from onpolicy.scripts.train import train_meltingpot
 import argparse
 import wandb
 
-wandb.login()
+#wandb.login()
 
 
 parser = argparse.ArgumentParser(prog="Melting Pot")
@@ -50,7 +50,7 @@ parser.add_argument('--num_env_steps', type=int, default=20000)
 
 parser.add_argument('--ppo_epoch', type=int, default=15)
 
-parser.add_argument('--use_wandb', type=bool, default=True)
+parser.add_argument('--use_wandb', type=bool, default=False)
 
 parser.add_argument('--user_name', type=str, default='dane-malenfant')
 
@@ -115,7 +115,7 @@ parser.add_argument("--use_naive_recurrent_policy", action='store_true',
                     default=False, help='Whether to use a naive recurrent policy')
 parser.add_argument("--use_recurrent_policy", action='store_false',
                     default=True, help='use a recurrent policy')
-parser.add_argument("--recurrent_N", type=int, default=1, help="The number of recurrent layers.")
+parser.add_argument("--recurrent_N", type=int, default=2, help="The number of recurrent layers.")
 parser.add_argument("--data_chunk_length", type=int, default=10,
                     help="Time length of chunks used to train a recurrent_policy")
 

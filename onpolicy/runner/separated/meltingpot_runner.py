@@ -37,14 +37,14 @@ class MeltingpotRunner(Runner):
         super(MeltingpotRunner, self).__init__(config)
        
     def run(self):
-        print('executing warmup function')
+      #  print('executing warmup function')
         self.warmup()   
 
         start = time.time()
 
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
 
-        print('num episodes to run (separated):', episodes) 
+      #  print('num episodes to run (separated):', episodes)
 
         for episode in range(episodes):
             if self.use_linear_lr_decay:
@@ -64,7 +64,7 @@ class MeltingpotRunner(Runner):
 
                 # Obser reward and next obs
                 obs, rewards, dones, infos = self.envs.step(actions)
-                print(f"After envs.step {step} in MeltingpotRunner (separate) for action size {actions.shape}, the reward {rewards} dones {dones}")
+            #    print(f"After envs.step {step} in MeltingpotRunner (separate) for action size {actions.shape}, the reward {rewards} dones {dones}")
 
                 if self.all_args.use_recon_loss == True and self.all_args.use_kl_loss == True:
                     data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic, recon_fs, kls
@@ -79,55 +79,47 @@ class MeltingpotRunner(Runner):
                 self.insert(data)
 
             # compute return and update network
-            print('at 1')
+         #   print('at 1')
             self.compute()
-            print('at 2')
+         #   print('at 2')
             train_infos = self.train()
 
-            print('at 3')
+         #   print('at 3')
             
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
             
             # save model
             if (episode % self.save_interval == 0 or episode == episodes - 1):
-                print('saving!')
+         #       print('saving!')
                 self.save()
 
-            print('at 4')
+       #     print('at 4')
 
             # log information
             if episode % self.log_interval == 0:
-                print('logging!')
+       #         print('logging!')
                 end = time.time()
-                print("\n Scenario {} Algo {} Exp {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}.\n"
-                        .format(self.all_args.scenario_name,
-                                self.algorithm_name,
-                                self.experiment_name,
-                                episode,
-                                episodes,
-                                total_num_steps,
-                                self.num_env_steps,
-                                int(total_num_steps / (end - start))))
+       #
 
                 if self.env_name == "Meltingpot":
                     for agent_id in range(self.num_agents):
                         idv_rews = []
                         #print(f"Details of 'SubprocVecEnv' object {self.envs.__dict__}")
-                        print(f"rewards after run {rewards} here")
+                    #    print(f"rewards after run {rewards} here")
                         for index in list(self.envs.observation_space.keys()):
                             idv_rews.append(rewards[0][index])
                         train_infos[agent_id].update({'individual_rewards': np.mean(idv_rews)})
 
                         train_infos[agent_id].update({"average_episode_rewards": np.mean(self.buffer[agent_id].rewards) * self.episode_length})
-                        print("average episode rewards for agent {} is {}".format(agent_id, train_infos[agent_id]["average_episode_rewards"]))
+                  #      print("average episode rewards for agent {} is {}".format(agent_id, train_infos[agent_id]["average_episode_rewards"]))
 
                         #print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
-                print(f"finish log training")
+            #    print(f"finish log training")
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
-                print('eval!')
+          #      print('eval!')
                 self.eval(total_num_steps)
 
     def warmup(self):
@@ -174,7 +166,7 @@ class MeltingpotRunner(Runner):
 
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
-            if self.all_args.use_recon_loss == True and  self.all_args.use_kl_loss == True:
+            if self.all_args.use_recon_loss == True and self.all_args.use_kl_loss == True:
                 value, action, action_log_prob, rnn_state, rnn_state_critic, recon_features, kl_divs \
                 = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
                                                             self.buffer[agent_id].obs[step],
@@ -203,7 +195,7 @@ class MeltingpotRunner(Runner):
             player= f"player_{agent_id}"
             # print(f"meltingpot runner in collect - action log prob shape : {action_log_prob.shape} and action shape {action.shape}")
             if self.envs.action_space[player].__class__.__name__ == 'MultiDiscrete':
-                print(f"meltingpot_runner action type {self.envs.action_space[player].__class__.__name__}")
+          #      print(f"meltingpot_runner action type {self.envs.action_space[player].__class__.__name__}")
                 for i in range(self.envs.action_space[player].shape):
                     uc_action_env = np.eye(self.envs.action_space[player].high[i]+1)[action[:, i]]
                     if i == 0:
@@ -232,7 +224,7 @@ class MeltingpotRunner(Runner):
                 recon_fs.append(recon_features)
 
             if self.all_args.use_kl_loss == True:
-                kl_losses.append(kl_divs)
+                kl_losses.append(kl_divs.reshape(1))
 
         # [envs, agents, dim]
         actions_env = []
@@ -250,10 +242,10 @@ class MeltingpotRunner(Runner):
         rnn_states_critic = np.array(rnn_states_critic) if isinstance(rnn_states_critic, list) else rnn_states_critic
         values = values.squeeze(-1).transpose(1, 0, 2)
         if self.all_args.use_recon_loss == True:
-            recon_fs = np.array(recon_fs) if isinstance(recon_fs, list) else recon_fs
+            recon_fs = torch.cat(recon_fs) if isinstance(recon_fs, list) else recon_fs
 
         if self.all_args.use_kl_loss == True:
-            kl_losses = np.array(kl_losses) if isinstance(kl_losses, list) else kl_losses
+            kl_losses = torch.cat(kl_losses) if isinstance(kl_losses, list) else kl_losses
 
 
         if actions.ndim==3:
@@ -297,7 +289,7 @@ class MeltingpotRunner(Runner):
         else:
             obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
         
-        print('rnn states sep', rnn_states.shape)
+     #   print('rnn states sep', rnn_states.shape)
 
         # Extract the boolean values for each player and convert to a boolean array
         done_new  = np.array([player_dict[f'player_{i}'] for player_dict in done for i in range(self.num_agents)], dtype=np.bool_)
@@ -313,8 +305,9 @@ class MeltingpotRunner(Runner):
        # sizes = rnn_states[done_new == True].shape
         rnn_states[(done_new == True), :] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
         if self.all_args.use_recon_loss == True:
-            reconstructions = np.array(recon_fs) if isinstance(recon_fs, list) else recon_fs
-            reconstructions = reconstructions.swapaxes(2,4)
+            reconstructions = torch.cat(recon_fs) if isinstance(recon_fs, list) else recon_fs
+            print(reconstructions.shape)
+            reconstructions = torch.permute(reconstructions,(0,2,3,1))
         
         rnn_states_critic[(done_new == True),:] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
 
@@ -563,8 +556,8 @@ class MeltingpotRunner(Runner):
                 average_episode_rewards[player] = np.mean(total_rewards)
                 
             # Print the average rewards
-            for player, avg_reward in average_episode_rewards.items():
-                print(f"eval average episode rewards of {player}: {avg_reward}")
+           # for player, avg_reward in average_episode_rewards.items():
+         #       print(f"eval average episode rewards of {player}: {avg_reward}")
             
             #episode_rewards = np.array(episode_rewards)
             #for agent_id in range(self.num_agents):

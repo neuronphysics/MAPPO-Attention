@@ -57,8 +57,8 @@ class SeparatedReplayBuffer(object):
         self.masks = np.ones((self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32)
         self.bad_masks = np.ones_like(self.masks)
         self.active_masks = np.ones_like(self.masks)
-        self.reconstructions = np.zeros((self.episode_length + 1, self.n_rollout_threads, *obs_shape), dtype=np.float32)
-        self.kl_divs = 0
+        self.reconstructions = torch.zeros(size=(self.episode_length + 1, self.n_rollout_threads, *obs_shape), dtype=torch.float)
+        self.kl_divs = torch.tensor([0])
         self.step = 0
         
     def update_factor(self, factor):
@@ -77,7 +77,7 @@ class SeparatedReplayBuffer(object):
         self.masks[self.step + 1] = masks.copy()
 
         if reconstructions is not None:
-            self.reconstructions[self.step+1] = reconstructions.copy()
+            self.reconstructions[self.step+1] = reconstructions
         if kl_divs is not None:
             self.kl_divs = kl_divs
 
@@ -103,7 +103,7 @@ class SeparatedReplayBuffer(object):
         self.masks[self.step + 1] = masks.copy()
 
         if reconstructions is not None:
-            self.reconstructions[self.step] = reconstructions.copy()
+            self.reconstructions[self.step] = reconstructions
         if kl_divs is not None:
             self.kl_divs= kl_divs
 
@@ -126,7 +126,7 @@ class SeparatedReplayBuffer(object):
         self.active_masks[0] = self.active_masks[-1].copy()
 
         if self.reconstructions is not None:
-            self.reconstructions[0] = self.reconstructions[-1].copy()
+            self.reconstructions[0] = self.reconstructions[-1]
 
 
         if self.available_actions is not None:
@@ -261,7 +261,7 @@ class SeparatedReplayBuffer(object):
                 ind = perm[start_ind + offset]
                 share_obs_batch.append(self.share_obs[:-1, ind])
                 obs_batch.append(self.obs[:-1, ind])
-                print(f"inside separated_buffer.py, self.rnn_states.shape is {self.rnn_states} and its shape is {self.rnn_states.shape} and self.rnn_states_critic.shape is {self.rnn_states_critic.shape}")
+              #  print(f"inside separated_buffer.py, self.rnn_states.shape is {self.rnn_states} and its shape is {self.rnn_states.shape} and self.rnn_states_critic.shape is {self.rnn_states_critic.shape}")
                 rnn_states_batch.append(self.rnn_states[0:1, ind])
                 rnn_states_critic_batch.append(self.rnn_states_critic[0:1, ind])
                 actions_batch.append(self.actions[:, ind])
@@ -334,10 +334,10 @@ class SeparatedReplayBuffer(object):
 
         if self.reconstructions is not None:
             if len(self.reconstructions) > 3:
-                reconstructions = self.reconstructions[:-1].transpose(1, 0, 2, 3, 4).reshape(-1, *self.obs.shape[2:])
+                reconstructions = self.reconstructions[:-1].permute(1, 0, 2, 3, 4).reshape(-1, *self.obs.shape[2:])
 
             else:
-                reconstructions = _cast(self.reconstructions[-1])
+                reconstructions = self.reconstructions[-1].permute(1,0,2).reshape(-1, *self.reconstructions.shape[2:])
 
 
         actions = _cast(self.actions)
@@ -404,7 +404,7 @@ class SeparatedReplayBuffer(object):
             share_obs_batch = np.stack(share_obs_batch)
             obs_batch = np.stack(obs_batch)
             if self.kl_divs is not None:
-                kl_batch = np.stack(kl_batch)
+                kl_batch = torch.stack(tuple(kl_batch))
 
             actions_batch = np.stack(actions_batch)
             if self.available_actions is not None:
@@ -420,7 +420,7 @@ class SeparatedReplayBuffer(object):
             rnn_states_batch = np.stack(rnn_states_batch).reshape(N, *self.rnn_states.shape[2:])
             rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(N, *self.rnn_states_critic.shape[2:])
             if self.reconstructions is not None:
-                reconstructions_batch = np.stack(reconstructions_batch)
+                reconstructions_batch = torch.stack(reconstructions_batch)
                 reconstructions_batch = _flatten(L, N, reconstructions_batch)
 
             # Flatten the (L, N, ...) from_numpys to (L * N, ...)

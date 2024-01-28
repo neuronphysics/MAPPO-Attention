@@ -764,6 +764,9 @@ class Decoder(nn.Module):
                 )
 
         self.decoder = nn.Sequential(*decoder_layers)
+        for layer in self.decoder:
+            if type(layer) is nn.ConvTranspose2d or type(layer) is nn.Linear :
+                layer.weight.data.fill_(0.0)
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.to(device=self.device)
         #print(f"decode network:\n{self.decoder}")
@@ -849,6 +852,9 @@ class Decoder_base(nn.Module):
 
 
         self.decoder = nn.Sequential(*decoder_layers)
+        for layer in self.decoder:
+            if type(layer) is nn.ConvTranspose2d or type(layer) is nn.Linear:
+                layer.weight.data.fill_(0.0)
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.to(device=self.device)
         # print(f"decode network:\n{self.decoder}")

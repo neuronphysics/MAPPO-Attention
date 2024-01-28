@@ -92,20 +92,20 @@ def main(args):
     all_args = args #parse_args(args, parser)
 
     if all_args.algorithm_name == "rmappo":
-        print("u are choosing to use rmappo, we set use_recurrent_policy to be True")
+       # print("u are choosing to use rmappo, we set use_recurrent_policy to be True")
         all_args.use_recurrent_policy = True
         all_args.use_naive_recurrent_policy = False
     elif all_args.algorithm_name == "mappo":
-         print("TRAIN, value of use_attention is {all_args.use_attention}")
+       #  print("TRAIN, value of use_attention is {all_args.use_attention}")
          if all_args.use_recurrent_policy or all_args.use_naive_recurrent_policy:
             print("u are choosing to use mappo, we set use_recurrent_policy & use_naive_recurrent_policy to be True")
          if all_args.use_attention and not (all_args.use_recurrent_policy or all_args.use_naive_recurrent_policy):
              
-            print("u are choosing to use mappo, we set use attention to be True and use_recurrent_policy & use_naive_recurrent_policy to be False")
+          #  print("u are choosing to use mappo, we set use attention to be True and use_recurrent_policy & use_naive_recurrent_policy to be False")
             all_args.use_recurrent_policy = False 
             all_args.use_naive_recurrent_policy = False
     elif all_args.algorithm_name == "ippo":
-        print("u are choosing to use ippo, we set use_centralized_V to be False")
+      #  print("u are choosing to use ippo, we set use_centralized_V to be False")
         all_args.use_centralized_V = False
     else:
         raise NotImplementedError
@@ -115,14 +115,14 @@ def main(args):
 
     # cuda
     if all_args.cuda and torch.cuda.is_available():
-        print("choose to use gpu...")
+      #  print("choose to use gpu...")
         device = torch.device("cuda:0")
         torch.set_num_threads(all_args.n_training_threads)
         if all_args.cuda_deterministic:
             torch.backends.cudnn.benchmark = False
             torch.backends.cudnn.deterministic = True
     else:
-        print("choose to use cpu...")
+       # print("choose to use cpu...")
         device = torch.device("cpu")
         torch.set_num_threads(all_args.n_training_threads)
 
