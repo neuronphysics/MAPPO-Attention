@@ -242,7 +242,8 @@ class MeltingpotRunner(Runner):
         rnn_states_critic = np.array(rnn_states_critic) if isinstance(rnn_states_critic, list) else rnn_states_critic
         values = values.squeeze(-1).transpose(1, 0, 2)
         if self.all_args.use_recon_loss == True:
-            recon_fs = torch.cat(recon_fs) if isinstance(recon_fs, list) else recon_fs
+
+            _fs = torch.cat(recon_fs) if isinstance(recon_fs, list) else recon_fs
 
         if self.all_args.use_kl_loss == True:
             kl_losses = torch.cat(kl_losses) if isinstance(kl_losses, list) else kl_losses
