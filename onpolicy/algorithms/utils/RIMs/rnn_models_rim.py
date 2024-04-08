@@ -1,22 +1,25 @@
 import torch.nn as nn
 import torch
-from utilities.attention_rim import MultiHeadAttention
-from utilities.layer_conn_attention import LayerConnAttention
-from utilities.BlockLSTM import BlockLSTM
+from onpolicy.algorithms.utils.utilities.attention_rim import MultiHeadAttention
+from onpolicy.algorithms.utils.utilities.layer_conn_attention import LayerConnAttention
+from onpolicy.algorithms.utils.utilities.BlockLSTM import BlockLSTM
 import random
 import time
-from utilities.GroupLinearLayer import GroupLinearLayer
-from utilities.sparse_grad_attn import blocked_grad
+from onpolicy.algorithms.utils.utilities.GroupLinearLayer import GroupLinearLayer
+from onpolicy.algorithms.utils.utilities.sparse_grad_attn import blocked_grad
 
 from .blocks_core_rim import BlocksCore
+
 
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
     def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, tie_weights=False, use_cudnn_version=True,
                  use_adaptive_softmax=False, cutoffs=None, discrete_input=False, num_blocks=[6], topk=[4], do_gru=False,
-                 use_inactive=False, blocked_grad=False, step_att=True,  layer_dilation = -1, block_dilation = -1, num_modules_read_input=2,
-                 num_rules = 0, rule_time_steps = 0, application_option = 3, attention_out=340, version=1, rule_selection = 'gumble'):
+                 use_inactive=False, blocked_grad=False, step_att=True, layer_dilation=-1, block_dilation=-1,
+                 num_modules_read_input=2,
+                 num_rules=0, rule_time_steps=0, application_option=3, attention_out=340, version=1,
+                 rule_selection='gumble'):
 
         super(RNNModel, self).__init__()
 
@@ -41,19 +44,19 @@ class RNNModel(nn.Module):
         self.discrete_input = discrete_input
         self.sigmoid = nn.Sigmoid()
         self.sm = nn.Softmax(dim=1)
-        #self.use_dropout = use_dropout
+        # self.use_dropout = use_dropout
 
         self.use_inactive = use_inactive
         self.blocked_grad = blocked_grad
         print('Is the model using inactive blocks for higher representations? ', use_inactive)
 
         if layer_dilation == -1:
-            self.layer_dilation = [1]*nlayers
+            self.layer_dilation = [1] * nlayers
         else:
             self.layer_dilation = layer_dilation
 
         if block_dilation == -1:
-            self.block_dilation = [1]*nlayers
+            self.block_dilation = [1] * nlayers
         else:
             self.block_dilation = block_dilation
 
@@ -65,13 +68,28 @@ class RNNModel(nn.Module):
         print("Dropout rate", dropout)
 
         for i in range(nlayers):
-            if i==0:
+            if i == 0:
                 if False:
-                    self.bc_lst.append(BlocksCore(ninp + nhid[i],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection))
+                    self.bc_lst.append(
+                        BlocksCore(ninp + nhid[i], nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att,
+                                   version=version, attention_out=attention_out, do_gru=do_gru,
+                                   num_modules_read_input=num_modules_read_input, num_rules=num_rules,
+                                   rule_time_steps=rule_time_steps, application_option=application_option,
+                                   rule_selection=rule_selection))
                 else:
-                    self.bc_lst.append(BlocksCore(ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection))
+                    self.bc_lst.append(
+                        BlocksCore(ninp, nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att,
+                                   version=version, attention_out=attention_out, do_gru=do_gru,
+                                   num_modules_read_input=num_modules_read_input, num_rules=num_rules,
+                                   rule_time_steps=rule_time_steps, application_option=application_option,
+                                   rule_selection=rule_selection))
             else:
-                self.bc_lst.append(BlocksCore(nhid[i-1],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection))
+                self.bc_lst.append(
+                    BlocksCore(nhid[i - 1], nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att,
+                               version=version, attention_out=attention_out, do_gru=do_gru,
+                               num_modules_read_input=num_modules_read_input, num_rules=num_rules,
+                               rule_time_steps=rule_time_steps, application_option=application_option,
+                               rule_selection=rule_selection))
         for i in range(nlayers - 1):
             self.dropout_lst.append(nn.Dropout(dropout))
 
@@ -88,7 +106,6 @@ class RNNModel(nn.Module):
                     self.decoder.weight = self.encoder.weight
         self.init_weights()
 
-
         self.transform_src = nn.Linear(nhid[0], nhid[0] // num_blocks[0])
 
         self.rnn_type = rnn_type
@@ -98,33 +115,29 @@ class RNNModel(nn.Module):
 
     def init_weights(self):
         initrange = 0.1
-        self.encoder.weight.data.uniform_(-initrange, initrange)
+        # self.encoder.weight.data.uniform_(-initrange, initrange)
+        nn.init.xavier_uniform_(self.encoder.weight)
         if not self.use_adaptive_softmax and False:
             self.decoder.bias.data.zero_()
             self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, input, hidden, calc_mask=False, message_to_rule_network = None):
-        extra_loss = 0.0
-        #print(f"rnn_models_rim RNNModel --- size of input before {input.shape}")
-        #input= input.permute(0,2,1)
+    def forward(self, input, hidden, calc_mask=False, message_to_rule_network=None):
         
-        print(f"rnn_models_rim RNNModel --- size of input before encoder {input.shape}")
+        extra_loss = 0.0
         emb = self.drop(self.encoder(input))
         weighted = None
         attn_vec = None
-        print(f"inside RNNModel RIM --- input {input.shape}, hidden {hidden[0][0].shape} emb {emb.shape}")
-        #encoder_final_state = weighted.squeeze(0)
         if True:
             # for loop implementation with RNNCell
-            if emb.dim()==2:
-               layer_input = emb.unsqueeze(0)
+            if emb.dim() == 2:
+                layer_input = emb.unsqueeze(0)
             else:
-               layer_input = emb 
+                layer_input = emb
             new_hidden = [[] for _ in range(self.nlayers)]
             if calc_mask:
                 masks = [[] for _ in range(self.nlayers)]
                 sample_masks = [[] for _ in range(self.nlayers)]
-            entropy = 0 
+            entropy = 0
             for idx_layer in range(self.nlayers):
 
                 output = []
@@ -134,41 +147,44 @@ class RNNModel(nn.Module):
                 for idx_step in range(layer_input.shape[0]):
                     if idx_step % self.layer_dilation[idx_layer] == 0:
                         if idx_step % self.block_dilation[idx_layer] == 0:
-                            print(f"RNNModel class RIM --- hx {hx.shape} {idx_step} emb size : {emb.shape}")
-                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx.to(input.device), cx.to(input.device), idx_step, do_block = True, message_to_rule_network = message_to_rule_network)
-                            #RuntimeError: shape '[4, 2, 1, 64]' is invalid for input of size 1024
-                            
+                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step,
+                                                                            do_block=True,
+                                                                            message_to_rule_network=message_to_rule_network)
                             entropy += entropy_
                         else:
-                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = False, message_to_rule_network = message_to_rule_network)
+                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step,
+                                                                            do_block=False,
+                                                                            message_to_rule_network=message_to_rule_network)
                             entropy += entropy_
                     if idx_layer < self.nlayers - 1:
                         if self.use_inactive:
                             if self.blocked_grad:
                                 bg = blocked_grad()
-                                output.append(bg(hx,mask))
+                                output.append(bg(hx, mask))
                             else:
                                 output.append(hx)
                         else:
                             if self.blocked_grad:
                                 bg = blocked_grad()
-                                output.append((mask)*bg(hx,mask))
+                                output.append((mask) * bg(hx, mask))
                             else:
-                                output.append((mask)*hx)
+                                output.append((mask) * hx)
                     else:
                         output.append(hx)
 
-
                     if calc_mask:
-                        mk = mask.view(mask.size()[0], self.num_blocks[idx_layer], self.nhid[idx_layer] // self.num_blocks[idx_layer])
+                        mk = mask.view(mask.size()[0], self.num_blocks[idx_layer],
+                                       self.nhid[idx_layer] // self.num_blocks[idx_layer])
                         mk = torch.mean(mk, dim=2)
                         sample_masks[idx_layer].append(mk[0])
                         mk = torch.mean(mk, dim=0)
                         masks[idx_layer].append(mk)
 
                 if calc_mask:
-                    masks[idx_layer] = torch.stack(masks[idx_layer]).view(input.shape[0],self.num_blocks[idx_layer]).transpose(1,0)
-                    sample_masks[idx_layer] = torch.stack(sample_masks[idx_layer]).view(input.shape[0],self.num_blocks[idx_layer]).transpose(1,0)
+                    masks[idx_layer] = torch.stack(masks[idx_layer]).view(input.shape[0],
+                                                                          self.num_blocks[idx_layer]).transpose(1, 0)
+                    sample_masks[idx_layer] = torch.stack(sample_masks[idx_layer]).view(input.shape[0], self.num_blocks[
+                        idx_layer]).transpose(1, 0)
 
                 output = torch.stack(output)
 
@@ -177,19 +193,17 @@ class RNNModel(nn.Module):
                 else:
                     layer_input = output
 
-                new_hidden[idx_layer] = tuple((hx,cx))
-            print(f"RNNModel class RIM again size of hx {hx.shape}")
+                new_hidden[idx_layer] = tuple((hx, cx))
             hidden = new_hidden
         output = self.drop(output)
         dec = output.view(output.size(0) * output.size(1), self.nhid[-1])
         if False:
             dec = self.decoder(dec)
-        print(f"RNNModel class RIM decoder {dec.shape} out {output.size()}")
         if calc_mask:
-            return dec.view(output.size(0), output.size(1), dec.size(1)), hidden, extra_loss, masks, sample_masks, entropy
+            return dec.view(output.size(0), output.size(1),
+                            dec.size(1)), hidden, extra_loss, masks, sample_masks, entropy
         else:
             return dec.view(output.size(0), output.size(1), dec.size(1)), hidden, extra_loss, None, None, entropy
-
 
     def init_hidden(self, bsz):
         weight = next(self.bc_lst[0].block_lstm.parameters())
@@ -197,7 +211,7 @@ class RNNModel(nn.Module):
         if True or self.rnn_type == 'LSTM' or self.rnn_type == 'LSTMCell':
             for i in range(self.nlayers):
                 hidden.append((weight.new_zeros(bsz, self.nhid[i]),
-                    weight.new_zeros(bsz, self.nhid[i])))
+                               weight.new_zeros(bsz, self.nhid[i])))
             # return (weight.new_zeros(self.nlayers, bsz, self.nhid),
             #         weight.new_zeros(self.nlayers, bsz, self.nhid))
         else:

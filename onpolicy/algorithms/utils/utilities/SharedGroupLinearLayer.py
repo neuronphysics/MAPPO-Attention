@@ -10,9 +10,13 @@ class SharedGroupLinearLayer(nn.Module):
         super(SharedGroupLinearLayer, self).__init__()
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.w = nn.ModuleList([nn.Linear(din, dout, bias = False).to(self.device) for _ in range(0,n_templates)])
-        self.gll_write = GroupLinearLayer(dout,16, n_templates, device=self.device)
-        self.gll_read = GroupLinearLayer(din,16,1, device=self.device)
+        self.gll_write = GroupLinearLayer(dout, 16, n_templates, device=self.device)
+        self.gll_read = GroupLinearLayer(din, 16, 1, device=self.device)
         self.to(self.device)
+        for layer in self.w:
+            if isinstance(layer, nn.Linear):
+               nn.init.kaiming_uniform_(layer.weight, mode='fan_in', nonlinearity='relu')
+               
         #self.register_buffer(self.w)
 
     def forward(self,x):

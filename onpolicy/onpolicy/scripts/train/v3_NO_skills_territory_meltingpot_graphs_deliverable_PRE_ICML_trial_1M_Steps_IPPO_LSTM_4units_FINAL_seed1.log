@@ -1,0 +1,702 @@
+u are choosing to use ippo, we set use_centralized_V to be False
+choose to use gpu...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (21, 21, 3), uint8)
+We are using LSTM...
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+obs space x Box(0, 255, (11, 11, 3), uint8)
+obs space x Box(0, 255, (21, 21, 3), uint8)
+num episodes to run (separated): 40000
+num agents 9
+agent id tensor(5)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1967, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1958, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1944, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1925, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1901, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1873, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1839, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1801, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1776, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1789, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1814, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1820, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1808, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1793, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1775, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(8)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1971, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1967, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1962, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1956, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1947, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1937, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1925, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1922, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1916, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1906, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1924, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1920, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1896, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1909, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1901, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(7)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1969, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1962, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1952, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1938, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1919, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1896, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1868, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1857, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1864, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1883, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1883, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1868, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1849, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1852, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1868, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(3)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1969, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1963, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1956, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1946, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1937, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1929, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1922, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1914, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1913, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1907, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1907, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1902, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1900, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1908, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1892, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(6)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1969, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1962, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1951, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1938, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1920, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1897, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1871, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1844, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1829, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1831, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1859, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1856, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1830, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1813, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1826, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(1)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1970, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1963, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1953, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1939, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1921, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1900, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1874, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1859, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1867, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1861, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1856, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1874, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1871, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1890, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1862, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(4)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1969, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1962, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1953, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1941, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1926, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1909, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1891, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1897, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1909, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1903, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1886, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1890, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1907, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1894, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1878, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(0)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1969, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1963, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1955, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1944, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1931, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1917, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1916, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1926, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1913, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1890, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1887, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1904, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1889, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1884, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1884, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(2)
+a1
+a2
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1972, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1968, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1961, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1950, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1934, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1914, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1890, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1874, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1875, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1876, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1853, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1825, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1846, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1868, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1866, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1845, device='cuda:0', grad_fn=<DivBackward0>)
+
+ Scenario collaborative_cooking__circuit_0 Algo ippo Exp check updates 0/40000 episodes, total num timesteps 1000/40000000.0, FPS 8.
+
+Average episode rewards for agent 0 is 43.99999976158142
+Average episode rewards for agent 1 is 128.00000607967377
+Average episode rewards for agent 2 is 83.99999886751175
+Average episode rewards for agent 3 is 78.00000160932541
+Average episode rewards for agent 4 is 81.00000023841858
+Average episode rewards for agent 5 is 19.999999552965164
+Average episode rewards for agent 6 is 98.9999994635582
+Average episode rewards for agent 7 is 4.000000189989805
+Average episode rewards for agent 8 is 4.000000189989805
+Overall average episode reward for all agents: 60.22222288366821
+num agents 9
+agent id tensor(2)
+a1
+a2
+dist_entropy is:  tensor(2.1837, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1837, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1830, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1846, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1869, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1879, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1877, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1872, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1864, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1850, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1823, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1788, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1748, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1717, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1696, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1687, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1679, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(7)
+a1
+a2
+dist_entropy is:  tensor(2.1866, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1866, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1857, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1831, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1798, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1765, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1734, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1701, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1663, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1621, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1578, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1545, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1528, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1523, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1536, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1571, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1597, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(5)
+a1
+a2
+dist_entropy is:  tensor(2.1775, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1775, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1761, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1752, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1748, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1749, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1750, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1750, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1748, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1741, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1729, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1710, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1685, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1666, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1654, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1655, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1655, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(0)
+a1
+a2
+dist_entropy is:  tensor(2.1907, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1907, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1934, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1948, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1943, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1935, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1935, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1940, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1940, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1931, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1914, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1907, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1907, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1908, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1899, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1892, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1888, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(6)
+a1
+a2
+dist_entropy is:  tensor(2.1829, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1829, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1846, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1862, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1876, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1887, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1896, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1902, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1906, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1907, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1902, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1894, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1887, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1881, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1874, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1866, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1858, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(3)
+a1
+a2
+dist_entropy is:  tensor(2.1899, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1899, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1880, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1870, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1865, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1863, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1866, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1866, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1859, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1845, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1834, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1828, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1830, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1812, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1809, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1798, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1782, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(8)
+a1
+a2
+dist_entropy is:  tensor(2.1918, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1918, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1910, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1900, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1887, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1871, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1852, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1833, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1818, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1818, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1829, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1825, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1839, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1845, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1820, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1844, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1826, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(4)
+a1
+a2
+dist_entropy is:  tensor(2.1847, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1847, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1839, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1845, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1844, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1844, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1840, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1832, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1815, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1786, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1752, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1719, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1711, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1722, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1744, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1765, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1777, device='cuda:0', grad_fn=<DivBackward0>)
+agent id tensor(1)
+a1
+a2
+dist_entropy is:  tensor(2.1868, device='cuda:0', grad_fn=<DivBackward0>)
+dist_entropy is:  tensor(2.1868, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1843, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1833, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1822, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1803, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1781, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1766, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1763, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1768, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1771, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1774, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1767, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1770, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1750, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1748, device='cuda:0', grad_fn=<DivBackward0>)
+use max grad norm:  True
+dist_entropy is:  tensor(2.1735, device='cuda:0', grad_fn=<DivBackward0>)

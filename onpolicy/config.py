@@ -1,5 +1,9 @@
 import argparse
 
+from distutils.util import strtobool
+
+def str2bool(v):
+    return bool(strtobool(v))
 
 def get_config():
     """
@@ -158,24 +162,24 @@ def get_config():
 
     # prepare parameters
     parser.add_argument("--algorithm_name", type=str,
-                        default='mappo', choices=["rmappo", "mappo"])
+                        default='ippo', choices=["ippo","rmappo", "mappo"])
 
     parser.add_argument("--experiment_name", type=str, default="check", help="an identifier to distinguish different experiment.")
-    parser.add_argument("--seed", type=int, default=1, help="Random seed for numpy/torch")
+    parser.add_argument("--seed", type=int, default=2, help="Random seed for numpy/torch")
     parser.add_argument("--cuda", action='store_false', default=True, help="by default True, will use GPU to train; or else will use CPU;")
     parser.add_argument("--cuda_deterministic",
                         action='store_false', default=True, help="by default, make sure random seed effective. if set, bypass such function.")
     parser.add_argument("--n_training_threads", type=int,
                         default=1, help="Number of torch threads for training")
-    parser.add_argument("--n_rollout_threads", type=int, default=32,
+    parser.add_argument("--n_rollout_threads", type=int, default=1,
                         help="Number of parallel envs for training rollouts")
     parser.add_argument("--n_eval_rollout_threads", type=int, default=1,
                         help="Number of parallel envs for evaluating rollouts")
     parser.add_argument("--n_render_rollout_threads", type=int, default=1,
                         help="Number of parallel envs for rendering rollouts")
-    parser.add_argument("--num_env_steps", type=int, default=10e6,
+    parser.add_argument("--num_env_steps", type=int, default=40e6,
                         help='Number of environment steps to train (default: 10e6)')
-    parser.add_argument("--user_name", type=str, default='marl',help="[for wandb usage], to specify user's name for simply collecting training data.")
+    parser.add_argument("--user_name", type=str, default='zsheikhb',help="[for wandb usage], to specify user's name for simply collecting training data.")
     parser.add_argument("--use_wandb", action='store_false', default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
 
     # env parameters
@@ -185,28 +189,29 @@ def get_config():
 
     # replay buffer parameters
     parser.add_argument("--episode_length", type=int,
-                        default=200, help="Max length for any episode")
+                        default=2000, help="Max length for any episode")
 
     # network parameters
-    parser.add_argument("--use_attention", type=bool,
-                        default=False, help='Whether agent use the attention module or not')
+    parser.add_argument("--use_attention", type=str2bool, default=False,
+                        help='Whether agent use the attention module or not')
+
     parser.add_argument("--attention_module", type=str, 
                         default= 'RIM', help='specify the name of attention module')
-    parser.add_argument("--use_version_scoff", type=int, default=0, help="specify the version of SCOFF")
+    parser.add_argument("--use_version_scoff", type=int, default=1, help="specify the version of SCOFF")
     parser.add_argument("--scoff_num_units", type=int, default=4, help="specify the number of units in SCOFF")
     parser.add_argument("--scoff_topk", type=int, default=3, help="specify the number of topk in SCOFF") 
     parser.add_argument("--rim_num_units", type=int, default=6, help="specify the number of units in RIM")
-    parser.add_argument("--rim_topk", type=int, default=4, help="specify the number of topk in RIM")
+    parser.add_argument("--rim_topk", type=int, default=3, help="specify the number of topk in RIM")
     
     parser.add_argument("--share_policy", action='store_false',
-                        default=True, help='Whether agent share the same policy')
+                        default=str2bool, help='Whether agent share the same policy')
     parser.add_argument("--use_centralized_V", action='store_false',
                         default=True, help="Whether to use centralized V function")
     parser.add_argument("--stacked_frames", type=int, default=1,
                         help="Dimension of hidden layers for actor/critic networks")
     parser.add_argument("--use_stacked_frames", action='store_true',
                         default=False, help="Whether to use stacked_frames")
-    parser.add_argument("--hidden_size", type=int, default=96,
+    parser.add_argument("--hidden_size", type=int, default=144,
                         help="Dimension of hidden layers for actor/critic networks") 
     parser.add_argument("--layer_N", type=int, default=1,
                         help="Number of layers for actor/critic networks")
@@ -223,7 +228,7 @@ def get_config():
 
     # recurrent parameters
     parser.add_argument("--use_naive_recurrent_policy", action='store_true',
-                        default=False, help='Whether to use a naive recurrent policy')
+                        default=True, help='Whether to use a naive recurrent policy')
     parser.add_argument("--use_recurrent_policy", action='store_false',
                         default=True, help='use a recurrent policy')
     parser.add_argument("--recurrent_N", type=int, default=1, help="The number of recurrent layers.")
@@ -231,7 +236,7 @@ def get_config():
                         help="Time length of chunks used to train a recurrent_policy")
 
     # optimizer parameters
-    parser.add_argument("--lr", type=float, default=5e-4,
+    parser.add_argument("--lr", type=float, default=1e-4,
                         help='learning rate (default: 5e-4)')
     parser.add_argument("--critic_lr", type=float, default=5e-4,
                         help='critic learning rate (default: 5e-4)')
@@ -248,7 +253,7 @@ def get_config():
                         help='ppo clip parameter (default: 0.2)')
     parser.add_argument("--num_mini_batch", type=int, default=1,
                         help='number of batches for ppo (default: 1)')
-    parser.add_argument("--entropy_coef", type=float, default=0.01,
+    parser.add_argument("--entropy_coef", type=float, default=0.006,
                         help='entropy term coefficient (default: 0.01)')
     parser.add_argument("--value_loss_coef", type=float,
                         default=1, help='value loss coefficient (default: 0.5)')
@@ -286,9 +291,9 @@ def get_config():
     parser.add_argument("--eval_episodes", type=int, default=32, help="number of episodes of a single evaluation.")
 
     # render parameters
-    parser.add_argument("--save_gifs", action='store_true', default=False, help="by default, do not save render video. If set, save video.")
-    parser.add_argument("--use_render", action='store_true', default=False, help="by default, do not render the env during training. If set, start render. Note: something, the environment has internal render process which is not controlled by this hyperparam.")
-    parser.add_argument("--render_episodes", type=int, default=5, help="the number of episodes to render a given env")
+    parser.add_argument("--save_gifs", action='store_true', default=True, help="by default, do not save render video. If set, save video.")
+    parser.add_argument("--use_render", action='store_true', default=True, help="by default, do not render the env during training. If set, start render. Note: something, the environment has internal render process which is not controlled by this hyperparam.")
+    parser.add_argument("--render_episodes", type=int, default=1, help="the number of episodes to render a given env")
     parser.add_argument("--ifi", type=float, default=0.1, help="the play interval of each rendered image in saved video.")
 
     # pretrained parameters
@@ -302,4 +307,14 @@ def get_config():
     parser.add_argument("--skill_max_num_experts", type= int, default=10, help="specify the number of experts in the skill dynamics network")
     parser.add_argument("--dynamics_lr", type= int, default=3e-4, help ="Skill dynamics learning rate.")
     parser.add_argument("--skill_dim", type=int, default=10, help="skill dimension")
+    
+    #additional parameters
+    parser.add_argument("--drop_out", type= float, 
+                        default=0.5, help="specify the drop out")
+    parser.add_argument("--rnn_attention_module", type=str, 
+                        default= 'LSTM', help='specify the rnn module to use')
+    parser.add_argument("--use_bidirectional", type=str2bool, default=False,
+                        help='Whether or not to be bidirectional')
+
+    
     return parser

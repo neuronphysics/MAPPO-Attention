@@ -40,7 +40,23 @@ class BlockLSTM(nn.Module):
         self.lstm = nn.LSTMCell(ninp, nhid).to(self.device)
         self.nhid = nhid
         self.ninp = ninp
-
+        self.initialize_weights()
+        self.to(self.device)
+        
+    def initialize_weights(self):
+        # Orthogonal initialization for recurrent weights
+        for name, param in self.lstm.named_parameters():
+            if 'weight_hh' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'weight_ih' in name:
+                nn.init.xavier_uniform_(param.data)
+            elif 'bias' in name:
+                nn.init.constant_(param.data, 0)
+                # Setting forget gate bias to 1
+                n = param.size(0)
+                start, end = n // 4, n // 2
+                param.data[start:end].fill_(1.)
+        
     def blockify_params(self):
         pl = self.lstm.parameters()
 
@@ -56,6 +72,9 @@ class BlockLSTM(nn.Module):
     def forward(self, input, h, c):
 
         #self.blockify_params()
+        input=input.to(self.device)
+        h = h.to(self.device)
+        c = c.to(self.device)
 
         hnext, cnext = self.lstm(input, (h, c))
 
@@ -79,8 +98,24 @@ class SharedBlockLSTM(nn.Module):
         self.ninp = ninp
 
         self.gll_write = GroupLinearLayer(self.m,16, self.n_templates, device=self.device)
-        self.gll_read = GroupLinearLayer(self.m,16,1, device=self.device)
+        self.gll_read = GroupLinearLayer(self.m, 16, 1, device=self.device)
+        
+        self.initialize_templates()
         self.to(self.device)
+
+    def initialize_templates(self):
+        for template in self.templates:
+            for name, param in template.named_parameters():
+                if 'weight_hh' in name:
+                    nn.init.orthogonal_(param.data)
+                elif 'weight_ih' in name:
+                    nn.init.xavier_uniform_(param.data)
+                elif 'bias' in name:
+                    nn.init.constant_(param.data, 0)
+                    # Setting forget gate bias to 1
+                    n = param.size(0)
+                    start, end = n // 4, n // 2
+                    param.data[start:end].fill_(1.)
 
     def blockify_params(self):
 
@@ -90,8 +125,8 @@ class SharedBlockLSTM(nn.Module):
 
         #self.blockify_params()
         bs = h.shape[0]
-        h = h.reshape((h.shape[0], self.k, self.m)).reshape((h.shape[0]*self.k, self.m))
-        c = c.reshape((c.shape[0], self.k, self.m)).reshape((c.shape[0]*self.k, self.m))
+        h = h.reshape((h.shape[0], self.k, self.m)).reshape((h.shape[0]*self.k, self.m)).to(self.device)
+        c = c.reshape((c.shape[0], self.k, self.m)).reshape((c.shape[0]*self.k, self.m)).to(self.device)
 
 
         input = input.reshape(input.shape[0], 1, input.shape[1])

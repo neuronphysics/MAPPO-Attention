@@ -1,4 +1,3 @@
-
 import time
 import wandb
 import os
@@ -85,9 +84,9 @@ class Runner(object):
             from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
 
-        print("runner separated share_observation_space: ", self.envs.share_observation_space)
-        print("runner separated observation_space: ", self.envs.observation_space)
-        print("runner separated action_space: ", self.envs.action_space)
+        #print("runner separated share_observation_space: ", self.envs.share_observation_space)
+        #print("runner separated observation_space: ", self.envs.observation_space)
+        #print("runner separated action_space: ", self.envs.action_space)
 
         self.policy = []
         for agent_id in range(self.num_agents):
@@ -114,7 +113,7 @@ class Runner(object):
                # policy network
             
             self.policy.append(po)
-
+        
         #if self.model_dir is not None:
         #    self.restore()
 
@@ -140,6 +139,9 @@ class Runner(object):
                
             self.buffer.append(bu)
             self.trainer.append(tr)
+        total_parameters = self.count_parameters()
+        print(f"total number of parameters: {total_parameters}")
+        
         
         if self.model_dir is not None: #Armin: why did you move this part here?
             self.restore()
@@ -173,9 +175,14 @@ class Runner(object):
         action_dim=self.buffer[0].actions.shape[-1]
         factor = np.ones((self.episode_length, self.n_rollout_threads, 1), dtype=np.float32)
 
+        print('num agents', self.num_agents)
+
         for agent_id in torch.randperm(self.num_agents):
+            print('agent id', agent_id)
             self.trainer[agent_id].prep_training()
+            print('a1')
             self.buffer[agent_id].update_factor(factor)
+            print('a2')
             available_actions = None if self.buffer[agent_id].available_actions is None \
                 else self.buffer[agent_id].available_actions[:-1].reshape(-1, *self.buffer[agent_id].available_actions.shape[2:])
             
@@ -187,14 +194,20 @@ class Runner(object):
                                                             available_actions,
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
             else:
+                #print(f"old obs_space base_runner: {self.buffer[agent_id].obs[:-1].shape} rnn shape {self.buffer[agent_id].rnn_states[0:1].shape}")
                 old_actions_logprob, _ =self.trainer[agent_id].policy.actor.evaluate_actions(self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
                                                             self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
                                                             self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
                                                             self.buffer[agent_id].masks[:-1].reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
                                                             available_actions,
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
+            
+            #print('a3')
+
             train_info = self.trainer[agent_id].train(self.buffer[agent_id])
 
+            #print('a4')
+            
             if self.all_args.algorithm_name == "hatrpo":
                 new_actions_logprob, _, _, _, _ =self.trainer[agent_id].policy.actor.evaluate_actions(self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
                                                             self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
@@ -203,6 +216,7 @@ class Runner(object):
                                                             available_actions,
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
             else:
+                #print(f"new obs_space base_runner: {self.buffer[agent_id].obs[:-1].shape}, rnn shape {self.buffer[agent_id].rnn_states[0:1].shape}")
                 new_actions_logprob, _ =self.trainer[agent_id].policy.actor.evaluate_actions(self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
                                                             self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
                                                             self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
@@ -210,9 +224,14 @@ class Runner(object):
                                                             available_actions,
                                                             self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
 
+            #print('a5')
+
             factor = factor*_t2n(torch.prod(torch.exp(new_actions_logprob-old_actions_logprob),dim=-1).reshape(self.episode_length,self.n_rollout_threads,1))
-            train_infos.append(train_info)      
+            #print('a6')
+            train_infos.append(train_info)
+            #print('a7')      
             self.buffer[agent_id].after_update()
+            #print('a8')
 
         return train_infos
 
@@ -252,3 +271,10 @@ class Runner(object):
                     wandb.log({k: np.mean(v)}, step=total_num_steps)
                 else:
                     self.writter.add_scalars(k, {k: np.mean(v)}, total_num_steps)
+    def count_parameters(self):
+        actor_parameters = 0
+        critic_parameters=0
+        for agent_id in range(self.num_agents):
+            actor_parameters += sum(p.numel() for p in self.policy[agent_id].actor.parameters())
+            critic_parameters += sum(p.numel() for p in self.policy[agent_id].critic.parameters())
+        return actor_parameters+critic_parameters

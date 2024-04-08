@@ -15,8 +15,7 @@ import torch
 import torch.nn as nn
 from .GroupLinearLayer import GroupLinearLayer
 from .sparse_attn import Sparse_attention
-
-
+from .LayerNormGRUCell import LayerNormGRUCell
 '''
 Given an N x N matrix, and a grouping of size, set all elements off the block diagonal to 0.0
 '''
@@ -36,7 +35,7 @@ def zero_matrix_elements(matrix, k):
 class BlockGRU(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, ninp, nhid, k):
+    def __init__(self, ninp, nhid, k, standard=False):
         super(BlockGRU, self).__init__()
 
         assert ninp % k == 0, f"ninp ({ninp}) should be divisible by k ({k})"
@@ -44,10 +43,24 @@ class BlockGRU(nn.Module):
 
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.k = k
-        self.gru = nn.GRUCell(ninp, nhid).to(self.device)
+        if standard:
+           self.gru = nn.GRUCell(ninp, nhid).to(self.device)
+        else:
+           self.gru = LayerNormGRUCell(ninp, nhid)
         self.nhid = nhid
         self.ninp = ninp
         self.to(self.device)
+        self.initialize_weights()
+
+    def initialize_weights(self):
+        # Initialize weights for the GRU cell
+        for name, param in self.gru.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.xavier_uniform_(param.data)
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                nn.init.constant_(param.data, 0)
 
     def blockify_params(self):
         pl = self.gru.parameters()
@@ -62,12 +75,7 @@ class BlockGRU(nn.Module):
                     zero_matrix_elements(p[self.nhid*e : self.nhid*(e+1)], k=self.k)
 
     def forward(self, input, h):
-
-        #self.blockify_params()
-        print("Inside BlockGRU - Shape of input:", input.shape)
-        print("Inside BlockGRU - Shape of h:", h.shape)
         hnext = self.gru(input, h)
-        print(f"Inside BlockGRU - after GRU {hnext.shape}")
         return hnext, None
 
 class Identity(torch.autograd.Function):
@@ -82,7 +90,7 @@ class Identity(torch.autograd.Function):
 class SharedBlockGRU(nn.Module):
     """Dynamic sharing of parameters between blocks(RIM's)"""
 
-    def __init__(self, ninp, nhid, k, n_templates):
+    def __init__(self, ninp, nhid, k, n_templates, standard=False):
         super(SharedBlockGRU, self).__init__()
 
         assert ninp % k == 0, f"ninp ({ninp}) should be divisible by k ({k})"
@@ -93,16 +101,33 @@ class SharedBlockGRU(nn.Module):
         self.m = nhid // self.k
 
         self.n_templates = n_templates
-        self.templates = nn.ModuleList([nn.GRUCell(ninp,self.m).to(self.device) for _ in range(0,self.n_templates)])
+        if standard:
+           self.templates = nn.ModuleList([nn.GRUCell(ninp,self.m).to(self.device) for _ in range(0, self.n_templates)])
+        else:
+           self.templates = nn.ModuleList([LayerNormGRUCell(ninp,self.m) for _ in range(0, self.n_templates)]) 
         self.nhid = nhid
 
         self.ninp = ninp
 
-        self.gll_write = GroupLinearLayer(self.m,16, self.n_templates, device=self.device)
-        self.gll_read = GroupLinearLayer(self.m,16,1, device=self.device)
+        self.gll_write = GroupLinearLayer(self.m, 16, self.n_templates, device=self.device)
+        self.gll_read = GroupLinearLayer(self.m, 16, 1, device=self.device)
         self.sa = Sparse_attention(1).to(self.device)
+        self.initialize_weights()
         self.to(self.device)
+
         print("Using Gumble sparsity")
+        
+
+    def initialize_weights(self):
+        # Initialize weights for each GRUCell template
+        for template in self.templates:
+            for name, param in template.named_parameters():
+                if 'weight_ih' in name:
+                    nn.init.xavier_uniform_(param.data)
+                elif 'weight_hh' in name:
+                    nn.init.orthogonal_(param.data)
+                elif 'bias' in name:
+                    nn.init.constant_(param.data, 0)
 
     def blockify_params(self):
 
