@@ -25,7 +25,7 @@ class Identity(torch.autograd.Function):
   def forward(ctx, input):
     return input * 1.0
   def backward(ctx, grad_output):
-    print(grad_output)
+    # print(grad_output)
     return grad_output * 1.0
 
 
@@ -293,7 +293,7 @@ class BlocksCore(nn.Module):
             cx_new = hx_new
         else:
             hx_new, cx_new, temp_attention = self.block_lstm(inp_use, hx, cx)
-        #print(len(hx_new))
+        
         hx_old = hx*1.0
         cx_old = cx*1.0
 

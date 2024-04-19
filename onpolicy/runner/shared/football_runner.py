@@ -200,7 +200,7 @@ class FootballRunner(Runner):
                         eval_goals[num_done] = eval_infos[idx_env]["score_reward"]
                         eval_win_rates[num_done] = 1 if eval_infos[idx_env]["score_reward"] > 0 else 0
                         eval_steps[num_done] = eval_infos[idx_env]["max_steps"] - eval_infos[idx_env]["steps_left"]
-                        # print("episode {:>2d} done by env {:>2d}: {}".format(num_done, idx_env, eval_infos[idx_env]["score_reward"]))
+                        
                         num_done += 1
                         done_episodes_per_thread[idx_env] += 1
             unfinished_thread = (done_episodes_per_thread != eval_episodes_per_thread)
@@ -268,7 +268,7 @@ class FootballRunner(Runner):
                     image = render_infos[0]["frame"]
                     frames.append(image)
             
-            # print goal
+            
             render_goals[i_episode] = render_rewards[0, 0]
             print("goal in episode {}: {}".format(i_episode, render_rewards[0, 0]))
 

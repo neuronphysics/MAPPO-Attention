@@ -63,8 +63,8 @@ def continuous_autoregreesive_act(decoder, obs_rep, obs, batch_size, n_agent, ac
         if i + 1 < n_agent:
             shifted_action[:, i + 1, :] = action
 
-        # print("act_mean: ", act_mean)
-        # print("action: ", action)
+        
+        
 
     return output_action, output_action_log
 

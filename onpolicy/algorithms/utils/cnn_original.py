@@ -261,8 +261,7 @@ class Encoder(nn.Module):
 
         # Calculate shape of the flattened image
         self.h_dim, (self.height_image_dim, self.width_image_dim) = self.get_flattened_size((self.img_height,self.img_width))
-        print(f"Calculate shape of the flattened image for linear layer: input {self.h_dim} hidden {hidden_dim}")
-        
+
         #linear layers
         layers = []
         layers.append(nn.Linear(self.h_dim, hidden_dim, bias=False))

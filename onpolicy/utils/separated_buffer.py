@@ -4,11 +4,14 @@ from collections import defaultdict
 
 from onpolicy.utils.util import check, get_shape_from_obs_space, get_shape_from_act_space
 
+
 def _flatten(T, N, x):
     return x.reshape(T * N, *x.shape[2:])
 
+
 def _cast(x):
-    return x.transpose(1,0,2).reshape(-1, *x.shape[2:])
+    return x.transpose(1, 0, 2).reshape(-1, *x.shape[2:])
+
 
 class SeparatedReplayBuffer(object):
     def __init__(self, args, obs_space, share_obs_space, act_space):
@@ -35,14 +38,17 @@ class SeparatedReplayBuffer(object):
         self.share_obs = np.zeros((self.episode_length + 1, self.n_rollout_threads, *share_obs_shape), dtype=np.float32)
         self.obs = np.zeros((self.episode_length + 1, self.n_rollout_threads, *obs_shape), dtype=np.float32)
 
-        self.rnn_states = np.zeros((self.episode_length + 1, self.n_rollout_threads, self.recurrent_N, self.rnn_hidden_size), dtype=np.float32)
+        self.rnn_states = np.zeros((self.episode_length + 1, self.n_rollout_threads, self.recurrent_N,
+                                    self.rnn_hidden_size), dtype=np.float32)
+
         self.rnn_states_critic = np.zeros_like(self.rnn_states)
 
         self.value_preds = np.zeros((self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32)
         self.returns = np.zeros((self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32)
-        
+
         if act_space.__class__.__name__ == 'Discrete':
-            self.available_actions = np.ones((self.episode_length + 1, self.n_rollout_threads, act_space.n), dtype=np.float32)
+            self.available_actions = np.ones((self.episode_length + 1, self.n_rollout_threads, act_space.n),
+                                             dtype=np.float32)
         else:
             self.available_actions = None
 
@@ -51,13 +57,13 @@ class SeparatedReplayBuffer(object):
         self.actions = np.zeros((self.episode_length, self.n_rollout_threads, act_shape), dtype=np.float32)
         self.action_log_probs = np.zeros((self.episode_length, self.n_rollout_threads, act_shape), dtype=np.float32)
         self.rewards = np.zeros((self.episode_length, self.n_rollout_threads, 1), dtype=np.float32)
-        
+
         self.masks = np.ones((self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32)
         self.bad_masks = np.ones_like(self.masks)
         self.active_masks = np.ones_like(self.masks)
 
         self.step = 0
-        
+
     def update_factor(self, factor):
         self.factor = factor.copy()
 
@@ -100,7 +106,7 @@ class SeparatedReplayBuffer(object):
             self.available_actions[self.step] = available_actions.copy()
 
         self.step = (self.step + 1) % self.episode_length
-    
+
     def after_update(self):
         self.share_obs[0] = self.share_obs[-1].copy()
         self.obs[0] = self.obs[-1].copy()
@@ -126,12 +132,14 @@ class SeparatedReplayBuffer(object):
                 for step in reversed(range(self.rewards.shape[0])):
                     if self._use_popart or self._use_valuenorm:
                         delta = self.rewards[step] + self.gamma * value_normalizer.denormalize(self.value_preds[
-                            step + 1]) * self.masks[step + 1] - value_normalizer.denormalize(self.value_preds[step])
+                                                                                                   step + 1]) * \
+                                self.masks[step + 1] - value_normalizer.denormalize(self.value_preds[step])
                         gae = delta + self.gamma * self.gae_lambda * self.masks[step + 1] * gae
                         gae = gae * self.bad_masks[step + 1]
                         self.returns[step] = gae + value_normalizer.denormalize(self.value_preds[step])
                     else:
-                        delta = self.rewards[step] + self.gamma * self.value_preds[step + 1] * self.masks[step + 1] - self.value_preds[step]
+                        delta = self.rewards[step] + self.gamma * self.value_preds[step + 1] * self.masks[step + 1] - \
+                                self.value_preds[step]
                         gae = delta + self.gamma * self.gae_lambda * self.masks[step + 1] * gae
                         gae = gae * self.bad_masks[step + 1]
                         self.returns[step] = gae + self.value_preds[step]
@@ -139,22 +147,28 @@ class SeparatedReplayBuffer(object):
                 self.returns[-1] = next_value
                 for step in reversed(range(self.rewards.shape[0])):
                     if self._use_popart:
-                        self.returns[step] = (self.returns[step + 1] * self.gamma * self.masks[step + 1] + self.rewards[step]) * self.bad_masks[step + 1] \
-                            + (1 - self.bad_masks[step + 1]) * value_normalizer.denormalize(self.value_preds[step])
+                        self.returns[step] = (self.returns[step + 1] * self.gamma * self.masks[step + 1] + self.rewards[
+                            step]) * self.bad_masks[step + 1] \
+                                             + (1 - self.bad_masks[step + 1]) * value_normalizer.denormalize(
+                            self.value_preds[step])
                     else:
-                        self.returns[step] = (self.returns[step + 1] * self.gamma * self.masks[step + 1] + self.rewards[step]) * self.bad_masks[step + 1] \
-                            + (1 - self.bad_masks[step + 1]) * self.value_preds[step]
+                        self.returns[step] = (self.returns[step + 1] * self.gamma * self.masks[step + 1] + self.rewards[
+                            step]) * self.bad_masks[step + 1] \
+                                             + (1 - self.bad_masks[step + 1]) * self.value_preds[step]
         else:
             if self._use_gae:
                 self.value_preds[-1] = next_value
                 gae = 0
                 for step in reversed(range(self.rewards.shape[0])):
                     if self._use_popart or self._use_valuenorm:
-                        delta = self.rewards[step] + self.gamma * value_normalizer.denormalize(self.value_preds[step + 1]) * self.masks[step + 1] - value_normalizer.denormalize(self.value_preds[step])
+                        delta = self.rewards[step] + self.gamma * value_normalizer.denormalize(
+                            self.value_preds[step + 1]) * self.masks[step + 1] - value_normalizer.denormalize(
+                            self.value_preds[step])
                         gae = delta + self.gamma * self.gae_lambda * self.masks[step + 1] * gae
                         self.returns[step] = gae + value_normalizer.denormalize(self.value_preds[step])
                     else:
-                        delta = self.rewards[step] + self.gamma * self.value_preds[step + 1] * self.masks[step + 1] - self.value_preds[step]
+                        delta = self.rewards[step] + self.gamma * self.value_preds[step + 1] * self.masks[step + 1] - \
+                                self.value_preds[step]
                         gae = delta + self.gamma * self.gae_lambda * self.masks[step + 1] * gae
                         self.returns[step] = gae + self.value_preds[step]
             else:
@@ -176,7 +190,7 @@ class SeparatedReplayBuffer(object):
             mini_batch_size = batch_size // num_mini_batch
 
         rand = torch.randperm(batch_size).numpy()
-        sampler = [rand[i*mini_batch_size:(i+1)*mini_batch_size] for i in range(num_mini_batch)]
+        sampler = [rand[i * mini_batch_size:(i + 1) * mini_batch_size] for i in range(num_mini_batch)]
 
         share_obs = self.share_obs[:-1].reshape(-1, *self.share_obs.shape[2:])
         obs = self.obs[:-1].reshape(-1, *self.obs.shape[2:])
@@ -241,7 +255,7 @@ class SeparatedReplayBuffer(object):
                 ind = perm[start_ind + offset]
                 share_obs_batch.append(self.share_obs[:-1, ind])
                 obs_batch.append(self.obs[:-1, ind])
-                #print(f"inside separated_buffer.py, self.rnn_states.shape is {self.rnn_states} and its shape is {self.rnn_states.shape} and self.rnn_states_critic.shape is {self.rnn_states_critic.shape}")
+
                 rnn_states_batch.append(self.rnn_states[0:1, ind])
                 rnn_states_critic_batch.append(self.rnn_states_critic[0:1, ind])
                 actions_batch.append(self.actions[:, ind])
@@ -300,10 +314,10 @@ class SeparatedReplayBuffer(object):
             "PPO requires the number of processes ({}) * episode length ({}) "
             "to be greater than or equal to the number of "
             "data chunk length ({}).".format(n_rollout_threads, episode_length, data_chunk_length))
-        #assert data_chunks >= 2, ("need larger batch size")
+        # assert data_chunks >= 2, ("need larger batch size")
 
         rand = torch.randperm(data_chunks).numpy()
-        sampler = [rand[i*mini_batch_size:(i+1)*mini_batch_size] for i in range(num_mini_batch)]
+        sampler = [rand[i * mini_batch_size:(i + 1) * mini_batch_size] for i in range(num_mini_batch)]
 
         if len(self.share_obs.shape) > 3:
             share_obs = self.share_obs[:-1].transpose(1, 0, 2, 3, 4).reshape(-1, *self.share_obs.shape[2:])
@@ -322,7 +336,8 @@ class SeparatedReplayBuffer(object):
         # rnn_states = _cast(self.rnn_states[:-1])
         # rnn_states_critic = _cast(self.rnn_states_critic[:-1])
         rnn_states = self.rnn_states[:-1].transpose(1, 0, 2, 3).reshape(-1, *self.rnn_states.shape[2:])
-        rnn_states_critic = self.rnn_states_critic[:-1].transpose(1, 0, 2, 3).reshape(-1, *self.rnn_states_critic.shape[2:])
+        rnn_states_critic = self.rnn_states_critic[:-1].transpose(1, 0, 2, 3).reshape(-1,
+                                                                                      *self.rnn_states_critic.shape[2:])
 
         if self.available_actions is not None:
             available_actions = _cast(self.available_actions[:-1])
@@ -344,17 +359,17 @@ class SeparatedReplayBuffer(object):
             for index in indices:
                 ind = index * data_chunk_length
                 # size [T+1 N M Dim]-->[T N Dim]-->[N T Dim]-->[T*N,Dim]-->[L,Dim]
-                share_obs_batch.append(share_obs[ind:ind+data_chunk_length])
-                obs_batch.append(obs[ind:ind+data_chunk_length])
-                actions_batch.append(actions[ind:ind+data_chunk_length])
+                share_obs_batch.append(share_obs[ind:ind + data_chunk_length])
+                obs_batch.append(obs[ind:ind + data_chunk_length])
+                actions_batch.append(actions[ind:ind + data_chunk_length])
                 if self.available_actions is not None:
-                    available_actions_batch.append(available_actions[ind:ind+data_chunk_length])
-                value_preds_batch.append(value_preds[ind:ind+data_chunk_length])
-                return_batch.append(returns[ind:ind+data_chunk_length])
-                masks_batch.append(masks[ind:ind+data_chunk_length])
-                active_masks_batch.append(active_masks[ind:ind+data_chunk_length])
-                old_action_log_probs_batch.append(action_log_probs[ind:ind+data_chunk_length])
-                adv_targ.append(advantages[ind:ind+data_chunk_length])
+                    available_actions_batch.append(available_actions[ind:ind + data_chunk_length])
+                value_preds_batch.append(value_preds[ind:ind + data_chunk_length])
+                return_batch.append(returns[ind:ind + data_chunk_length])
+                masks_batch.append(masks[ind:ind + data_chunk_length])
+                active_masks_batch.append(active_masks[ind:ind + data_chunk_length])
+                old_action_log_probs_batch.append(action_log_probs[ind:ind + data_chunk_length])
+                adv_targ.append(advantages[ind:ind + data_chunk_length])
                 # size [T+1 N Dim]-->[T N Dim]-->[T*N,Dim]-->[1,Dim]
                 rnn_states_batch.append(rnn_states[ind])
                 rnn_states_critic_batch.append(rnn_states_critic[ind])

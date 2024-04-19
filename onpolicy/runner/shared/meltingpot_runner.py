@@ -133,7 +133,7 @@ class MeltingpotRunner(Runner):
                             np.concatenate(self.buffer.rnn_states_critic[step]),
                             np.concatenate(self.buffer.masks[step]))
         # [self.envs, agents, dim]
-        #print("here breask ", _t2n(value).shape, _t2n(action).shape, _t2n(action_log_prob).shape, _t2n(rnn_states).shape, _t2n(rnn_states_critic).shape)
+        
         if self.n_rollout_threads == 1:
             values = np.array(_t2n(value))
             actions = np.array(_t2n(action))
@@ -148,8 +148,8 @@ class MeltingpotRunner(Runner):
             rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic), self.n_rollout_threads))
 
 
-        #print(( self.envs.action_space))
-        #print(rnn_states.shape)
+        
+        
 
         # rearrange action
         if self.envs.action_space['player_0'].__class__.__name__ == 'MultiDiscrete':
@@ -161,15 +161,15 @@ class MeltingpotRunner(Runner):
                     actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
                     
         elif self.envs.action_space['player_0'].__class__.__name__ == 'Discrete':
-            #print("here breaks: " , np.eye(self.envs.action_space['player_0'].n)[actions].shape)
+            
             actions_env = np.squeeze(np.eye(self.envs.action_space['player_0'].n)[actions], 2)
 
         else:
             raise NotImplementedError
 
-        #print(( self.envs.action_space , ))
+        
 
-        #print(rnn_states.shape)
+        
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
 
@@ -198,9 +198,9 @@ class MeltingpotRunner(Runner):
             new_share_obs = new_share_obs.reshape(self.n_rollout_threads, -1)
             new_share_obs = np.expand_dims(new_share_obs, 1).repeat(self.num_agents, axis=1)
 
-        #print("here breaks: ", rnn_states.shape, rnn_states_critic.shape, actions.shape, action_log_probs.shape, values.shape, rewards.shape, masks.shape)
+        
         dim3, _, dim1, dim2 = rnn_states.shape
-        #print(rnn_states[0])
+        
         rnn_states = rnn_states.reshape((1, dim1, dim3, dim2))
         rnn_states_critic = rnn_states_critic.reshape((1, dim1, dim3, dim2))
 

@@ -235,7 +235,7 @@ class BlocksCore(nn.Module):
             )
 
         if self.version:
-            # print(f"inside block core {inp_use.shape} {self.num_blocks_out}")
+            
             input_to_attention = [_process_input(_input) for _input in
                                   torch.chunk(inp_use, chunks=self.num_blocks_out, dim=1)]
 
@@ -296,7 +296,7 @@ class BlocksCore(nn.Module):
             cx_new = hx_new
         else:
             hx_new, cx_new, temp_attention = self.block_lstm(inp_use, hx, cx)
-        # print(len(hx_new))
+        
         hx_old = hx * 1.0
         cx_old = cx * 1.0
 

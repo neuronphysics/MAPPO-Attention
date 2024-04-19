@@ -152,7 +152,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
             self._env.observation_spec()
         )
     #territory room share observation Box(0, 255, (168, 168, 3), uint8)
-    #print(f" plot WORLD.RGB observations ...")
+    
     #ts=self._env.reset()
     #extractor = DataExtractor(ts.observation)
     #extractor.plot_and_save_rgb_images()
@@ -178,14 +178,14 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
           return False
 
     action_dict = action_dict if is_iterable(action_dict[0]) else [[item] for item in action_dict]
-    #print(f"here breaks action_dict in step melting pot environment {action_dict}",len(action_dict), len(action_dict[0]) , self._ordered_agent_ids )
+    
 
     if len(action_dict) == 1:
       action_dict = action_dict[0] 
     
     actions = [list(map(int, action_dict[agent_id])) for agent_id, player in enumerate(self._ordered_agent_ids)]
     actions = np.array(actions)
-    #print(f"size of action in step {actions.shape}")
+    
     # Initialize empty arrays to store rewards and done flags for each agent
     agent_rewards = {agent_id: [] for agent_id in self._ordered_agent_ids}
     agent_dones = {agent_id: [] for agent_id in self._ordered_agent_ids}
@@ -215,7 +215,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
             'RGB': np.stack(agent_observation[agent_id]['RGB'], axis=0),
             'WORLD.RGB': np.stack(agent_observation[agent_id]['WORLD.RGB'], axis=0)
         }
-    #print(f"observation inside step melting pot environment {observations['player_0']['RGB'].shape}, {observations['player_0']['WORLD.RGB'].shape}")
+    
     #(n_rollout, 11, 11, 3), (n_rollout, 30, 21, 3)
     info = {}
     self.num_cycles += 1

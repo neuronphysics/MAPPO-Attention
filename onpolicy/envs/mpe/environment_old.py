@@ -274,7 +274,7 @@ class MultiAgentEnv(gym.Env):
                     else:
                         word = alphabet[np.argmax(other.state.c)]
                     message += (other.name + ' to ' + agent.name + ': ' + word + '   ')
-            #print(message)
+            
         
 
         for i in range(len(self.viewers)):
@@ -458,7 +458,7 @@ class MultiAgentEnv(gym.Env):
 
             '''for j in range(len(self.viewers)):
                 self.viewers[i].geoms.pop(-1)'''
-        #print(pos[0])
+        
         return results
     
     def render_origin(self, mode='human', close=False):

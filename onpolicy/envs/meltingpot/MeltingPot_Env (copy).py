@@ -152,7 +152,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
             self._env.observation_spec()
         )
     #territory room share observation Box(0, 255, (168, 168, 3), uint8)
-    #print(f" plot WORLD.RGB observations ...")
+    
     #ts=self._env.reset()
     #extractor = DataExtractor(ts.observation)
     #extractor.plot_and_save_rgb_images()
@@ -170,11 +170,11 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
   def step(self, action_dict):
     """See base class."""
-    #print('action dict', action_dict)
-    #print('ordred agent ids', self._ordered_agent_ids)
+    
+    
     actions = [list(map(int, action_dict[agent_id])) for agent_id, player in enumerate(self._ordered_agent_ids)]
     actions = np.array(actions)
-    #print(f"size of action in step {actions.shape}")
+    
     # Initialize empty arrays to store rewards and done flags for each agent
     agent_rewards = {agent_id: [] for agent_id in self._ordered_agent_ids}
     agent_dones = {agent_id: [] for agent_id in self._ordered_agent_ids}
@@ -204,7 +204,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
             'RGB': np.stack(agent_observation[agent_id]['RGB'], axis=0),
             'WORLD.RGB': np.stack(agent_observation[agent_id]['WORLD.RGB'], axis=0)
         }
-    #print(f"observation inside step melting pot environment {observations['player_0']['RGB'].shape}, {observations['player_0']['WORLD.RGB'].shape}")
+    
     #(n_rollout, 11, 11, 3), (n_rollout, 30, 21, 3)
     info = {}
     self.num_cycles += 1
@@ -326,7 +326,7 @@ class DownSamplingSubstrateWrapper(observables.ObservableLab2dWrapper):
         return _downsample_multi_timestep(timestep, self._scaled)
 
     def step(self, actions) -> dm_env.TimeStep:
-        #print(f"step downsampled Substrate")
+        
         timestep = super().step(actions)
         
         return _downsample_multi_timestep(timestep, self._scaled)

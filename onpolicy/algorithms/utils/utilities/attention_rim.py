@@ -14,8 +14,6 @@ class Identity_2(torch.autograd.Function):
         return input * 1.0
 
     def backward(ctx, grad_output):
-        print(torch.sqrt(torch.sum(torch.pow(grad_output, 2))))
-        print('+++++++++')
         return grad_output * 1.0
 
 
@@ -25,8 +23,6 @@ class Identity(torch.autograd.Function):
         return input * 1.0
 
     def backward(ctx, grad_output):
-        print(torch.sqrt(torch.sum(torch.pow(grad_output, 2))))
-        print('-----------')
         return grad_output * 1.0
 
 
@@ -47,7 +43,7 @@ class ScaledDotProductAttention(nn.Module):
         attn = torch.bmm(q, k.transpose(1, 2))
         attn = attn / self.temperature
 
-        # print('in forward attn shape', attn.shape)
+        
 
         if mask is not None:
             attn = attn.masked_fill(mask, -np.inf)
@@ -68,7 +64,7 @@ class ScaledDotProductAttention(nn.Module):
                 sparse_attn = attn.permute(0, 2, 1).reshape(mb * outs, ins)
             else:
                 sparse_attn = attn.reshape((mb * ins, outs))
-            # print('sparse attn shape 1', sparse_attn.shape)
+            
             # sga = Sparse_grad_attention(2)
             if self.grad_sparse:
                 sga = Sparse_grad_attention(self.topk)

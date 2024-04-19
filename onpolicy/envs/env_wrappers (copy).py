@@ -252,7 +252,7 @@ class GuardSubprocVecEnv(ShareVecEnv):
                print(f"Process {i} is not alive!")
             p.daemon = False  # could cause zombie process
             p.start()
-            #print(f"Process {p.pid} started GuardSubprocVecEnv.")
+            
 
         for remote in self.work_remotes:
             remote.close()
@@ -272,7 +272,7 @@ class GuardSubprocVecEnv(ShareVecEnv):
     def step_wait(self):
         results = [remote.recv() for remote in self.remotes]
         self.waiting = False
-        #print(f"inside step wait and before expanding the results")
+        
         obs, rews, dones, infos = zip(*results)
         return np.stack(obs), np.stack(rews), np.stack(dones), infos
 
@@ -312,18 +312,18 @@ class SubprocVecEnv(ShareVecEnv):
         self.closed = False
         nenvs = len(env_fns)
         self.remotes, self.work_remotes = zip(*[Pipe() for _ in range(nenvs)])
-        #print("Creating process objects...")
+        
         self.ps = [Process(target=worker, args=(work_remote, remote, CloudpickleWrapper(env_fn)))
                    for (work_remote, remote, env_fn) in zip(self.work_remotes, self.remotes, env_fns)]
 
-        #print("Process objects created.")
+        
         for p in self.ps:
             p.daemon = (
                 True  # if the main process crashes, we should not cause things to hang
             )
             p.start()
-            #print(f"Process {p.pid} started SubprocVecEnv.")
-        #print("Processes started.")    
+            
+        
         for remote in self.work_remotes:
             remote.close()
 
@@ -340,16 +340,16 @@ class SubprocVecEnv(ShareVecEnv):
     def step_async(self, actions):
         for remote, action in zip(self.remotes, actions):
             remote.send(('step', action))
-        #print("Step commands sent in SubprocVecEnv.")    
+        
         self.waiting = True
 
     def step_wait(self):
         results = []
-        #print("Waiting to receive step results...")
+        
         for i, remote in enumerate(self.remotes):
             # Check if process is alive
             if not self.ps[i].is_alive():
-                #print(f"Error: Process {i} is not alive. Last return code: {self.ps[i].exitcode}.")
+                
                 # Additional debugging information
                 if self.ps[i].exitcode is not None:
                     print(f"Process {i} exited with code {self.ps[i].exitcode}")
@@ -430,9 +430,9 @@ def shareworker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
-            #print("Step command received. Executing in shareworker...")
+            
             ob, s_ob, reward, done, info, available_actions = env.step(data)
-            #print(f"after step in the shareworker function observation {ob}")
+            
             if 'bool' in done.__class__.__name__:
                 if done:
                     ob, s_ob, available_actions = env.reset()
@@ -481,7 +481,7 @@ class ShareSubprocVecEnv(ShareVecEnv):
         for p in self.ps:
             p.daemon = True  # if the main process crashes, we should not cause things to hang
             p.start()
-            #print(f"Process {p.pid} started ShareSubprocVecEnv.")
+            
         for remote in self.work_remotes:
             remote.close()
         self.remotes[0].send(('get_spaces', None))
@@ -491,10 +491,10 @@ class ShareSubprocVecEnv(ShareVecEnv):
                              share_observation_space, action_space)
 
     def step_async(self, actions):
-        #print("Before sending step commands...")
+        
         for remote, action in zip(self.remotes, actions):
             remote.send(('step', action))
-        #print("Step commands sent in SubprocVecEnv.")
+        
         self.waiting = True
 
     def step_wait(self):

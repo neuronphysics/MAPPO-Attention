@@ -2,12 +2,8 @@ import time
 import numpy as np
 import torch
 from torch import nn
-from torch.nn import functional as F
-from utilities.attention import MultiHeadAttention
-from utilities.set_transformer import SetTransformer
 from .blocks_core_scoffv2 import BlocksCore
-import matplotlib.pyplot as plt
-from utilities.invariant_modules import PMA
+
 
 
 
@@ -16,7 +12,7 @@ class Identity(torch.autograd.Function):
   def forward(ctx, input):
     return input * 1.0
   def backward(ctx, grad_output):
-    print(grad_output)
+    # print(grad_output)
     return grad_output * 1.0
 
 class RNNModel(nn.Module):
@@ -206,7 +202,7 @@ class RNNModel(nn.Module):
             layer_input = emb
             new_hidden = [[], []]
             for idx_layer in range(0, self.nlayers):
-                # print('idx layer', idx_layer)
+                
                 output = []
                 masklst = []
                 bmasklst = []
@@ -231,7 +227,7 @@ class RNNModel(nn.Module):
                 bmask = torch.stack(bmasklst)
                 if type(template_attn[0])!= type(None):
                     template_attn = torch.stack(template_attn)
-                # print(torch.squeeze(torch.squeeze(bmask, dim=0), dim=-1).sum(dim=0))
+                
                 layer_input = output
                 new_hidden[0].append(hx)
                 new_hidden[1].append(cx)

@@ -160,7 +160,7 @@ class SharedBlockLSTM(nn.Module):
 
         #att = att*0.0 + 0.25
 
-        #print('hnext shape before att', hnext.shape)
+        
         hnext = torch.bmm(att, hnext)
         cnext = torch.bmm(att, cnext)
 
@@ -170,7 +170,7 @@ class SharedBlockLSTM(nn.Module):
         hnext = hnext.reshape((bs, self.k, self.m)).reshape((bs, self.k*self.m))
         cnext = cnext.reshape((bs, self.k, self.m)).reshape((bs, self.k*self.m))
 
-        #print('shapes', hnext.shape, cnext.shape)
+        
 
         return hnext, cnext, att.data.reshape(bs,self.k,self.n_templates)
 
@@ -198,11 +198,11 @@ if __name__ == "__main__":
 
     pl = Blocks.lstm.parameters()
     for p in pl:
-        #print(p.shape)
-        #print(torch.Size([Blocks.nhid*4]))
+        
+        
         if p.shape == torch.Size([Blocks.nhid*4]):
             print(p.shape, 'a')
-            #print(p)
+            
             '''biases, don't need to change anything here'''
         if p.shape == torch.Size([Blocks.nhid*4, Blocks.nhid]) or p.shape == torch.Size([Blocks.nhid*4, Blocks.ninp]):
             print(p.shape, 'b')

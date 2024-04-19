@@ -247,7 +247,7 @@ def generate_fourier_features(pos, num_bands, max_resolution=(224, 224), concat_
         # Adds d bands to the encoding.
         per_pos_features = torch.cat([pos, per_pos_features.expand(batch_size, -1, -1)], dim=-1)
 
-    # print(f"generate_fourier_features: per_pos_features shape {per_pos_features.shape} ")
+    
 
     return per_pos_features
 
@@ -451,10 +451,6 @@ class Encoder(nn.Module):
         # Calculate shape of the flattened image
         self.h_dim, (self.height_image_dim, self.width_image_dim) = self.get_flattened_size(
             (self.img_height, self.img_width))
-        print(
-            f"Calculate shape of the flattened image for linear layer: input of the layer {self.h_dim} hidden "
-            f"{hidden_dim} image height {self.img_height}, image width {self.img_width}")
-        print(f"out channel (positional) :{self.out_channels}")
 
         # Position embeddings
         position_encoding_kwargs = dict(
@@ -473,7 +469,6 @@ class Encoder(nn.Module):
 
         # Adjust the input size of the first linear layer to account for the positional features
 
-        print(f"CNN new input size for the linear layer {self.h_dim}, size of positional encoding {self.out_channels}")
         # linear layers
         layers = []
         # Flatten Encoder Output
@@ -549,7 +544,7 @@ class Encoder(nn.Module):
 
         index_dims = inputs.shape[1:-1]
         indices = np.prod(index_dims).item()
-        # print(f"Inside _build_network_inputs: {inputs.shape} batch_size: {batch_size}, index_dims: {index_dims} indices {indices}")
+        
         # Flatten input features to a 1D index dimension if necessary.
         if len(inputs.shape) > 3 and network_input_is_1d:
             inputs = torch.reshape(inputs, [batch_size, indices, -1])
@@ -558,12 +553,12 @@ class Encoder(nn.Module):
         if self.position_encoding_type == "trainable":
             pos_enc = self.position_embeddings(batch_size)
         elif self.position_encoding_type == "fourier":
-            # print(f"Position Encoding forward args: index_dims={index_dims}, batch_size={batch_size}, device={inputs.device}")
+            
             pos_enc = self.position_embeddings(index_dims, batch_size, device=inputs.device)
 
         # Optionally project them to a target dimension.
         pos_enc = self.positions_projection(pos_enc)
-        # print(f"pos_enc size in build_network_inputs {pos_enc.shape} input {inputs.shape}")
+        
         if not network_input_is_1d:
             # Reshape pos to match the input feature shape
             # if the network takes non-1D inputs
@@ -571,25 +566,25 @@ class Encoder(nn.Module):
             pos_enc = torch.reshape(pos_enc, list(sh)[:-1] + [-1])
         if self.concat_or_add_pos == "concat":
             inputs_with_pos = torch.cat([inputs, pos_enc], dim=1)
-            # print(f"inputs_with_pos {inputs_with_pos.shape}")
+            
         elif self.concat_or_add_pos == "add":
             inputs_with_pos = inputs + pos_enc
         return inputs_with_pos, inputs
 
     def forward(self, X: torch.Tensor, network_input_is_1d: bool = True):
         # Encode (note ensure input tensor has the shape [batch_size, channels, height, width])    
-        # print(f"CNN module : check the size of input {X.shape}")
+        
         X = self.normalize(X)
         if X.shape[1] != self.nchannel:
             X = X.permute(0, 3, 1, 2)
-        # print(f"CNN module permuted iput shape {X.shape}")
+        
         inputs = self.encoder(X)
-        # print (f"size of output of encoder (CNN) {inputs.shape}")
+        
         if inputs.ndim == 4:
             # move channels to last dimension, as the _build_network_inputs method below expects this
             inputs = torch.permute(inputs, (0, 2, 3, 1))
         # Get latent variables
-        # print(f"Before _build_network_inputs: inputs shape: {inputs.shape}")
+        
         inputs, inputs_without_pos = self._build_network_inputs(inputs, network_input_is_1d)
         return self.linear_layers(inputs)
 
@@ -754,7 +749,7 @@ class Decoder(nn.Module):
         self.decoder = nn.Sequential(*decoder_layers)
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.to(device=self.device)
-        # print(f"decode network:\n{self.decoder}")
+        
 
     def forward(self, x):
         return self.decoder(x)

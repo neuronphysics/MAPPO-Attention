@@ -35,7 +35,7 @@ class LayerConnAttention(nn.Module):
 
     def forward(self, q, k, v, mask=None):
 
-        #print('attn input shape', q.shape)
+        
 
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
 
@@ -60,7 +60,7 @@ class LayerConnAttention(nn.Module):
         output = output.view(n_head, sz_b, len_q, d_v)
         output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1) # b x lq x (n*dv)
 
-        #print('output shape before fc', output.shape)
+        
 
         #TODO: probably shouldn't just apply residual layer in the forward pass.
 
@@ -78,8 +78,8 @@ class LayerConnAttention(nn.Module):
 
         #output
 
-        #print('attn', attn[0])
-        #print('output input diff', output - residual)
+        
+        
 
         return output, attn, extra_loss
 

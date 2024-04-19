@@ -39,7 +39,7 @@ class Sparse_grad_attention(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         inp, sparsified = ctx.saved_tensors
-        # print('sparsified', sparsified)
+        
         return (grad_output) * (sparsified > 0.0).float()
 
 

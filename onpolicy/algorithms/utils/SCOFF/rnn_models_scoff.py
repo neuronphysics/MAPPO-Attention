@@ -16,7 +16,7 @@ class Identity(torch.autograd.Function):
         return input * 1.0
 
     def backward(ctx, grad_output):
-        # print(grad_output)
+        
         return grad_output * 1.0
 
 
@@ -220,7 +220,7 @@ class RNNModel(nn.Module):
 
             new_hidden = [[], []]
             for idx_layer in range(0, self.nlayers):
-                # print('idx layer', idx_layer)
+                
                 output = []
                 masklst = []
                 bmasklst = []

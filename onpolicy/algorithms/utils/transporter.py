@@ -525,11 +525,11 @@ class CNNKeyPointsBase(NNBase):
         
         output_keypoints=image_b_keypoints_maps.cpu().detach().numpy()*255
     
-        #print("keypoints_maps", image_b_keypoints_maps.shape)
-        #print(output_keypoints[-1][0])
+        
+        
         
         output_image=output.permute(0, 2, 3, 1).cpu().detach().numpy()*255
-        #print("output image",output_image[-1])
+        
         self.save_image(output_image, 0,  "agent_"+agent+"_step_"+str(step%num_ppo_epoch)+"_first_step_output_no_keypoints")
         self.save_image(output_image, -1,  "agent_"+agent+"_step_"+str(step%num_ppo_epoch)+"_last_step_output_no_keypoints")
         self.save_image(output_image, 0,  "agent_"+agent+"_step_"+str(step%num_ppo_epoch)+"_first_step_output", keypoints=output_keypoints)

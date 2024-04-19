@@ -70,13 +70,13 @@ class R_MAPPO():
         value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(-self.clip_param,
                                                                                         self.clip_param)
         if self._use_popart or self._use_valuenorm:
-            #print("valuenorm and clipped value loss")
+            
             self.value_normalizer.update(return_batch)
             error_clipped = self.value_normalizer.normalize(return_batch) - value_pred_clipped
             error_original = self.value_normalizer.normalize(return_batch) - values
-            #print("error clipped: ", error_clipped,"error original: ", error_original)
+            
         else:
-            #print("not desired")
+            
             error_clipped = return_batch - value_pred_clipped
             error_original = return_batch - values
 
@@ -153,12 +153,12 @@ class R_MAPPO():
 
 
         if self._use_max_grad_norm:
-            #print("use max grad norm: ", self._use_max_grad_norm, self.max_grad_norm ) 
+            
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
         else:
             actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
 
-        #print("actor norm ", actor_grad_norm ) 
+        
 
         self.policy.actor_optimizer.step()
 
@@ -169,7 +169,7 @@ class R_MAPPO():
 
         (value_loss * self.value_loss_coef).backward()
 
-        #print("use max grad norm: ", self._use_max_grad_norm)
+        
         if self._use_max_grad_norm:
             critic_grad_norm = nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
         else:

@@ -127,7 +127,7 @@ class Scenario(BaseScenario):
         if agent.goal_a is not None:
             goal_color = agent.goal_a.color
 
-        #print('goal color in obs is {}'.format(goal_color))
+        
 
         # get positions of all entities in this agent's reference frame
         entity_pos = []

@@ -35,7 +35,7 @@ class ScaledDotProductAttention(nn.Module):
         # self.dropout = nn.Dropout(attn_dropout)
         self.softmax = nn.Softmax(dim=2)
         self.grad_sparse = grad_sparse
-        # print('top 2 sparsity')
+        
         self.topk = topk
         self.sa = Sparse_attention(top_k=topk)  # k=2
         self.flag = flag
@@ -46,7 +46,7 @@ class ScaledDotProductAttention(nn.Module):
         attn = torch.bmm(q, k.transpose(1, 2))
         attn = attn / self.temperature
 
-        # print('in forward attn shape', attn.shape)
+        
 
         if mask is not None:
             attn = attn.masked_fill(mask, -np.inf)
@@ -67,7 +67,7 @@ class ScaledDotProductAttention(nn.Module):
                 sparse_attn = attn.permute(0, 2, 1).reshape(mb * outs, ins)
             else:
                 sparse_attn = attn.reshape((mb * ins, outs))
-            # print('sparse attn shape 1', sparse_attn.shape)
+            
             # sga = Sparse_grad_attention(2)
             if self.grad_sparse:
                 sga = Sparse_grad_attention(self.topk)
@@ -145,7 +145,7 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, q, k, v, mask=None):
 
-        # print('attn input shape', q.shape)
+        
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
 
         sz_b, len_q, _ = q.size()
@@ -170,7 +170,7 @@ class MultiHeadAttention(nn.Module):
         output = output.view(n_head, sz_b, len_q, d_v)
         output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1)  # b x lq x (n*dv)
 
-        # print('output shape before fc', output.shape)
+        
 
         # TODO: probably shouldn't just apply residual layer in the forward pass.
 
@@ -190,8 +190,8 @@ class MultiHeadAttention(nn.Module):
 
         # output
 
-        # print('attn', attn[0])
-        # print('output input diff', output - residual)
+        
+        
 
         return output, attn, extra_loss
 
@@ -205,7 +205,7 @@ class MultiHeadAttention(nn.Module):
 
     def old_forward(self, q, k, v, mask=None):
 
-        # print('attn input shape', q.shape)
+        
 
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
 
@@ -215,7 +215,7 @@ class MultiHeadAttention(nn.Module):
 
         residual = q
 
-        # print('q shape', q.shape)
+        
 
         # q_old = self.GLN_qs(q).view(sz_b, len_q, n_head, d_k)
         q_mu = self.GLN_qus(q).view(sz_b, len_q, n_head, d_k)
@@ -236,7 +236,7 @@ class MultiHeadAttention(nn.Module):
         output = output.view(n_head, sz_b, len_q, d_v)
         output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1)  # b x lq x (n*dv)
 
-        # print('output shape before fc', output.shape)
+        
 
         # TODO: probably shouldn't just apply residual layer in the forward pass.
 
@@ -265,8 +265,8 @@ class MultiHeadAttention(nn.Module):
         '''
         # output
 
-        # print('attn', attn[0])
-        # print('output input diff', output - residual)
+        
+        
 
         return output, attn, extra_loss
 

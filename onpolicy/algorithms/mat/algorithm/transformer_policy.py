@@ -65,9 +65,9 @@ class TransformerPolicy:
         #         Trainable_params += mulValue
         #     else:
         #         NonTrainable_params += mulValue
-        # print(f'Total params: {Total_params}')
-        # print(f'Trainable params: {Trainable_params}')
-        # print(f'Non-trainable params: {NonTrainable_params}')
+        
+        
+        
 
         self.optimizer = torch.optim.Adam(self.transformer.parameters(),
                                           lr=self.lr, eps=self.opti_eps,

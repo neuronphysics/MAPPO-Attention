@@ -32,8 +32,6 @@ class Identity(torch.autograd.Function):
 	def forward(ctx, input):
 		return input * 1.0
 	def backward(ctx, grad_output):
-		#print(torch.sqrt(torch.sum(torch.pow(grad_output,2))))
-		print(grad_output)
 		return grad_output * 1.0
 
 class ArgMax(torch.autograd.Function):
@@ -203,7 +201,7 @@ class RuleNetwork(nn.Module):
 
 		num_rules = self.rule_embeddings.size(1)
 		rule_emb_orig = self.rule_embeddings.repeat(batch_size, 1, 1)
-		#print(rule_emb)
+		
 		rule_emb = rule_emb_orig
 
 		if False:
@@ -236,7 +234,7 @@ class RuleNetwork(nn.Module):
 			scores = scores.permute(0, 2, 1)
 			transformer_out  = transformer_out.transpose(0, 1)
 		elif str(self.design_config['application_option']).split('.')[2] == '1':
-			#print('mha')
+			
 			scores= self.variable_rule_select(rule_emb, hidden)
 
 
@@ -327,7 +325,7 @@ class RuleNetwork(nn.Module):
 			rule_mlp_output = rule_mlp_output * variable_mask
 			return rule_mlp_output
 		elif str(self.design_config['application_option']).split('.')[0] == '3' and str(self.design_config['application_option']).split('.')[3] == '0':
-			#print('old one')
+			
 			variable_mask = torch.sum(mask, dim = 2).unsqueeze(-1)
 			rule_mask = torch.sum(mask, dim = 1).unsqueeze(-1)
 			#if self.training:
@@ -350,7 +348,7 @@ class RuleNetwork(nn.Module):
 			rule_mlp_output = rule_mlp_output * variable_mask
 			return rule_mlp_output, entropy
 		elif str(self.design_config['application_option']).split('.')[0] == '3' and str(self.design_config['application_option']).split('.')[3] == '1':
-			#print('new one')
+			
 			variable_mask = torch.sum(mask, dim = 2).unsqueeze(-1)
 			rule_mask = torch.sum(mask, dim = 1).unsqueeze(-1)
 			#if self.training:
@@ -474,7 +472,7 @@ class RuleNetwork(nn.Module):
 
 			num_combinations = combined_variable_representations.size(1)
 			num_rules = rules.size(1)
-			#print(self.rule_embeddings[0,:, 5])
+			
 			#transformer_input = torch.cat((combined_variable_representations, rules), dim = 1) # (B, num_combinations + num_rules, variable_dim)
 
 			#transformer_input = transformer_input.transpose(0, 1)
@@ -532,7 +530,7 @@ class RuleNetwork(nn.Module):
 
 			combined_variable = torch.bmm(mask_variable.unsqueeze(1), combined_variable_representations)#combined_variable_representations * combination_selections # (B, num_combinations, variable_dim)
 			#combined_variable = combined_variable.mean(1)
-			#print(combined_variable.size())
+			
 
 			#combined_variable = torch.sum(combined_variable, dim = 1).unsqueeze(1) # (B, variable_dim)
 			#### gradcheck grad / 10 (same as line 411)
@@ -733,5 +731,5 @@ if __name__ == '__main__':
 	hiddens.retain_grad()
 	new_hiddens.backward(torch.ones(hiddens.size()).cuda())
 
-	#print(model.rule_embeddings.grad)
-	#print(model.query_layer.w.grad)
+	
+	

@@ -29,7 +29,7 @@ def mse_loss(e):
     return e**2/2
 
 def get_shape_from_obs_space(obs_space):
-    #print('obs space x', obs_space)
+    
     if obs_space.__class__.__name__ == 'Box':
         obs_shape = obs_space.shape
     elif obs_space.__class__.__name__ == 'list':
