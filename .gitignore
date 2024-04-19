@@ -1,6 +1,12 @@
 # Ignore all __pycache__ directories
 **/__pycache__/
-
 # Alternatively, if you only want to ignore __init__.cpython-*.pyc files in __pycache__ directories
 # **/__pycache__/__init__.cpython*.pyc
 
+*.pyc
+__pycache__/
+**/results/Meltingpot
+# Ignore .DS_Store (macOS folder metadata)
+.DS_Store
+core.*
+.idea
