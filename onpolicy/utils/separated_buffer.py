@@ -25,6 +25,7 @@ class SeparatedReplayBuffer(object):
         self._use_popart = args.use_popart
         self._use_valuenorm = args.use_valuenorm
         self._use_proper_time_limits = args.use_proper_time_limits
+        self.use_attention = args.use_attention
 
         obs_shape = get_shape_from_obs_space(obs_space)
         share_obs_shape = get_shape_from_obs_space(share_obs_space)
@@ -371,8 +372,12 @@ class SeparatedReplayBuffer(object):
                 old_action_log_probs_batch.append(action_log_probs[ind:ind + data_chunk_length])
                 adv_targ.append(advantages[ind:ind + data_chunk_length])
                 # size [T+1 N Dim]-->[T N Dim]-->[T*N,Dim]-->[1,Dim]
-                rnn_states_batch.append(rnn_states[ind])
-                rnn_states_critic_batch.append(rnn_states_critic[ind])
+                if self.use_attention:
+                    rnn_states_batch.append(rnn_states[ind:ind + data_chunk_length])
+                    rnn_states_critic_batch.append(rnn_states_critic[ind:ind + data_chunk_length])
+                else:
+                    rnn_states_batch.append(rnn_states[ind])
+                    rnn_states_critic_batch.append(rnn_states_critic[ind])
 
             L, N = data_chunk_length, mini_batch_size
 
@@ -391,8 +396,12 @@ class SeparatedReplayBuffer(object):
             adv_targ = np.stack(adv_targ)
 
             # States is just a (N, -1) from_numpy
-            rnn_states_batch = np.stack(rnn_states_batch).reshape(N, *self.rnn_states.shape[2:])
-            rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(N, *self.rnn_states_critic.shape[2:])
+            if self.use_attention:
+                batch_dim = N * data_chunk_length
+            else:
+                batch_dim = N
+            rnn_states_batch = np.stack(rnn_states_batch).reshape(batch_dim, *self.rnn_states.shape[2:])
+            rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(batch_dim, *self.rnn_states_critic.shape[2:])
 
             # Flatten the (L, N, ...) from_numpys to (L * N, ...)
             share_obs_batch = _flatten(L, N, share_obs_batch)

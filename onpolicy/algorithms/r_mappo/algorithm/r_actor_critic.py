@@ -71,9 +71,6 @@ class R_Actor(nn.Module):
                             num_layers=3, kernel_size=kernel, stride_size=stride, padding_size=padding)
 
         if self.use_attention and len(self._obs_shape) >= 3:
-
-            logging.info('Using attention module %s: input width: %d', self._attention_module, obs_shape[1])
-
             if self._attention_module == "RIM":
                 # self.rnn = RIM(device, self.hidden_size, self.hidden_size, args.rim_num_units, args.rim_topk,
                 #                rnn_cell=self.rnn_attention_module, n_layers=1, bidirectional=self.use_bidirectional,
@@ -87,23 +84,13 @@ class R_Actor(nn.Module):
                                  num_templates=2, rnn_cell=self.rnn_attention_module, n_layers=1,
                                  bidirectional=self.use_bidirectional, dropout=self.drop_out,
                                  version=self._use_version_scoff)
-
         elif not self.use_attention:
-
-            # base = CNNBase if len(obs_shape) >= 3 else MLPBase
-
-            logging.info("observation space %s number of dimensions of observation space is %d", str(obs_space.shape),
-                         len(obs_shape))
             if len(obs_shape) == 3:
                 logging.info('Not using any attention module, input width: %d ', obs_shape[1])
-                # self.base = base(args, obs_shape)
-
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-
                 self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
         self.act = ACTLayer(action_space, self.hidden_size, self._use_orthogonal, self._gain)
-
         self.to(device)
         self.algo = args.algorithm_name
 
