@@ -1,0 +1,4 @@
+n_agents: ${n_agents}
+rollout_threads: ${rollout_threads}
+env_steps: ${env_steps}
+continuous_action: ${continuous_action}

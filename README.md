@@ -1,37 +1,102 @@
-# MAPPO Attention Project Repository
+# Stateful Active Facilitator: Coordination and Environmental Heterogeneity in Cooperative Multi-Agent Reinforcement Learning
 
-Welcome to the repository for our MAPPO (Multi-Agent Proximal Policy Optimization) project. This repository contains the necessary code and scripts to run and manage MAPPO with modular attention architectures experiments.
+This is the official repository to the paper ["Stateful Active Facilitator: Coordination and Environmental Heterogeneity in Cooperative Multi-Agent Reinforcement Learning"](https://arxiv.org/abs/2210.03022)
 
-## Package Versions
+In this paper, we tackle the coordination and environmental heterogeneity characteristics that are present in real-life scenarios. To be able to understand how existing MARL algorithms fare in environments with high levels of coordination and/or environmental heterogeneity, we introduce a suite of environments called **HECOGrid**, where users can manually tune the level of coordination and environmental heterogeneity in the provided environments.
 
-The specific versions of the packages and dependencies used in our MAPPO implementation are detailed in the `run_mppo_attention.sh` script. This script is tailored for execution in a Compute Canada environment, ensuring a consistent and reproducible setup.
+To tackle the difficulty in learning that comes with high levels of coordination and/or environmental heterogeneity, we introduce a new model: the **Stateful Active Facilitator** which has a differentiable communication channel that allows agents to efficiently communicate during training to improve coordination, as well as a pool of policies that they can choose from in order to be resilient to increasing levels of environmental heterogeneity
+![Stateful Active Faciliator](/assets/saf.jpg "Stateful Active Faciliator")
+![HECOGrid](/assets/hecogrid.jpg "HECOGrid")
 
-### Accessing Package Version Information
+# Setup
+Start by installing the required modules:
+```
+pip install -r requirements.txt
+```
+Next, install the marlgrid environment by executing the following lines:
+```
+cd src/envs/marlgrid_env/
+pip install -e .
+```
 
-To view the package versions, please refer to the `run_mppo_attention.sh` file located in the root directory of this repository. The script includes commands to install or load the specific versions of each required package.
+# HECOGrid Environment
+The code and installation guide for HECOGrid can be found [here](https://github.com/veds12/hecogrid).
 
-## Running the Script
+# Experiments
+You can find scripts to run experiments in the folder ``scripts``. It is structured as follows:
+```
+scripts/
+├── jobs_master_keyfortreasure.sh
+├── jobs_master_OOD.sh
+├── jobs_master_teamsupportenv.sh
+├── jobs_master_teamtogetherenv.sh
+├── OOD_tests
+│   ├── OOD_coordination_test_compoundenv.sh
+│   ├── OOD_coordination_test.sh
+│   ├── OOD_heco_test.sh
+│   ├── OOD_heterogeneity_test_compoundenv.sh
+│   ├── OOD_heterogeneity_test.sh
+│   ├── OOD_num_agents_test.sh
+│   ├── OOD_num_treasures_test.sh
+│   └── OOD_size_env_test.sh
+├── testing.sh
+└── training
+    ├── baselines.sh
+    └── saf.sh
+```
+In order to reproduce experimental results in the paper, you can run the appropriate ``jobs_master`` for the desired environment. For example, for the ``KeyForTreasure``, that would be ``jobs_master_keyfortreasure.sh``.
 
-If you have access to a Compute Canada environment, you can directly execute the `run_mppo_attention.sh` script to set up the environment and run the MAPPO experiments. Make sure you have the necessary permissions and environment modules loaded.
+If you want to run our algorithm on your environments, you can check the structure of ``saf.sh`` in ``scripts/training`` folder.
+# Comet Configuration
+[comet.ml](https://www.comet.com/site/) is a great tool for tracking and logging experiments as well as running hyperparameter sweeps.
 
-### Steps to Run:
+In order to get started, make sure you [create an account](https://www.comet.com/signup) on their website (you can sign up using your github account!). Once that is done, you'll receive your ``API_KEY``.
 
-1. Clone the repository to your Compute Canada workspace:
-   ```bash
-   git clone https://github.com/neuronphysics/MAPPO-ATTENTIOAN.git developer
-   ```
+Next, install ``comet`` using the following command:
 
-2. Navigate to the repository directory:
-   ```bash
-   cd onpolicy
-   ```
+```
+pip install comet-ml
+```
 
-3. Make the script executable (if not already):
-   ```bash
-   chmod +x run_mppo_attention.sh
-   ```
+Next, go to your ``$HOME`` folder an create a file named ``.comet.config`` as follows (this works on Linux):
 
-4. Execute the script:
-   ```bash
-   ./run_mppo_attention.sh
-   ```
+```
+touch .comet.config
+```
+Next, open your config file and start editing:
+
+```
+nano .comet.config
+```
+
+Finally, copy-paste the following:
+
+```
+[comet]
+api_key=API_KEY
+workspace=WORKSPACE
+```
+
+Now, you can kick-start a comet.ml experiment as follows:
+
+```
+from comet_ml import Experiment
+
+experiment = Experiment(project_name="pytorch") # No need to explicitly provide the API_KEY as .comet.config has it already
+```
+
+For more information, you can check the [documentation](https://www.comet.com/docs/python-sdk/pytorch/).
+
+# Citation
+
+To cite this project, please use:
+
+```
+@article{Liu2022StatefulAF,
+  title={Stateful active facilitator: Coordination and Environmental Heterogeneity in Cooperative Multi-Agent Reinforcement Learning},
+  author={Dianbo Liu and Vedant Shah and Oussama Boussif and Cristian Meo and Anirudh Goyal and Tianmin Shu and Michael Curtis Mozer and Nicolas Manfred Otto Heess and Yoshua Bengio},
+  journal={ArXiv},
+  year={2022},
+  volume={abs/2210.03022}
+}
+```

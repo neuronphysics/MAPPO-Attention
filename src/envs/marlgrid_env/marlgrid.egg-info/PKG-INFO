@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: marlgrid
+Version: 0.0.5
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: tqdm
+Requires-Dist: gym
+Requires-Dist: gym-minigrid
+Requires-Dist: numba
