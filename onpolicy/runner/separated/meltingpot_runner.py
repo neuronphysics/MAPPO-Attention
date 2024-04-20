@@ -48,20 +48,28 @@ class MeltingpotRunner(Runner):
 
         for episode in range(episodes):
             self.envs.reset()
+
+            print(f'Episode {episode} start at {time.time()}')
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
 
+            step_time = time.time()
             for step in range(self.episode_length):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
 
                 actions = actions.transpose(2, 1, 0)
                 obs, rewards, dones, infos = self.envs.step(actions)
+                if not isinstance(obs[0], dict):
+                    obs = obs[:, 0]
+
                 data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic
 
                 # insert data into buffer
                 self.insert(data)
+
+            print(f'Finished {self.episode_length} steps in {time.time() - step_time} seconds')
 
             # compute return and update network
             self.compute()
@@ -268,7 +276,7 @@ class MeltingpotRunner(Runner):
             share_obs = np.array(share_obs)
             agent_obs = np.array(agent_obs)
             if len(share_obs.shape) != 5:
-                print('Wrong dim!')
+                print(f'Wrong dim! share obs has shape {share_obs.shape}, obs has shape {agent_obs.shape}')
             share_obs = share_obs.transpose(0, 1, 3, 2, 4)
             agent_obs = agent_obs.transpose(0, 1, 3, 2, 4)
         else:
@@ -399,16 +407,7 @@ class MeltingpotRunner(Runner):
                 temp_actions_env = []
                 for agent_id in range(self.num_agents):
                     player = f"player_{agent_id}"
-                    # if not self.use_centralized_V:
-                    # share_obs = np.array(list(obs[:, agent_id]))
-                    # share_obs=np.array(list(np.expand_dims(obs[0][player]['WORLD.RGB'], axis=0)))
-                    # share_obs = np.array(list(np.expand_dims(obs[0][player]['RGB'], axis=0)))
                     self.trainer[agent_id].prep_rollout()
-                    # action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(obs[:, agent_id])),
-                    #                                                    rnn_states[:, agent_id],
-                    #                                                    masks[:, agent_id],
-                    #                                                    deterministic=True)
-                    # action, rnn_state = self.trainer[agent_id].policy.act(np.array(list(np.expand_dims(obs[0][player]['RGB'], axis=0))),
                     rgb_data = obs[0][player]['RGB'] if isinstance(obs, np.ndarray) else obs[player]['RGB']
                     action, rnn_state = self.trainer[agent_id].policy.act(
                         np.array(list(np.expand_dims(rgb_data, axis=0))),
