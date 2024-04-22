@@ -40,9 +40,7 @@ class R_Actor(nn.Module):
 
         obs_shape = get_shape_from_obs_space(obs_space)
 
-        ##Zahra added
         self.use_attention = args.use_attention
-        # self.use_attention = args.use_attention
         self._attention_module = args.attention_module
 
         self._obs_shape = obs_shape
@@ -54,21 +52,8 @@ class R_Actor(nn.Module):
             self._use_naive_recurrent_policy = True
             self._use_recurrent_policy = True
 
-        # ENCODER
-
-        if obs_shape[0] == 3:
-            input_channel = obs_shape[0]
-            input_width = obs_shape[1]
-            input_height = obs_shape[2]
-        elif obs_shape[2] == 3:
-            input_channel = obs_shape[2]
-            input_width = obs_shape[0]
-            input_height = obs_shape[1]
-            # making parametrs of encoder for CNN compatible with different image sizes
-
-        kernel, stride, padding = calculate_conv_params((input_width, input_height, input_channel))
-        self.base = Encoder(input_channel, input_height, input_width, self.hidden_size, device, max_filters=256,
-                            num_layers=3, kernel_size=kernel, stride_size=stride, padding_size=padding)
+        base = CNNBase if len(obs_shape) == 3 else MLPBase
+        self.base = base(args, obs_shape)
 
         if self.use_attention and len(self._obs_shape) >= 3:
             if self._attention_module == "RIM":
@@ -117,8 +102,10 @@ class R_Actor(nn.Module):
 
         if self.use_attention and len(self._obs_shape) >= 3:
             actor_features = self.base(obs)
-            actor_features, rnn_states = self.rnn(actor_features.unsqueeze(0), rnn_states.transpose(0, 1))
-
+            output = self.rnn(actor_features.unsqueeze(0), rnn_states.transpose(0, 1))
+            actor_features, rnn_states = output[:2]
+            if self.rnn_attention_module == "LSTM":
+                c = output[-1]
         else:
             actor_features = self.base(obs)
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
@@ -160,7 +147,10 @@ class R_Actor(nn.Module):
             if self.use_attention:
                 actor_features = actor_features.unsqueeze(0)
                 rnn_states = rnn_states.transpose(0, 1)
-                actor_features, rnn_states = self.rnn(actor_features, rnn_states)
+                output = self.rnn(actor_features, rnn_states)
+                actor_features, rnn_states = output[:2]
+                if self.rnn_attention_module == "LSTM":
+                    c = output[-1]
             else:
                 actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
 
@@ -232,21 +222,8 @@ class R_Critic(nn.Module):
             self._use_naive_recurrent_policy = True
             self._use_recurrent_policy = True
 
-        # ENCODER
-
-        if self._obs_shape[0] == 3:
-            input_channel = cent_obs_shape[0]
-            input_width = cent_obs_shape[1]
-            input_height = cent_obs_shape[2]
-        elif self._obs_shape[2] == 3:
-            input_channel = cent_obs_shape[2]
-            input_width = cent_obs_shape[0]
-            input_height = cent_obs_shape[1]
-            # making parametrs of encoder for CNN compatible with different image sizes
-
-        kernel, stride, padding = calculate_conv_params((input_width, input_height, input_channel))
-        self.base = Encoder(input_channel, input_height, input_width, self.hidden_size, device, max_filters=256,
-                            num_layers=3, kernel_size=kernel, stride_size=stride, padding_size=padding)
+        base = CNNBase if len(self._obs_shape) == 3 else MLPBase
+        self.base = base(args, self._obs_shape)
 
         if self.use_attention and len(self._obs_shape) >= 3:
 
@@ -265,9 +242,6 @@ class R_Critic(nn.Module):
                                  bidirectional=self.use_bidirectional, dropout=self.drop_out,
                                  version=self._use_version_scoff)
         elif not self.use_attention:
-            # base = CNNBase if len(cent_obs_shape) >= 3 else MLPBase
-            # self.base = base(args, cent_obs_shape)
-
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
                 self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
@@ -296,7 +270,10 @@ class R_Critic(nn.Module):
         masks = check(masks).to(**self.tpdv)
         if self.use_attention and len(self._obs_shape) == 3:
             critic_features = self.base(cent_obs)
-            critic_features, rnn_states = self.rnn(critic_features.unsqueeze(0), rnn_states.transpose(0, 1))
+            output = self.rnn(critic_features.unsqueeze(0), rnn_states.transpose(0, 1))
+            critic_features, rnn_states = output[:2]
+            if self.rnn_attention_module == "LSTM":
+                c = output[-1]
         else:
             critic_features = self.base(cent_obs)
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:

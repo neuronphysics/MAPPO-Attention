@@ -230,9 +230,9 @@ def get_config():
                         help="by default True, use running mean and std to normalize rewards.")
     parser.add_argument("--use_feature_normalization", action='store_false',
                         default=True, help="Whether to apply layernorm to the inputs")
-    parser.add_argument("--use_orthogonal", action='store_false', default=True,
+    parser.add_argument("--use_orthogonal", action='store_false', default=False,
                         help="Whether to use Orthogonal initialization for weights and 0 initialization for biases")
-    parser.add_argument("--gain", type=float, default=0.01,
+    parser.add_argument("--gain", type=float, default=0.1,
                         help="The gain # of last action layer")
 
     # recurrent parameters
@@ -337,7 +337,7 @@ def get_config():
     parser.add_argument("--drop_out", type=float,
                         default=0.5, help="specify the drop out")
     parser.add_argument("--rnn_attention_module", type=str,
-                        default='GRU', help='specify the rnn module to use')
+                        default='LSTM', help='specify the rnn module to use')
     parser.add_argument("--use_bidirectional", type=str2bool, default=False,
                         help='Whether or not to be bidirectional')
 

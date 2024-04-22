@@ -113,8 +113,6 @@ def main(args):
     parser = get_config()
     all_args = parse_args(args, parser)
 
-    save_config_to_json(all_args, 'all_args.json')
-
     if all_args.algorithm_name == "rmappo":
         print("u are choosing to use rmappo, we set use_recurrent_policy to be True")
         all_args.use_recurrent_policy = True

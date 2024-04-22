@@ -31,7 +31,6 @@ class R_MAPPOPolicy:
 
         # actor_parameters = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
         # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
-        
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
                                                 lr=self.lr, eps=self.opti_eps,
