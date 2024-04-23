@@ -186,7 +186,7 @@ def get_config():
                         help='Number of environment steps to train (default: 10e6)')
     parser.add_argument("--user_name", type=str, default='zsheikhb',
                         help="[for wandb usage], to specify user's name for simply collecting training data.")
-    parser.add_argument("--use_wandb", action='store_false', default=True,
+    parser.add_argument("--use_wandb", type=str2bool, default=False,
                         help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
 
     # env parameters
@@ -337,7 +337,7 @@ def get_config():
     parser.add_argument("--drop_out", type=float,
                         default=0.5, help="specify the drop out")
     parser.add_argument("--rnn_attention_module", type=str,
-                        default='LSTM', help='specify the rnn module to use')
+                        default='GRU', help='specify the rnn module to use')
     parser.add_argument("--use_bidirectional", type=str2bool, default=False,
                         help='Whether or not to be bidirectional')
 
