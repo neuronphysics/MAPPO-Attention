@@ -325,14 +325,6 @@ def get_config():
     parser.add_argument("--downsample", type=str2bool, default=True,
                         help="the scale factor of each rendered image in saved video.")
 
-    # skill learing parameters
-    parser.add_argument("--skill_hidden_dim", type=int, default=512,
-                        help="specify the number of hidden units in the skill dynamics network")
-    parser.add_argument("--skill_max_num_experts", type=int, default=10,
-                        help="specify the number of experts in the skill dynamics network")
-    parser.add_argument("--dynamics_lr", type=float, default=3e-4, help="Skill dynamics learning rate.")
-    parser.add_argument("--skill_dim", type=int, default=10, help="skill dimension")
-
     # additional parameters
     parser.add_argument("--drop_out", type=float,
                         default=0.5, help="specify the drop out")
@@ -340,5 +332,8 @@ def get_config():
                         default='GRU', help='specify the rnn module to use')
     parser.add_argument("--use_bidirectional", type=str2bool, default=False,
                         help='Whether or not to be bidirectional')
+
+    parser.add_argument("--load_model", type=str2bool, default=False,
+                        help='Whether or not we load the pretrained model')
 
     return parser

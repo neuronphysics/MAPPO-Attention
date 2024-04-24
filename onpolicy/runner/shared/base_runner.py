@@ -87,7 +87,7 @@ class Runner(object):
                             self.envs.action_space['player_0'],
                             device = self.device)
 
-        if self.model_dir is not None:
+        if self.model_dir is not None and self.all_args.load_model:
             self.restore(self.model_dir)
 
         # algorithm

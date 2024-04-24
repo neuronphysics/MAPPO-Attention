@@ -113,8 +113,8 @@ class Runner(object):
 
             self.policy.append(po)
 
-        # if self.model_dir is not None:
-        #    self.restore()
+        if self.model_dir is not None and self.all_args.load_model:
+            self.restore()
 
         self.trainer = []
         self.buffer = []
@@ -140,9 +140,6 @@ class Runner(object):
 
             self.buffer.append(bu)
             self.trainer.append(tr)
-
-        if self.model_dir is not None:  # Armin: why did you move this part here?
-            self.restore()
 
     def run(self):
         raise NotImplementedError
