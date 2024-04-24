@@ -247,11 +247,11 @@ class RIMCell(nn.Module):
         x = torch.cat((x, null_input), dim=1)
 
         # Compute input attention
-        inputs, mask = self.input_attention_mask(x, hs)
-        # batch_size, _, _ = x.shape
-        # inputs = x[:, 0, :].unsqueeze(0).repeat(self.num_units, 1, 1)
-        # inputs = self.input_linear(inputs)
-        # mask = torch.ones(batch_size, self.num_units).to(self.device)
+        # inputs, mask = self.input_attention_mask(x, hs)
+        batch_size, _, _ = x.shape
+        inputs = x[:, 0, :].unsqueeze(0).repeat(self.num_units, 1, 1)
+        inputs = self.input_linear(inputs)
+        mask = torch.ones(batch_size, self.num_units).to(self.device)
 
         h_old = hs * 1.0
         if cs is not None:
@@ -276,9 +276,9 @@ class RIMCell(nn.Module):
         h_new = blocked_grad.apply(hs, mask)
 
         # Compute communication attention
-        h_new = self.communication_attention(h_new, mask.squeeze(2))
+        # h_new = self.communication_attention(h_new, mask.squeeze(2))
         h_new = self.output_layer_norm(h_new)
-        h_new = Identity.apply(h_new)
+        # h_new = Identity.apply(h_new)
         hs = mask * h_new + (1 - mask) * h_old
         if cs is not None:
             cs = mask * cs + (1 - mask) * c_old
