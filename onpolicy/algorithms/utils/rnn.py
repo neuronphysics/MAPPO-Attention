@@ -9,11 +9,10 @@ class RNNLayer(nn.Module):
         super(RNNLayer, self).__init__()
         self._recurrent_N = recurrent_N
         self._use_orthogonal = use_orthogonal
-        
-        #JUAN AADDED
-        #self.drop = nn.Dropout(0.5)
-        #self.encoder = nn.Linear(inputs_dim, outputs_dim)
 
+        # JUAN AADDED
+        # self.drop = nn.Dropout(0.5)
+        # self.encoder = nn.Linear(inputs_dim, outputs_dim)
 
         self.rnn = nn.GRU(inputs_dim, outputs_dim, num_layers=self._recurrent_N)
         for name, param in self.rnn.named_parameters():
@@ -27,29 +26,29 @@ class RNNLayer(nn.Module):
         self.norm = nn.LayerNorm(outputs_dim)
 
     def forward(self, x, hxs, masks):
-        #JUAN ADDED
-        #emb = self.drop(self.encoder(input))
-        #emb = emb.to(input.device) 
-        #if emb.dim()==2:
-         #   x = emb.unsqueeze(0)
-        #else:
+        # JUAN ADDED
+        # emb = self.drop(self.encoder(input))
+        # emb = emb.to(input.device)
+        # if emb.dim()==2:
+        #   x = emb.unsqueeze(0)
+        # else:
         #    x = emb 
-        
+
         if x.size(0) == hxs.size(0):
             x, hxs = self.rnn(x.unsqueeze(0),
                               (hxs * masks.repeat(1, self._recurrent_N).unsqueeze(-1)).transpose(0, 1).contiguous())
             x = x.squeeze(0)
             hxs = hxs.transpose(0, 1)
         else:
-            # x is a (T, N, -1) tensor that has been flatten to (T * N, -1)
-            N = hxs.size(0)
-            T = int(x.size(0) / N)
+            # x is a (episode_len, batch_num, -1) tensor that has been flatten to (episode_len * batch_num, -1)
+            batch_num = hxs.size(0)
+            episode_len = int(x.size(0) / batch_num)
 
             # unflatten
-            x = x.view(T, N, x.size(1))
+            x = x.view(episode_len, batch_num, x.size(1))
 
             # Same deal with masks
-            masks = masks.view(T, N)
+            masks = masks.view(episode_len, batch_num)
 
             # Let's figure out which steps in the sequence have a zero for any agent
             # We will always assume t=0 has a zero in it as that makes the logic cleaner
@@ -66,8 +65,8 @@ class RNNLayer(nn.Module):
             else:
                 has_zeros = (has_zeros + 1).numpy().tolist()
 
-            # add t=0 and t=T to the list
-            has_zeros = [0] + has_zeros + [T]
+            # add t=0 and t=episode_len to the list
+            has_zeros = [0] + has_zeros + [episode_len]
 
             hxs = hxs.transpose(0, 1)
 
@@ -81,12 +80,12 @@ class RNNLayer(nn.Module):
                 rnn_scores, hxs = self.rnn(x[start_idx:end_idx], temp)
                 outputs.append(rnn_scores)
 
-            # assert len(outputs) == T
-            # x is a (T, N, -1) tensor
+            # assert len(outputs) == episode_len
+            # x is a (episode_len, batch_num, -1) tensor
             x = torch.cat(outputs, dim=0)
 
             # flatten
-            x = x.reshape(T * N, -1)
+            x = x.reshape(episode_len * batch_num, -1)
             hxs = hxs.transpose(0, 1)
 
         x = self.norm(x)

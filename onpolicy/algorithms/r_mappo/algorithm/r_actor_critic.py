@@ -102,7 +102,7 @@ class R_Actor(nn.Module):
 
         if self.use_attention and len(self._obs_shape) >= 3:
             actor_features = self.base(obs)
-            output = self.rnn(actor_features.unsqueeze(0), rnn_states.transpose(0, 1))
+            output = self.rnn(actor_features, rnn_states)
             actor_features, rnn_states = output[:2]
             if self.rnn_attention_module == "LSTM":
                 c = output[-1]
@@ -144,15 +144,10 @@ class R_Actor(nn.Module):
         actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy or self.use_attention:
-            if self.use_attention:
-                actor_features = actor_features.unsqueeze(0)
-                rnn_states = rnn_states.transpose(0, 1)
-                output = self.rnn(actor_features, rnn_states)
-                actor_features, rnn_states = output[:2]
-                if self.rnn_attention_module == "LSTM":
-                    c = output[-1]
-            else:
-                actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
+            output = self.rnn(actor_features, rnn_states)
+            actor_features, rnn_states = output[:2]
+            if self.rnn_attention_module == "LSTM":
+                c = output[-1]
 
         if self.algo == "hatrpo":
             action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(
@@ -164,19 +159,11 @@ class R_Actor(nn.Module):
 
             return action_log_probs, dist_entropy, action_mu, action_std, all_probs
         else:
-            if self.use_attention:
-                available_actions = available_actions.unsqueeze(0)
-                action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features,
-                                                                           action, available_actions,
-                                                                           active_masks=
-                                                                           active_masks if self._use_policy_active_masks
-                                                                           else None)
-            else:
-                action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features,
-                                                                           action, available_actions,
-                                                                           active_masks=
-                                                                           active_masks if self._use_policy_active_masks
-                                                                           else None)
+            action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features,
+                                                                       action, available_actions,
+                                                                       active_masks=
+                                                                       active_masks if self._use_policy_active_masks
+                                                                       else None)
 
         return action_log_probs, dist_entropy
 
@@ -270,7 +257,7 @@ class R_Critic(nn.Module):
         masks = check(masks).to(**self.tpdv)
         if self.use_attention and len(self._obs_shape) == 3:
             critic_features = self.base(cent_obs)
-            output = self.rnn(critic_features.unsqueeze(0), rnn_states.transpose(0, 1))
+            output = self.rnn(critic_features, rnn_states)
             critic_features, rnn_states = output[:2]
             if self.rnn_attention_module == "LSTM":
                 c = output[-1]
@@ -278,9 +265,9 @@ class R_Critic(nn.Module):
             critic_features = self.base(cent_obs)
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
                 critic_features, rnn_states = self.rnn(critic_features, rnn_states, masks)
-                critic_features = critic_features.unsqueeze(0)
-
                 rnn_states = rnn_states.permute(1, 0, 2)
+
+        critic_features = critic_features.unsqueeze(0)
         values = self.v_out(critic_features)
 
         return values, rnn_states

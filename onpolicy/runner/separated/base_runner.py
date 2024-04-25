@@ -185,14 +185,9 @@ class Runner(object):
                     available_actions,
                     self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
             else:
-                if self.use_attention:
-                    input_rnn_states = self.buffer[agent_id].rnn_states[:-1].reshape(-1, *self.buffer[
-                                                                                              agent_id].rnn_states.shape[
-                                                                                          2:])
-                else:
-                    input_rnn_states = self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[
-                                                                                              agent_id].rnn_states.shape[
-                                                                                          2:])
+                input_rnn_states = self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[
+                                                                                          agent_id].rnn_states.shape[
+                                                                                      2:])
 
                 old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
                     self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
@@ -213,14 +208,10 @@ class Runner(object):
                     available_actions,
                     self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
             else:
-                if self.use_attention:
-                    input_rnn_states = self.buffer[agent_id].rnn_states[:-1].reshape(-1, *self.buffer[
-                                                                                              agent_id].rnn_states.shape[
-                                                                                          2:])
-                else:
-                    input_rnn_states = self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[
-                                                                                              agent_id].rnn_states.shape[
-                                                                                          2:])
+
+                input_rnn_states = self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[
+                                                                                          agent_id].rnn_states.shape[
+                                                                                      2:])
 
                 new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
                     self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),

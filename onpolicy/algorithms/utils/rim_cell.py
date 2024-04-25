@@ -143,8 +143,8 @@ class RIMCell(nn.Module):
         self.value = nn.Linear(input_size, num_input_heads * input_value_size).to(self.device)
 
         if self.rnn_cell == 'GRU':
-            # self.rnn = nn.ModuleList([nn.GRUCell(input_value_size, hidden_size) for _ in range(num_units)])
-            self.rnn = nn.ModuleList([LayerNormGRUCell(input_value_size, hidden_size) for _ in range(num_units)])
+            self.rnn = nn.ModuleList([nn.GRU(input_value_size, hidden_size, num_layers=1) for _ in range(num_units)])
+            # self.rnn = nn.ModuleList([LayerNormGRUCell(input_value_size, hidden_size) for _ in range(num_units)])
             self.query = GroupLinearLayer(hidden_size, input_key_size * num_input_heads, self.num_units)
         else:
             self.rnn = nn.ModuleList([nn.LSTMCell(input_value_size, hidden_size) for _ in range(num_units)])
@@ -157,8 +157,9 @@ class RIMCell(nn.Module):
         self.comm_dropout = nn.Dropout(p=input_dropout)
         self.input_dropout = nn.Dropout(p=comm_dropout)
 
-        self.input_linear = nn.Linear(self.hidden_size * self.num_units, input_value_size)
+        self.input_linear = nn.Linear(self.hidden_size, input_value_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
+        self.x_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
     def transpose_for_scores(self, x, num_attention_heads, attention_head_size):
@@ -243,17 +244,17 @@ class RIMCell(nn.Module):
                 new hs for GRU
         """
         size = x.size()
-        null_input = torch.zeros(size[0], 1, size[2]).float().to(self.device)
-        x = torch.cat((x, null_input), dim=1)
+        # null_input = torch.zeros(size[0], 1, size[2]).float().to(self.device)
+        # x = torch.cat((x, null_input), dim=1)
 
         # Compute input attention
         # inputs, mask = self.input_attention_mask(x, hs)
-        batch_size, _, _ = x.shape
-        inputs = x[:, 0, :].unsqueeze(0).repeat(self.num_units, 1, 1)
+        batch_size, ep, _ = x.shape
+        inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
         inputs = self.input_linear(inputs)
-        mask = torch.ones(batch_size, self.num_units).to(self.device)
+        mask = torch.ones(ep, self.num_units, batch_size, 1).to(self.device)
 
-        h_old = hs * 1.0
+        h_old = (hs * 1.0).transpose(0, 1).unsqueeze(0)
         if cs is not None:
             c_old = cs * 1.0
         hs = list(torch.split(hs, 1, 1))
@@ -261,30 +262,33 @@ class RIMCell(nn.Module):
             cs = list(torch.split(cs, 1, 1))
 
         # Compute RNN(LSTM or GRU) output
+        x_out = []
         for i in range(self.num_units):
             if cs is None:
-                hs[i] = self.rnn[i](inputs[i].squeeze(1), hs[i].squeeze(1))
+                x_temp, hs[i] = self.rnn[i](inputs[i].transpose(0, 1), hs[i].transpose(0, 1).contiguous())
+                x_out.append(self.x_layer_norm(x_temp))
             else:
-
                 hs[i], cs[i] = self.rnn[i](inputs[i].squeeze(1), (hs[i].squeeze(1), cs[i].squeeze(1)))
         hs = torch.stack(hs, dim=1)
         if cs is not None:
             cs = torch.stack(cs, dim=1)
 
         # Block gradient through inactive units
-        mask = mask.unsqueeze(2)
         h_new = blocked_grad.apply(hs, mask)
 
         # Compute communication attention
         # h_new = self.communication_attention(h_new, mask.squeeze(2))
         h_new = self.output_layer_norm(h_new)
         # h_new = Identity.apply(h_new)
-        hs = mask * h_new + (1 - mask) * h_old
+        hs = (mask * h_new + (1 - mask) * h_old).squeeze(0).transpose(0, 1)
         if cs is not None:
             cs = mask * cs + (1 - mask) * c_old
             return hs, cs
 
-        return hs, None
+        # x_real with shape (batch, ep, num_unit * hidden)
+        x_real = torch.cat(x_out, dim=0).transpose(0, 2).reshape(batch_size, ep, -1)
+
+        return x_real, hs, None
 
 
 class RIM(nn.Module):
@@ -320,14 +324,14 @@ class RIM(nn.Module):
         outputs = []
         for x in xs:
             x = x.squeeze(0)
-            hs, cs = rim_layer(x.unsqueeze(1), hs, cs)
-            outputs.append(hs.view(1, batch_size, -1))
+            x_real, hs, cs = rim_layer(x.unsqueeze(1), hs, cs)
+            outputs.append(x_real)
         if direction == 1: outputs.reverse()
-        outputs = torch.cat(outputs, dim=0)
+        outputs = torch.cat(outputs, dim=1)
         if c is not None:
-            return outputs, hs.view(batch_size, -1), cs.view(batch_size, -1)
+            return outputs, hs.reshape(batch_size, -1), cs.reshape(batch_size, -1)
         else:
-            return outputs, hs.view(batch_size, -1)
+            return outputs, hs.reshape(batch_size, -1)
 
     def forward(self, x, h=None, c=None):
         """
@@ -337,6 +341,14 @@ class RIM(nn.Module):
         Output: outputs (batch_size, seqlen, hidden_size * num_units * num-directions)
                 h(and c) (num_layer * num_directions, batch_size, hidden_size* num_units)
         """
+        if x.shape[0] == h.shape[0]:
+            # x is (batch, hidden) h is (batch, 1, hidden)
+            x = x.unsqueeze(0)
+        else:
+            # x is (batch * ep, hidden), h is (batch, 1, hidden)
+            batch_size, _, hidden = h.shape
+            x = x.reshape(-1, batch_size, hidden)
+        h = h.transpose(0, 1)
 
         hs = torch.split(h, 1, 0) if h is not None else torch.split(
             torch.randn(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(
@@ -370,4 +382,4 @@ class RIM(nn.Module):
         if cs is not None:
             cs = torch.stack(cs, dim=0)
             return x, hs, cs
-        return x, hs
+        return x.transpose(0, 1).reshape(-1, self.num_units * self.hidden_size), hs
