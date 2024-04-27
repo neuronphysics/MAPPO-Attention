@@ -243,18 +243,18 @@ class RIMCell(nn.Module):
         Output: new hs, cs for LSTM
                 new hs for GRU
         """
-        size = x.size()
-        # null_input = torch.zeros(size[0], 1, size[2]).float().to(self.device)
-        # x = torch.cat((x, null_input), dim=1)
+        batch_size, ep, input_size = x.shape
+        null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
+        x = torch.cat((x, null_input), dim=1)
 
         # Compute input attention
-        # inputs, mask = self.input_attention_mask(x, hs)
-        batch_size, ep, _ = x.shape
-        inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
-        inputs = self.input_linear(inputs)
-        mask = torch.ones(ep, self.num_units, batch_size, 1).to(self.device)
+        inputs, mask = self.input_attention_mask(x, hs)
+        mask = mask.unsqueeze(-1)
+        # inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
+        # inputs = self.input_linear(inputs)
+        # mask = torch.ones(ep, self.num_units, batch_size, 1).to(self.device)
 
-        h_old = (hs * 1.0).transpose(0, 1).unsqueeze(0)
+        h_old = (hs * 1.0)
         if cs is not None:
             c_old = cs * 1.0
         hs = list(torch.split(hs, 1, 1))
@@ -274,13 +274,15 @@ class RIMCell(nn.Module):
             cs = torch.stack(cs, dim=1)
 
         # Block gradient through inactive units
-        h_new = blocked_grad.apply(hs, mask)
+        h_new = hs.squeeze(0).transpose(0, 1)
+        h_new = blocked_grad.apply(h_new, mask)
 
         # Compute communication attention
-        # h_new = self.communication_attention(h_new, mask.squeeze(2))
+        h_new = self.communication_attention(h_new, mask.squeeze(2))
         h_new = self.output_layer_norm(h_new)
+
         # h_new = Identity.apply(h_new)
-        hs = (mask * h_new + (1 - mask) * h_old).squeeze(0).transpose(0, 1)
+        hs = (mask * h_new + (1 - mask) * h_old)
         if cs is not None:
             cs = mask * cs + (1 - mask) * c_old
             return hs, cs
