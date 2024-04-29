@@ -144,7 +144,10 @@ class R_Actor(nn.Module):
         actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy or self.use_attention:
-            output = self.rnn(actor_features, rnn_states)
+            if self.use_attention:
+                output = self.rnn(actor_features, rnn_states)
+            else:
+                output = self.rnn(actor_features, rnn_states, masks)
             actor_features, rnn_states = output[:2]
             if self.rnn_attention_module == "LSTM":
                 c = output[-1]
@@ -197,7 +200,6 @@ class R_Critic(nn.Module):
         ## Zahra added
         self._use_version_scoff = args.use_version_scoff
         self.use_attention = args.use_attention
-        # self.use_attention = args.use_attention
         self._attention_module = args.attention_module
 
         self._obs_shape = cent_obs_shape
