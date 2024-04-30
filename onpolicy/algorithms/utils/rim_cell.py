@@ -245,8 +245,6 @@ class RIMCell(nn.Module):
         Output: new hs, cs for LSTM
                 new hs for GRU
         """
-        if len(x.shape) != 3:
-            print("error")
         batch_size, ep, input_size = x.shape
         null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
         x = torch.cat((x, null_input), dim=1)
@@ -354,8 +352,9 @@ class RIM(nn.Module):
             ep_len = 1
         else:
             # eval time
-            x = x.reshape(-1, batch_size, hidden)
             ep_len = int(x.size(0) / batch_size)
+            x = x.reshape(-1, batch_size, hidden)
+            masks = masks.view(ep_len, batch_size)
         h = h.transpose(0, 1)
 
         has_zeros = ((masks[1:] == 0.0).any(dim=-1).nonzero().squeeze().cpu())
@@ -383,6 +382,8 @@ class RIM(nn.Module):
         for i in range(len(has_zeros) - 1):
             start_idx = has_zeros[i]
             end_idx = has_zeros[i + 1]
+            if start_idx >= end_idx:
+                continue
             x_chunk = x[start_idx:end_idx]
             m_chunk = masks[start_idx].view(1, -1, 1)
             for n in range(self.n_layers):
@@ -406,7 +407,7 @@ class RIM(nn.Module):
                     x_chunk = x_fw
             out_x.append(x_chunk)
 
-        x = torch.cat(out_x, dim=0)
+        x = torch.cat(out_x, dim=1)
         hs = torch.stack(hs, dim=0)
         if cs is not None:
             cs = torch.stack(cs, dim=0)
