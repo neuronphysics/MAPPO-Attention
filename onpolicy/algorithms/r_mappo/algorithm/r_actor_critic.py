@@ -37,6 +37,8 @@ class R_Actor(nn.Module):
         self._recurrent_N = args.recurrent_N
         self._use_version_scoff = args.use_version_scoff
         self.tpdv = dict(dtype=torch.float32, device=device)
+        self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
+        self._use_recurrent_policy = args.use_recurrent_policy
 
         obs_shape = get_shape_from_obs_space(obs_space)
 
@@ -44,13 +46,6 @@ class R_Actor(nn.Module):
         self._attention_module = args.attention_module
 
         self._obs_shape = obs_shape
-
-        if self.use_attention == True:
-            self._use_naive_recurrent_policy = False
-            self._use_recurrent_policy = False
-        else:
-            self._use_naive_recurrent_policy = True
-            self._use_recurrent_policy = True
 
         base = CNNBase if len(obs_shape) == 3 else MLPBase
         self.base = base(args, obs_shape)
@@ -100,18 +95,15 @@ class R_Actor(nn.Module):
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
 
-        if self.use_attention and len(self._obs_shape) >= 3:
-            actor_features = self.base(obs)
-            output = self.rnn(actor_features, rnn_states)
-            actor_features, rnn_states = output[:2]
-            if self.rnn_attention_module == "LSTM":
-                c = output[-1]
-        else:
-            actor_features = self.base(obs)
-            if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-                actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
+        actor_features = self.base(obs)
+        output = self.rnn(actor_features, rnn_states, masks=masks)
+        actor_features, rnn_states = output[:2]
+        if self.rnn_attention_module == "LSTM":
+            c = output[-1]
 
-                rnn_states = rnn_states.permute(1, 0, 2)
+        if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
+            rnn_states = rnn_states.permute(1, 0, 2)
+
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
         return actions, action_log_probs, rnn_states
@@ -144,10 +136,7 @@ class R_Actor(nn.Module):
         actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy or self.use_attention:
-            if self.use_attention:
-                output = self.rnn(actor_features, rnn_states)
-            else:
-                output = self.rnn(actor_features, rnn_states, masks)
+            output = self.rnn(actor_features, rnn_states, masks=masks)
             actor_features, rnn_states = output[:2]
             if self.rnn_attention_module == "LSTM":
                 c = output[-1]
@@ -197,19 +186,15 @@ class R_Critic(nn.Module):
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self._use_orthogonal]
         cent_obs_shape = get_shape_from_obs_space(cent_obs_space)
 
+        self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
+        self._use_recurrent_policy = args.use_recurrent_policy
+
         ## Zahra added
         self._use_version_scoff = args.use_version_scoff
         self.use_attention = args.use_attention
         self._attention_module = args.attention_module
 
         self._obs_shape = cent_obs_shape
-
-        if self.use_attention == True:
-            self._use_naive_recurrent_policy = False
-            self._use_recurrent_policy = False
-        else:
-            self._use_naive_recurrent_policy = True
-            self._use_recurrent_policy = True
 
         base = CNNBase if len(self._obs_shape) == 3 else MLPBase
         self.base = base(args, self._obs_shape)
@@ -257,17 +242,15 @@ class R_Critic(nn.Module):
         cent_obs = check(cent_obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
-        if self.use_attention and len(self._obs_shape) == 3:
-            critic_features = self.base(cent_obs)
-            output = self.rnn(critic_features, rnn_states)
-            critic_features, rnn_states = output[:2]
-            if self.rnn_attention_module == "LSTM":
-                c = output[-1]
-        else:
-            critic_features = self.base(cent_obs)
-            if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-                critic_features, rnn_states = self.rnn(critic_features, rnn_states, masks)
-                rnn_states = rnn_states.permute(1, 0, 2)
+
+        critic_features = self.base(cent_obs)
+        output = self.rnn(critic_features, rnn_states, masks=masks)
+        critic_features, rnn_states = output[:2]
+        if self.rnn_attention_module == "LSTM":
+            c = output[-1]
+
+        if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
+            rnn_states = rnn_states.permute(1, 0, 2)
 
         critic_features = critic_features.unsqueeze(0)
         values = self.v_out(critic_features)

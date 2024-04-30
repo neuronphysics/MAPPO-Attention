@@ -7,6 +7,7 @@ import torch.multiprocessing as mp
 from util import weight_init
 from utilities.LayerNormGRUCell import LayerNormGRUCell
 
+
 class blocked_grad(torch.autograd.Function):
 
     @staticmethod
@@ -153,7 +154,8 @@ class RIMCell(nn.Module):
         self.query_ = GroupLinearLayer(hidden_size, comm_query_size * num_comm_heads, self.num_units)
         self.key_ = GroupLinearLayer(hidden_size, comm_key_size * num_comm_heads, self.num_units)
         self.value_ = GroupLinearLayer(hidden_size, comm_value_size * num_comm_heads, self.num_units)
-        self.comm_attention_output = GroupLinearLayer(num_comm_heads * comm_value_size, self.hidden_size, self.num_units)
+        self.comm_attention_output = GroupLinearLayer(num_comm_heads * comm_value_size, self.hidden_size,
+                                                      self.num_units)
         self.comm_dropout = nn.Dropout(p=input_dropout)
         self.input_dropout = nn.Dropout(p=comm_dropout)
 
@@ -335,7 +337,7 @@ class RIM(nn.Module):
         else:
             return outputs, hs.reshape(batch_size, -1)
 
-    def forward(self, x, h=None, c=None):
+    def forward(self, x, h=None, c=None, masks=None):
         """
         Input: x (seq_len, batch_size, feature_size
                h (num_layers * num_directions, batch_size, hidden_size * num_units)
@@ -343,14 +345,25 @@ class RIM(nn.Module):
         Output: outputs (batch_size, seqlen, hidden_size * num_units * num-directions)
                 h(and c) (num_layer * num_directions, batch_size, hidden_size* num_units)
         """
+        batch_size, _, hidden = h.shape
+        ep_len = int(x.size(0) / batch_size)
         if x.shape[0] == h.shape[0]:
-            # x is (batch, hidden) h is (batch, 1, hidden)
+            # train time
             x = x.unsqueeze(0)
         else:
-            # x is (batch * ep, hidden), h is (batch, 1, hidden)
-            batch_size, _, hidden = h.shape
+            # eval time
             x = x.reshape(-1, batch_size, hidden)
         h = h.transpose(0, 1)
+
+        has_zeros = ((masks[1:] == 0.0).any(dim=-1).nonzero().squeeze().cpu())
+        # +1 to correct the masks[1:]
+        if has_zeros.dim() == 0:
+            # Deal with scalar
+            has_zeros = [has_zeros.item() + 1]
+        else:
+            has_zeros = (has_zeros + 1).numpy().tolist()
+        # add t=0 and t=episode_len to the list
+        has_zeros = [0] + has_zeros + [ep_len]
 
         hs = torch.split(h, 1, 0) if h is not None else torch.split(
             torch.randn(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(
@@ -362,24 +375,35 @@ class RIM(nn.Module):
                 torch.randn(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(
                     self.device), 1, 0)
             cs = list(cs)
-        for n in range(self.n_layers):
-            idx = n * self.num_directions
-            if cs is not None:
-                x_fw, hs[idx], cs[idx] = self.layer(self.rimcell[idx], x, hs[idx], cs[idx])
-            else:
-                x_fw, hs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=None)
-            if self.num_directions == 2:
-                idx = n * self.num_directions + 1
-                if cs is not None:
-                    x_bw, hs[idx], cs[idx] = self.layer(self.rimcell[idx], x, hs[idx], cs[idx], direction=1)
-                else:
-                    x_bw, hs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=None, direction=1)
 
-                x = torch.cat((x_fw, x_bw), dim=2)
-            else:
-                if torch.isnan(x_fw).any():
-                    print()
-                x = x_fw
+        out_x = []
+        for i in range(len(has_zeros) - 1):
+            start_idx = has_zeros[i]
+            end_idx = has_zeros[i + 1]
+            x_chunk = x[start_idx:end_idx]
+            m_chunk = masks[start_idx].view(1, -1, 1)
+            for n in range(self.n_layers):
+                idx = n * self.num_directions
+                hs_temp = (hs[idx] * m_chunk).contiguous()
+                if cs is not None:
+                    x_fw, hs[idx], cs[idx] = self.layer(self.rimcell[idx], x_chunk, hs_temp, cs[idx])
+                else:
+                    x_fw, hs[idx] = self.layer(self.rimcell[idx], x_chunk, hs_temp, c=None)
+                if self.num_directions == 2:
+                    idx = n * self.num_directions + 1
+                    if cs is not None:
+                        x_bw, hs[idx], cs[idx] = self.layer(self.rimcell[idx], x_chunk, hs_temp, cs[idx], direction=1)
+                    else:
+                        x_bw, hs[idx] = self.layer(self.rimcell[idx], x_chunk, hs_temp, c=None, direction=1)
+
+                    x_chunk = torch.cat((x_fw, x_bw), dim=2)
+                else:
+                    if torch.isnan(x_fw).any():
+                        print()
+                    x_chunk = x_fw
+            out_x.append(x_chunk)
+
+        x = torch.cat(out_x, dim=0)
         hs = torch.stack(hs, dim=0)
         if cs is not None:
             cs = torch.stack(cs, dim=0)
