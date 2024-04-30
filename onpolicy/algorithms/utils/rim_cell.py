@@ -245,6 +245,8 @@ class RIMCell(nn.Module):
         Output: new hs, cs for LSTM
                 new hs for GRU
         """
+        if len(x.shape) != 3:
+            print("error")
         batch_size, ep, input_size = x.shape
         null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
         x = torch.cat((x, null_input), dim=1)
@@ -346,13 +348,14 @@ class RIM(nn.Module):
                 h(and c) (num_layer * num_directions, batch_size, hidden_size* num_units)
         """
         batch_size, _, hidden = h.shape
-        ep_len = int(x.size(0) / batch_size)
         if x.shape[0] == h.shape[0]:
             # train time
             x = x.unsqueeze(0)
+            ep_len = 1
         else:
             # eval time
             x = x.reshape(-1, batch_size, hidden)
+            ep_len = int(x.size(0) / batch_size)
         h = h.transpose(0, 1)
 
         has_zeros = ((masks[1:] == 0.0).any(dim=-1).nonzero().squeeze().cpu())
