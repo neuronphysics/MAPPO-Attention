@@ -144,7 +144,7 @@ class RIMCell(nn.Module):
         self.value = nn.Linear(input_size, num_input_heads * input_value_size).to(self.device)
 
         if self.rnn_cell == 'GRU':
-            self.rnn = nn.ModuleList([nn.GRU(input_value_size, hidden_size, num_layers=1) for _ in range(num_units)])
+            self.rnn = nn.ModuleList([nn.GRUCell(input_value_size, hidden_size) for _ in range(num_units)])
             # self.rnn = nn.ModuleList([LayerNormGRUCell(input_value_size, hidden_size) for _ in range(num_units)])
             self.query = GroupLinearLayer(hidden_size, input_key_size * num_input_heads, self.num_units)
         else:
@@ -264,11 +264,9 @@ class RIMCell(nn.Module):
             cs = list(torch.split(cs, 1, 1))
 
         # Compute RNN(LSTM or GRU) output
-        x_out = []
         for i in range(self.num_units):
             if cs is None:
-                x_temp, hs[i] = self.rnn[i](inputs[i].transpose(0, 1), hs[i].transpose(0, 1).contiguous())
-                x_out.append(self.x_layer_norm(x_temp))
+                hs[i] = self.rnn[i](inputs[i].squeeze(1), hs[i].squeeze(1))
             else:
                 hs[i], cs[i] = self.rnn[i](inputs[i].squeeze(1), (hs[i].squeeze(1), cs[i].squeeze(1)))
         hs = torch.stack(hs, dim=1)
@@ -276,8 +274,7 @@ class RIMCell(nn.Module):
             cs = torch.stack(cs, dim=1)
 
         # Block gradient through inactive units
-        h_new = hs.squeeze(0).transpose(0, 1)
-        h_new = blocked_grad.apply(h_new, mask)
+        h_new = blocked_grad.apply(hs, mask)
 
         # Compute communication attention
         h_new = self.communication_attention(h_new, mask.squeeze(2))
@@ -287,12 +284,10 @@ class RIMCell(nn.Module):
         hs = (mask * h_new + (1 - mask) * h_old)
         if cs is not None:
             cs = mask * cs + (1 - mask) * c_old
-            return hs, cs
+            return hs.reshape(batch_size, -1).unsqueeze(1), hs, cs
 
-        # x_real with shape (batch, ep, num_unit * hidden)
-        x_real = torch.cat(x_out, dim=0).transpose(0, 2).reshape(batch_size, ep, -1)
-
-        return x_real, hs, None
+        # output res y (batch, 1, num_unit * hidden_size), next state hs (batch, num_unit, hidden_size)
+        return hs.reshape(batch_size, -1).unsqueeze(1), hs, None
 
 
 class RIM(nn.Module):
@@ -320,7 +315,8 @@ class RIM(nn.Module):
     def layer(self, rim_layer, x, h, c=None, direction=0):
         batch_size = x.size(1)
         xs = list(torch.split(x, 1, dim=0))
-        if direction == 1: xs.reverse()
+        if direction == 1:
+            xs.reverse()
         hs = h.squeeze(0).view(batch_size, self.num_units, -1)
         cs = None
         if c is not None:
@@ -330,7 +326,8 @@ class RIM(nn.Module):
             x = x.squeeze(0)
             x_real, hs, cs = rim_layer(x.unsqueeze(1), hs, cs)
             outputs.append(x_real)
-        if direction == 1: outputs.reverse()
+        if direction == 1:
+            outputs.reverse()
         outputs = torch.cat(outputs, dim=1)
         if c is not None:
             return outputs, hs.reshape(batch_size, -1), cs.reshape(batch_size, -1)
