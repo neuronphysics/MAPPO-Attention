@@ -161,7 +161,6 @@ class RIMCell(nn.Module):
 
         self.input_linear = nn.Linear(self.hidden_size, input_value_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
-        self.x_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
     def transpose_for_scores(self, x, num_attention_heads, attention_head_size):
@@ -299,6 +298,8 @@ class RIM(nn.Module):
         self.rnn_cell = rnn_cell
         self.num_units = num_units
         self.hidden_size = hidden_size
+
+        self.x_layer_norm = nn.LayerNorm(self.hidden_size * self.num_units)
         if self.num_directions == 2:
             self.rimcell = nn.ModuleList([RIMCell(self.device, input_size, hidden_size, num_units, rnn_cell, k=k,
                                                   **kwargs).to(self.device) if i < 2 else
@@ -406,7 +407,10 @@ class RIM(nn.Module):
 
         x = torch.cat(out_x, dim=1)
         hs = torch.stack(hs, dim=0)
+
+        x = x.transpose(0, 1).reshape(ep_len * batch_size, self.num_units * self.hidden_size)
+        x = self.x_layer_norm(x)
         if cs is not None:
             cs = torch.stack(cs, dim=0)
             return x, hs, cs
-        return x.transpose(0, 1).reshape(-1, self.num_units * self.hidden_size), hs
+        return x, hs
