@@ -161,7 +161,7 @@ class RIMCell(nn.Module):
         self.comm_dropout = nn.Dropout(p=input_dropout)
         self.input_dropout = nn.Dropout(p=comm_dropout)
 
-        self.input_linear = nn.Linear(self.hidden_size, input_value_size)
+        self.input_linear = nn.Linear(self.hidden_size * self.num_units, input_value_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
@@ -247,15 +247,15 @@ class RIMCell(nn.Module):
                 new hs for GRU
         """
         batch_size, ep, input_size = x.shape
-        null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
-        x = torch.cat((x, null_input), dim=1)
 
         # Compute input attention
-        inputs, mask = self.input_attention_mask(x, hs)
-        mask = mask.unsqueeze(-1)
-        # inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
-        # inputs = self.input_linear(inputs)
-        # mask = torch.ones(ep, self.num_units, batch_size, 1).to(self.device)
+        # null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
+        # x = torch.cat((x, null_input), dim=1)
+        # inputs, mask = self.input_attention_mask(x, hs)
+        # mask = mask.unsqueeze(-1)
+        inputs = x.transpose(0, 1).repeat(self.num_units, 1, 1)
+        inputs = self.input_linear(inputs)
+        mask = torch.ones(batch_size, self.num_units, 1).to(self.device)
 
         h_old = (hs * 1.0)
         if cs is not None:
@@ -278,11 +278,11 @@ class RIMCell(nn.Module):
             cs = torch.stack(cs, dim=1)
 
         # Block gradient through inactive units
-        h_new = blocked_grad.apply(hs, mask)
+        # h_new = blocked_grad.apply(hs, mask)
 
         # Compute communication attention
-        h_new = self.communication_attention(h_new, mask.squeeze(2))
-        h_new = self.output_layer_norm(h_new)
+        # h_new = self.communication_attention(h_new, mask.squeeze(2))
+        h_new = self.output_layer_norm(hs)
 
         # h_new = Identity.apply(h_new)
         hs = (mask * h_new + (1 - mask) * h_old)
