@@ -253,7 +253,7 @@ class RIMCell(nn.Module):
         # x = torch.cat((x, null_input), dim=1)
         # inputs, mask = self.input_attention_mask(x, hs)
         # mask = mask.unsqueeze(-1)
-        inputs = x.transpose(0, 1).repeat(self.num_units, 1, 1)
+        inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
         inputs = self.input_linear(inputs)
         mask = torch.ones(batch_size, self.num_units, 1).to(self.device)
 
@@ -278,11 +278,11 @@ class RIMCell(nn.Module):
             cs = torch.stack(cs, dim=1)
 
         # Block gradient through inactive units
-        # h_new = blocked_grad.apply(hs, mask)
+        h_new = blocked_grad.apply(hs, mask)
 
         # Compute communication attention
-        # h_new = self.communication_attention(h_new, mask.squeeze(2))
-        h_new = self.output_layer_norm(hs)
+        h_new = self.communication_attention(h_new, mask.squeeze(2))
+        h_new = self.output_layer_norm(h_new)
 
         # h_new = Identity.apply(h_new)
         hs = (mask * h_new + (1 - mask) * h_old)
