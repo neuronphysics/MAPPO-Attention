@@ -8,6 +8,7 @@ import torch.multiprocessing as mp
 from onpolicy.algorithms.utils.rnn import RNNLayer
 from util import weight_init
 from utilities.LayerNormGRUCell import LayerNormGRUCell
+from positional_encoder import SinusoidalPosition
 
 
 class blocked_grad(torch.autograd.Function):
@@ -161,7 +162,7 @@ class RIMCell(nn.Module):
         self.comm_dropout = nn.Dropout(p=input_dropout)
         self.input_dropout = nn.Dropout(p=comm_dropout)
 
-        self.input_linear = nn.Linear(self.hidden_size * self.num_units, input_value_size)
+        self.input_linear = nn.Linear(self.hidden_size, input_value_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
@@ -249,13 +250,14 @@ class RIMCell(nn.Module):
         batch_size, ep, input_size = x.shape
 
         # Compute input attention
-        # null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
-        # x = torch.cat((x, null_input), dim=1)
-        # inputs, mask = self.input_attention_mask(x, hs)
-        # mask = mask.unsqueeze(-1)
-        inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
-        inputs = self.input_linear(inputs)
-        mask = torch.ones(batch_size, self.num_units, 1).to(self.device)
+        null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
+        x = torch.cat((x, null_input), dim=1)
+        inputs, mask = self.input_attention_mask(x, hs)
+        mask = mask.unsqueeze(-1)
+
+        # inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
+        # inputs = self.input_linear(inputs)
+        # mask = torch.ones(batch_size, self.num_units, 1).to(self.device)
 
         h_old = (hs * 1.0)
         if cs is not None:
@@ -303,6 +305,8 @@ class RIM(nn.Module):
         self.rnn_cell = rnn_cell
         self.num_units = num_units
         self.hidden_size = hidden_size
+
+        self.pos_encoder = SinusoidalPosition(input_size, device)
 
         self.x_layer_norm = nn.LayerNorm(self.hidden_size * self.num_units)
         if self.num_directions == 2:
@@ -358,6 +362,10 @@ class RIM(nn.Module):
             # x is a (episode_len, batch_num, -1) tensor that has been flatten to (episode_len * batch_num, -1)
             ep_len = int(x.size(0) / batch_num)
             x = x.view(ep_len, batch_num, x.size(1))
+
+        pos_encoding = self.pos_encoder(ep_len).unsqueeze(1)
+        x = x + pos_encoding
+
         # Same deal with masks
         masks = masks.view(ep_len, batch_num)
 
