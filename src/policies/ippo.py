@@ -23,6 +23,7 @@ class IPPO(nn.Module):
         super(IPPO, self).__init__()
         # https://ppo-details.cleanrl.dev//2021/11/05/ppo-implementation-details/
         
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.type = params.type
         self.obs_shape = get_obs_shape(observation_space)
         self.state_shape = get_state_shape(state_space)
@@ -53,7 +54,9 @@ class IPPO(nn.Module):
         if self.type == 'conv':
             assert len(self.obs_shape) == 3, 'Convolutional policy cannot be used for non-image observations!'
             self.conv = CNN(out_size=params.conv_out_size)
+            print(params.conv_out_size, "conv_out_size")
             self.input_shape = params.conv_out_size
+            print(self.input_shape,"input_shape")
         else:
             self.input_shape = self.obs_shape
         
@@ -148,12 +151,16 @@ class IPPO(nn.Module):
             value: [batch_size, n_agents]
         """
         
-
-        
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x.astype(np.float32)).to(self.device)  # Convert x to a PyTorch tensor with float32 data type
+        #print(x.shape, type(x), "conv shape input")
+    
         if self.type == 'conv':
             bs = x.shape[0]
             n_ags = x.shape[1]
             x = x.reshape((-1,)+self.obs_shape)
+            #(9009, 3, 11, 11) <class 'numpy.ndarray'> conv shape input - ERROR HERE
+            #print(x.shape, type(x),"conv shape input - ERROR HERE")
             x = self.conv(x)
             x = x.reshape(bs, n_ags, self.input_shape)
            

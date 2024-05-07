@@ -3,12 +3,13 @@ defaults:
   - env: simple_spread
   - buffer: default
   - runner: pgrunner
+  - runner_meltingpot: pgrunner_melt
 
 seed: 42
 torch_deterministic: True
 cuda: True
-rollout_threads: 128
-n_agents: 3
+rollout_threads: 1
+n_agents: 9
 continuous_action: False
 env_steps: 25
 test_mode: False

@@ -25,6 +25,7 @@ from src.envs.meltingpot.meltingpot import substrate
 from src.envs.MeltingPot_Env import env_creator
 from src.envs.env_wrappers import SubprocVecEnv, DummyVecEnv
 from src.envs.separated_buffer import SeparatedReplayBuffer
+from gym.spaces import Box
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -149,7 +150,10 @@ def main(cfg: DictConfig):
         observation_space = train_envs.observation_space["player_0"]['RGB']
         shared_observation_space = train_envs.share_observation_space["player_0"]
         #observation_space=np.reshape(observation_space, (z , x ,y ))
+        print(shared_observation_space.shape)
         print(observation_space.shape)
+        observation_space= Box(0, 255, (3,11,11), dtype=np.uint8) 
+        
         #observation_space = np.moveaxis(observation_space, -1, 0)
 
         action_space = train_envs.action_space["player_0"]
@@ -194,6 +198,16 @@ def main(cfg: DictConfig):
     print(f"Observation Space: {observation_space.shape} | Action Space: {action_space.shape} | State Space: {state_space.shape}")
 
     print("POLICY")
+    
+    print(observation_space)
+    #meltingpot , Box(0, 255, (11, 11, 3), uint8)
+    #marlgrid, Box(0, 255, (3, 28, 28), uint8)
+    
+    print(state_space)
+    #meltingpot, Box(-inf, inf, (576,), float64)
+    #marlgrid, Box(-inf, inf, (576,), float64)
+    print("types", type(observation_space), type(action_space), type(state_space))
+
     policy = hydra.utils.instantiate(
         cfg.policy, 
         observation_space=observation_space, 
@@ -207,7 +221,7 @@ def main(cfg: DictConfig):
 
     if cfg.env.family == 'meltingpot':
         args_meltingpot = MeltingPotArgs()
-        buffer = SeparatedReplayBuffer(args_meltingpot , observation_space , shared_observation_space , action_space)
+        buffer = SeparatedReplayBuffer( observation_space , shared_observation_space , action_space)
 
     else:
 
@@ -218,15 +232,27 @@ def main(cfg: DictConfig):
         
     print(dir(buffer))
     print("RUNNER")
-    runner = hydra.utils.instantiate(
-        cfg.runner,
-        train_env=train_envs,
-        eval_env=eval_env,
-        env_family=cfg.env.family,
-        policy=policy, 
-        buffer=buffer, 
-        params=cfg.runner.params, 
-        device=device)
+    
+    if cfg.env.family == 'meltingpot':
+        runner = hydra.utils.instantiate(
+            cfg.runner_meltingpot,
+            train_env=train_envs,
+            eval_env=eval_env,
+            env_family=cfg.env.family,
+            policy=policy, 
+            buffer=buffer, 
+            params=cfg.runner_meltingpot.params, 
+            device=device)
+    else:
+        runner = hydra.utils.instantiate(
+            cfg.runner,
+            train_env=train_envs,
+            eval_env=eval_env,
+            env_family=cfg.env.family,
+            policy=policy, 
+            buffer=buffer, 
+            params=cfg.runner.params, 
+            device=device)
     
     if not cfg.test_mode:
         runner.run()

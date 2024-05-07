@@ -20,7 +20,9 @@ conda_env=${10}
 # 1. Load the required modules
 export PYTHONPATH="${PYTHONPATH}:/home/juan-david-vargas-mazuera/ICML-RUNS/CODES/saf"
 
-
+conda shell.bash activate saf-melt
+#wandb login a2a1bab96ebbc3869c65e3632485e02fcae9cc42
+conda activate saf-melt
 #module --quiet load anaconda/3
 
 ExpName=${env}"_"${N_agents}"_"${coordination}"_"${heterogeneity}"_"${Method}"-"${use_policy_pool}"-"${latent_kl}"_"${seed}
@@ -40,7 +42,7 @@ sudo apt-get install -y cuda-drivers-550
 #pip install -e .
 #cd meltingpot
 #pip install -e .[dev]
-
+#./saf.sh CompoundGoalEnv 5 ippo False True False False 0 saf_marlgrid saf
 
 
 HYDRA_FULL_ERROR=1 python /home/juan-david-vargas-mazuera/ICML-RUNS/CODES/saf/run.py \

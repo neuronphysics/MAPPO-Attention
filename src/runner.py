@@ -149,6 +149,14 @@ class PGRunner:
         start_time = time.time()
 
         obs, state, act_masks = self.env_reset()
+        print(obs.shape, state.shape)
+        print(type(obs), type(state))
+        print(type(obs), type(state))
+        print(type(obs[0]), type(state[0]))
+        print(type(obs[0][0]), type(state[0][0]))
+        print(type(obs[0][0][0]))
+        print(type(obs[0][0][0][0]))
+        
         next_done = torch.zeros((self.rollout_threads, self.n_agents)).to(self.device)
 
         num_updates = self.total_timesteps // self.batch_size
@@ -192,8 +200,15 @@ class PGRunner:
 
                 with torch.no_grad():
                     action, logprob, _, value, _ = self.policy.get_action_and_value(obs, state, act_masks, None, obs_old)
+                
+                print(type(action), type(logprob), type(value), "ACTION, LOGPROB, VALUE")
 
+                
+                print(action.shape)
+                #torch.Size([1, 9, 3, 28, 28]) torch.Size([1, 9, 21168]) torch.Size([1, 9]) torch.Size([1, 9]) 
+                # ({'0': False, '1': False, '2': False, '3': False, '4': False, '5': False, '6': False, '7': False, '8': False},) ENV STEP RUN
                 next_obs, next_state, next_act_masks, reward, done, info = self.env_step(action)
+                print(next_obs.shape, next_state.shape, reward.shape, done.shape, info, "ENV STEP RUN")
 
                 if len(self.observation_space.shape) == 3:
                     self.buffer.insert(
@@ -322,6 +337,7 @@ class PGRunner:
 
                 next_obs, next_state, next_act_masks, reward, done, info = self.env_step(action, mode="eval")
                 
+                print(next_obs.shape, next_state.shape, next_act_masks.shape, reward.shape, done.shape, info, "ENV STEP EVALUATE")
                 if self.env_family == 'starcraft':
                     total_rewards += reward.max(-1)[0] # (rollout_threads,)
                     # For each rollout, track the number of games player so far and record the wins for finished games
