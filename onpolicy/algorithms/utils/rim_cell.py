@@ -124,7 +124,7 @@ class RIMCell(nn.Module):
                  input_query_size=64,
                  num_input_heads=1, input_dropout=0.1, comm_key_size=32, comm_value_size=100, comm_query_size=32,
                  num_comm_heads=4, comm_dropout=0.1,
-                 k=4
+                 k=4, use_input_att=False, use_com_att=False, use_x_reshape=False
                  ):
         super().__init__()
         self.device = device
@@ -146,6 +146,10 @@ class RIMCell(nn.Module):
         self.key = nn.Linear(input_size, num_input_heads * input_query_size).to(self.device)
         self.value = nn.Linear(input_size, num_input_heads * input_value_size).to(self.device)
 
+        self.use_input_att = use_input_att
+        self.use_com_att = use_com_att
+        self.use_x_reshape = use_x_reshape
+
         if self.rnn_cell == 'GRU':
             self.rnn = nn.ModuleList([RNNLayer(input_value_size, hidden_size, 1, False) for _ in range(num_units)])
             # self.rnn = nn.ModuleList([LayerNormGRUCell(input_value_size, hidden_size) for _ in range(num_units)])
@@ -162,7 +166,10 @@ class RIMCell(nn.Module):
         self.comm_dropout = nn.Dropout(p=input_dropout)
         self.input_dropout = nn.Dropout(p=comm_dropout)
 
-        self.input_linear = nn.Linear(self.hidden_size, input_value_size)
+        if self.use_x_reshape:
+            self.input_linear = nn.Linear(self.hidden_size, input_value_size)
+        else:
+            self.input_linear = nn.Linear(self.num_units * self.hidden_size, input_value_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
@@ -249,15 +256,19 @@ class RIMCell(nn.Module):
         """
         batch_size, ep, input_size = x.shape
 
-        # Compute input attention
-        null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
-        x = torch.cat((x, null_input), dim=1)
-        inputs, mask = self.input_attention_mask(x, hs)
-        mask = mask.unsqueeze(-1)
-
-        # inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
-        # inputs = self.input_linear(inputs)
-        # mask = torch.ones(batch_size, self.num_units, 1).to(self.device)
+        if self.use_input_att:
+            # Compute input attention
+            null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
+            x = torch.cat((x, null_input), dim=1)
+            inputs, mask = self.input_attention_mask(x, hs)
+            mask = mask.unsqueeze(-1)
+        else:
+            if self.use_x_reshape:
+                inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
+            else:
+                inputs = x.unsqueeze(0).repeat(self.num_units, 1, 1, 1)
+            inputs = self.input_linear(inputs)
+            mask = torch.ones(batch_size, self.num_units, 1).to(self.device)
 
         h_old = (hs * 1.0)
         if cs is not None:
@@ -283,7 +294,8 @@ class RIMCell(nn.Module):
         h_new = blocked_grad.apply(hs, mask)
 
         # Compute communication attention
-        h_new = self.communication_attention(h_new, mask.squeeze(2))
+        if self.use_com_att:
+            h_new = self.communication_attention(h_new, mask.squeeze(2))
         h_new = self.output_layer_norm(h_new)
 
         # h_new = Identity.apply(h_new)
@@ -297,7 +309,8 @@ class RIMCell(nn.Module):
 
 
 class RIM(nn.Module):
-    def __init__(self, device, input_size, hidden_size, num_units, k, rnn_cell, n_layers, bidirectional, **kwargs):
+    def __init__(self, device, input_size, hidden_size, num_units, k, rnn_cell, n_layers, bidirectional,
+                 use_pos_encoding=False, use_input_att=False, use_com_att=False, use_x_reshape=False, **kwargs):
         super().__init__()
         self.device = device
         self.n_layers = n_layers
@@ -306,20 +319,31 @@ class RIM(nn.Module):
         self.num_units = num_units
         self.hidden_size = hidden_size
 
+        self.use_pos_encoding = use_pos_encoding
+        self.use_input_att = use_input_att
+        self.use_com_att = use_com_att
+        self.use_x_reshape = use_x_reshape
+
         self.pos_encoder = SinusoidalPosition(input_size, device)
 
         self.x_layer_norm = nn.LayerNorm(self.hidden_size * self.num_units)
         if self.num_directions == 2:
-            self.rimcell = nn.ModuleList([RIMCell(self.device, input_size, hidden_size, num_units, rnn_cell, k=k,
+            self.rimcell = nn.ModuleList([RIMCell(self.device, input_size, hidden_size, num_units, rnn_cell,
+                                                  k=k, use_input_att=use_input_att, use_com_att=use_com_att,
+                                                  use_x_reshape=use_x_reshape,
                                                   **kwargs).to(self.device) if i < 2 else
                                           RIMCell(self.device, 2 * hidden_size * self.num_units, hidden_size, num_units,
-                                                  rnn_cell, k=k, **kwargs).to(self.device) for i in
+                                                  rnn_cell, k=k, use_input_att=use_input_att, use_com_att=use_com_att,
+                                                  use_x_reshape=use_x_reshape, **kwargs).to(self.device) for i in
                                           range(self.n_layers * self.num_directions)])
         else:
             self.rimcell = nn.ModuleList([RIMCell(self.device, input_size, hidden_size, num_units, rnn_cell, k=k,
+                                                  use_input_att=use_input_att, use_com_att=use_com_att,
+                                                  use_x_reshape=use_x_reshape,
                                                   **kwargs).to(self.device) if i == 0 else
                                           RIMCell(self.device, hidden_size * self.num_units, hidden_size, num_units,
-                                                  rnn_cell, k=k, **kwargs).to(self.device) for i in
+                                                  rnn_cell, k=k, use_input_att=use_input_att, use_com_att=use_com_att,
+                                                  use_x_reshape=use_x_reshape, **kwargs).to(self.device) for i in
                                           range(self.n_layers)])
 
     def layer(self, rim_layer, x, h, c=None, direction=0, mask=None):
@@ -363,8 +387,9 @@ class RIM(nn.Module):
             ep_len = int(x.size(0) / batch_num)
             x = x.view(ep_len, batch_num, x.size(1))
 
-        pos_encoding = self.pos_encoder(ep_len).unsqueeze(1)
-        x = x + pos_encoding
+        if self.use_pos_encoding:
+            pos_encoding = self.pos_encoder(ep_len).unsqueeze(1)
+            x = x + pos_encoding
 
         # Same deal with masks
         masks = masks.view(ep_len, batch_num)

@@ -336,4 +336,9 @@ def get_config():
     parser.add_argument("--load_model", type=str2bool, default=False,
                         help='Whether or not we load the pretrained model')
 
+    parser.add_argument("--use_pos_encoding", type=str2bool, default=False, )
+    parser.add_argument("--use_input_att", type=str2bool, default=False, )
+    parser.add_argument("--use_com_att", type=str2bool, default=False, )
+    parser.add_argument("--use_x_reshape", type=str2bool, default=False, )
+
     return parser
