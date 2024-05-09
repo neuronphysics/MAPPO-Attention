@@ -8,6 +8,7 @@ import cv2
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
+import matplotlib.image
 
 
 def _t2n(x):
@@ -56,6 +57,13 @@ class MeltingpotRunner(Runner):
 
             step_time = time.time()
             for step in range(self.episode_length):
+                # collect some image data
+                # action = self.envs.action_space.sample()
+                # actions = np.array([v for k, v in action.items()])[None, :, None]
+                # obs, rewards, dones, infos = self.envs.step(actions)
+                # self.save_obs(obs, step, episode)
+                # continue
+
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
 
@@ -498,3 +506,12 @@ class MeltingpotRunner(Runner):
 
         if self.all_args.save_gifs:
             imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
+
+    def save_obs(self, obs, step, episode):
+        img_t = obs[0]['player_0']['RGB'][0]
+        img_share = obs[0]['player_0']['WORLD.RGB'][0]
+
+        count = str(episode * self.episode_length + step)
+        path = "/mnt/e/pycharm_projects/meltingpot-main/collected_img/"
+        matplotlib.image.imsave(path + 'agent0_' + count + '.png', img_t)
+        matplotlib.image.imsave(path + 'share' + count + '.png', img_share)

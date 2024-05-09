@@ -59,7 +59,7 @@ class R_Actor(nn.Module):
                                comm_dropout=self.drop_out, input_dropout=self.drop_out)
             elif self._attention_module == "SCOFF":
                 self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
-                                 num_templates=2, rnn_cell=self.rnn_attention_module, n_layers=1,
+                                 num_templates=0, rnn_cell=self.rnn_attention_module, n_layers=1,
                                  bidirectional=self.use_bidirectional, dropout=self.drop_out,
                                  version=self._use_version_scoff)
         elif not self.use_attention:
@@ -200,9 +200,6 @@ class R_Critic(nn.Module):
         if self.use_attention and len(self._obs_shape) >= 3:
 
             if self._attention_module == "RIM":
-                # self.rnn = RIM(device, self.hidden_size, self.hidden_size, args.rim_num_units, args.rim_topk,
-                #                rnn_cell=self.rnn_attention_module, n_layers=1, bidirectional=self.use_bidirectional,
-                #                dropout=self.drop_out, batch_first=True)
                 self.rnn = RIM(device, self.hidden_size, self.hidden_size // args.rim_num_units, args.rim_num_units,
                                args.rim_topk, use_pos_encoding=args.use_pos_encoding, use_input_att=args.use_input_att,
                                use_com_att=args.use_com_att, use_x_reshape=args.use_x_reshape,
@@ -211,7 +208,7 @@ class R_Critic(nn.Module):
 
             elif self._attention_module == "SCOFF":
                 self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
-                                 num_templates=2, rnn_cell=self.rnn_attention_module, n_layers=1,
+                                 num_templates=0, rnn_cell=self.rnn_attention_module, n_layers=1,
                                  bidirectional=self.use_bidirectional, dropout=self.drop_out,
                                  version=self._use_version_scoff)
         elif not self.use_attention:
