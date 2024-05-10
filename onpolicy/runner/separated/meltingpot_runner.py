@@ -58,11 +58,11 @@ class MeltingpotRunner(Runner):
             step_time = time.time()
             for step in range(self.episode_length):
                 # collect some image data
-                action = self.envs.action_space.sample()
-                actions = np.array([v for k, v in action.items()])[None, :, None]
-                obs, rewards, dones, infos = self.envs.step(actions)
-                self.save_obs(obs, step, episode)
-                continue
+                # action = self.envs.action_space.sample()
+                # actions = np.array([v for k, v in action.items()])[None, :, None]
+                # obs, rewards, dones, infos = self.envs.step(actions)
+                # self.save_obs(obs, step, episode)
+                # continue
 
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
