@@ -26,7 +26,7 @@ def make_train_env(all_args):
 
                 player_roles = substrate.get_config(all_args.substrate_name).default_player_roles
                 if all_args.downsample:
-                    scale_factor = 8
+                    scale_factor = all_args.img_scale_factor
                 else:
                     scale_factor = 1
                 env_config = {"substrate": all_args.substrate_name, "roles": player_roles, "scaled": scale_factor}
