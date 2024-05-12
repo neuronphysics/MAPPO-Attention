@@ -3,14 +3,14 @@
 #
 
 """Wraps a meltingpot environment to be used as a dm_env environment """
-import os
+
+import os, sys
 from typing import Tuple, Any, Mapping, Callable, Dict, List, Optional, Union, NamedTuple
 import dm_env
 import dmlab2d
 import gymnasium as gym
 from matplotlib import pyplot as plt
 from gymnasium import spaces
-from meltingpot import substrate as meltingpot_substrate
 from ml_collections import config_dict
 import numpy as np
 from ray.rllib.env import multi_agent_env
@@ -20,15 +20,19 @@ from gym.vector import VectorEnv
 from ray import cloudpickle
 from ray.util.iter import ParallelIteratorWorker
 from collections.abc import Mapping, Sequence
-from meltingpot.utils.substrates.wrappers import observables
 import cv2
+
+parent_dir = os.path.abspath(os.path.join(os.getcwd(), '../../..'))
+sys.path.append(parent_dir)
+from meltingpot import substrate as meltingpot_substrate
+from meltingpot.utils.substrates.wrappers import observables
 from meltingpot.utils.substrates import substrate
 
 PLAYER_STR_FORMAT = 'player_{index}'
 _WORLD_PREFIX = ['WORLD.RGB', 'INTERACTION_INVENTORIES', 'NUM_OTHERS_WHO_CLEANED_THIS_STEP']
 MAX_CYCLES = 400
 
-_OBSERVATION_PREFIX = ['WORLD.RGB', 'RGB']
+_OBSERVATION_PREFIX = ['WORLD.RGB', 'RGB', 'ORIENTATION']
 
 
 def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:

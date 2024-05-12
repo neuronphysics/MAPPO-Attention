@@ -207,6 +207,9 @@ def get_config():
     parser.add_argument("--use_version_scoff", type=int, default=1, help="specify the version of SCOFF")
     parser.add_argument("--scoff_num_units", type=int, default=4, help="specify the number of units in SCOFF")
     parser.add_argument("--scoff_topk", type=int, default=3, help="specify the number of topk in SCOFF")
+    parser.add_argument("--scoff_do_relational_memory", type=str2bool, default=False,
+                        help="specify whether if we use relational memory")
+
     parser.add_argument("--rim_num_units", type=int, default=6, help="specify the number of units in RIM")
     parser.add_argument("--rim_topk", type=int, default=3, help="specify the number of topk in RIM")
 

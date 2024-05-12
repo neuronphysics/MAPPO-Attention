@@ -106,8 +106,6 @@ class SharedBlockGRU(nn.Module):
         self.initialize_weights()
         self.to(self.device)
 
-        print("Using Gumble sparsity")
-
     def initialize_weights(self):
         # Initialize weights for each GRUCell template
         for template in self.templates:
@@ -123,23 +121,23 @@ class SharedBlockGRU(nn.Module):
 
         return
 
-    def forward(self, input, h, masks):
+    def forward(self, x, h, masks):
 
         # self.blockify_params()
         bs = h.shape[0]
-        h = h.reshape((h.shape[0], self.k, self.m)).reshape((h.shape[0] * self.k, self.m))
+        h = h.reshape(bs * self.k, self.m)
 
-        input = input.reshape(input.shape[0], 1, input.shape[1])
-        input = input.repeat(1, self.k, 1)
-        input = input.reshape(input.shape[0] * self.k, input.shape[2])
+        x = x.unsqueeze(1).repeat(1, self.k, 1)
+        x = x.reshape(x.shape[0] * self.k, x.shape[2])
 
-        h_read = self.gll_read((h * 1.0).reshape((h.shape[0], 1, h.shape[1])))
+        h = h.unsqueeze(1)
+        h_read = self.gll_read(h)
 
         hnext_stack = []
 
+        h_masks = masks.repeat(self.k, 1)
         for template in self.templates:
-            hnext_l = template(input.to(self.device), h.to(self.device), masks)
-            hnext_l = hnext_l.reshape((hnext_l.shape[0], 1, hnext_l.shape[1]))
+            x_out, hnext_l = template(x, h, h_masks)
             hnext_stack.append(hnext_l)
 
         hnext = torch.cat(hnext_stack, 1)
@@ -160,4 +158,4 @@ class SharedBlockGRU(nn.Module):
         hnext = hnext.mean(dim=1)
         hnext = hnext.reshape((bs, self.k, self.m)).reshape((bs, self.k * self.m))
 
-        return hnext, att.data.reshape(bs, self.k, self.n_templates)
+        return (None, hnext), att.data.reshape(bs, self.k, self.n_templates)

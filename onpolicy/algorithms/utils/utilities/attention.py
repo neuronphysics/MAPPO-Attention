@@ -35,7 +35,7 @@ class ScaledDotProductAttention(nn.Module):
         # self.dropout = nn.Dropout(attn_dropout)
         self.softmax = nn.Softmax(dim=2)
         self.grad_sparse = grad_sparse
-        
+
         self.topk = topk
         self.sa = Sparse_attention(top_k=topk)  # k=2
         self.flag = flag
@@ -45,8 +45,6 @@ class ScaledDotProductAttention(nn.Module):
 
         attn = torch.bmm(q, k.transpose(1, 2))
         attn = attn / self.temperature
-
-        
 
         if mask is not None:
             attn = attn.masked_fill(mask, -np.inf)
@@ -67,7 +65,7 @@ class ScaledDotProductAttention(nn.Module):
                 sparse_attn = attn.permute(0, 2, 1).reshape(mb * outs, ins)
             else:
                 sparse_attn = attn.reshape((mb * ins, outs))
-            
+
             # sga = Sparse_grad_attention(2)
             if self.grad_sparse:
                 sga = Sparse_grad_attention(self.topk)
@@ -81,9 +79,8 @@ class ScaledDotProductAttention(nn.Module):
             attn = sparse_attn * 1.0
 
         output = torch.bmm(attn, v)
-        
-        return output, attn, extra_loss
 
+        return output, attn, extra_loss
 
 
 class MultiHeadAttention(nn.Module):
@@ -145,7 +142,6 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, q, k, v, mask=None):
 
-        
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
 
         sz_b, len_q, _ = q.size()
@@ -170,8 +166,6 @@ class MultiHeadAttention(nn.Module):
         output = output.view(n_head, sz_b, len_q, d_v)
         output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1)  # b x lq x (n*dv)
 
-        
-
         # TODO: probably shouldn't just apply residual layer in the forward pass.
 
         output_init = output * 1.0
@@ -184,14 +178,10 @@ class MultiHeadAttention(nn.Module):
         if self.residual:
             output = gate * F.tanh(output)
         else:
-            
+
             output = self.ln(output)
-            
 
         # output
-
-        
-        
 
         return output, attn, extra_loss
 
@@ -205,8 +195,6 @@ class MultiHeadAttention(nn.Module):
 
     def old_forward(self, q, k, v, mask=None):
 
-        
-
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
 
         sz_b, len_q, _ = q.size()
@@ -214,8 +202,6 @@ class MultiHeadAttention(nn.Module):
         sz_b, len_v, _ = v.size()
 
         residual = q
-
-        
 
         # q_old = self.GLN_qs(q).view(sz_b, len_q, n_head, d_k)
         q_mu = self.GLN_qus(q).view(sz_b, len_q, n_head, d_k)
@@ -235,8 +221,6 @@ class MultiHeadAttention(nn.Module):
         extra_loss = extra_loss + KLD.sum()
         output = output.view(n_head, sz_b, len_q, d_v)
         output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1)  # b x lq x (n*dv)
-
-        
 
         # TODO: probably shouldn't just apply residual layer in the forward pass.
 
@@ -265,9 +249,6 @@ class MultiHeadAttention(nn.Module):
         '''
         # output
 
-        
-        
-
         return output, attn, extra_loss
 
 
@@ -287,7 +268,7 @@ class PositionwiseFeedForward(nn.Module):
         output = self.w_2(F.relu(self.w_1(output)))
         output = output.transpose(1, 2)
         output = self.dropout(output)
-        #skip connection
+        # skip connection
         output = self.layer_norm(output + residual)
         return output
 

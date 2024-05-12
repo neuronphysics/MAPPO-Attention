@@ -36,7 +36,8 @@ class SCOFF(nn.Module):
                  batch_first=False,
                  dropout=0.0,
                  step_att=True,
-                 rule_selection='gumble'):
+                 rule_selection='gumble',
+                 do_relational_memory=False):
         super().__init__()
         """
         - Wrappper for SCOFF.
@@ -69,6 +70,8 @@ class SCOFF(nn.Module):
         self.num_units = num_units
         self.hidden_size = hidden_size // num_units
         self.batch_first = batch_first
+        self.do_rel = do_relational_memory
+
         if self.num_directions == 2:
             self.rimcell = nn.ModuleList([RNNModelScoff(rnn_cell, input_size, input_size, hidden_size, 1,
                                                         n_templates=num_templates, num_blocks=num_units, update_topk=k,
@@ -76,15 +79,17 @@ class SCOFF(nn.Module):
                                                         attention_out=attention_out, num_rules=num_rules,
                                                         rule_time_steps=rule_time_steps, perm_inv=perm_inv,
                                                         application_option=application_option, dropout=dropout,
-                                                        step_att=step_att, rule_selection=rule_selection).to(
-                self.device) if i < 2 else
+                                                        step_att=step_att, rule_selection=rule_selection,
+                                                        do_rel=self.do_rel).to(self.device)
+                                          if i < 2 else
                                           RNNModelScoff(rnn_cell, 2 * hidden_size, 2 * hidden_size, hidden_size, 1,
                                                         n_templates=num_templates, num_blocks=num_units, update_topk=k,
                                                         use_gru=rnn_cell == 'GRU', version=version,
                                                         attention_out=attention_out, num_rules=num_rules,
                                                         rule_time_steps=rule_time_steps, perm_inv=perm_inv,
                                                         application_option=application_option, dropout=dropout,
-                                                        step_att=step_att, rule_selection=rule_selection).to(
+                                                        step_att=step_att, rule_selection=rule_selection,
+                                                        do_rel=self.do_rel).to(
                                               self.device) for i in range(self.n_layers * self.num_directions)])
         else:
             self.rimcell = nn.ModuleList([RNNModelScoff(rnn_cell, input_size, input_size, hidden_size, 1,
@@ -93,7 +98,8 @@ class SCOFF(nn.Module):
                                                         attention_out=attention_out, num_rules=num_rules,
                                                         rule_time_steps=rule_time_steps, perm_inv=perm_inv,
                                                         application_option=application_option, dropout=dropout,
-                                                        step_att=step_att, rule_selection=rule_selection).to(
+                                                        step_att=step_att, rule_selection=rule_selection,
+                                                        do_rel=self.do_rel).to(
                 self.device) if i == 0 else
                                           RNNModelScoff(rnn_cell, hidden_size, hidden_size, hidden_size, 1,
                                                         n_templates=num_templates, num_blocks=num_units, update_topk=k,
@@ -101,7 +107,8 @@ class SCOFF(nn.Module):
                                                         attention_out=attention_out, rule_time_steps=rule_time_steps,
                                                         perm_inv=perm_inv, application_option=application_option,
                                                         dropout=dropout, step_att=step_att,
-                                                        rule_selection=rule_selection).to(self.device) for i in
+                                                        rule_selection=rule_selection,
+                                                        do_rel=self.do_rel).to(self.device) for i in
                                           range(self.n_layers)])
 
     def layer(self, rim_layer, x, h, direction=0, message_to_rule_network=None, masks=None):

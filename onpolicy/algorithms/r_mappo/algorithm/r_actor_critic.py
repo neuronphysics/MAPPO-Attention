@@ -39,6 +39,7 @@ class R_Actor(nn.Module):
         self.tpdv = dict(dtype=torch.float32, device=device)
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
+        self.scoff_do_relational_memory = args.scoff_do_relational_memory
 
         obs_shape = get_shape_from_obs_space(obs_space)
 
@@ -59,9 +60,9 @@ class R_Actor(nn.Module):
                                comm_dropout=self.drop_out, input_dropout=self.drop_out)
             elif self._attention_module == "SCOFF":
                 self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
-                                 num_templates=0, rnn_cell=self.rnn_attention_module, n_layers=1,
+                                 num_templates=1, rnn_cell=self.rnn_attention_module, n_layers=1,
                                  bidirectional=self.use_bidirectional, dropout=self.drop_out,
-                                 version=self._use_version_scoff)
+                                 version=self._use_version_scoff, do_relational_memory=self.scoff_do_relational_memory)
         elif not self.use_attention:
             if len(obs_shape) == 3:
                 logging.info('Not using any attention module, input width: %d ', obs_shape[1])
@@ -175,6 +176,7 @@ class R_Critic(nn.Module):
         self.rnn_attention_module = args.rnn_attention_module
         self.use_bidirectional = args.use_bidirectional
         self.n_rollout = args.n_rollout_threads
+        self.scoff_do_relational_memory = args.scoff_do_relational_memory
 
         self.hidden_size = args.hidden_size
         self._use_orthogonal = args.use_orthogonal
@@ -208,9 +210,9 @@ class R_Critic(nn.Module):
 
             elif self._attention_module == "SCOFF":
                 self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
-                                 num_templates=0, rnn_cell=self.rnn_attention_module, n_layers=1,
+                                 num_templates=1, rnn_cell=self.rnn_attention_module, n_layers=1,
                                  bidirectional=self.use_bidirectional, dropout=self.drop_out,
-                                 version=self._use_version_scoff)
+                                 version=self._use_version_scoff, do_relational_memory=self.scoff_do_relational_memory)
         elif not self.use_attention:
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
                 self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
