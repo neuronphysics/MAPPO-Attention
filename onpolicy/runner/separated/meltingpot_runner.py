@@ -532,6 +532,8 @@ class MeltingpotRunner(Runner):
                 action = self.envs.action_space.sample()
                 actions = np.array([v for k, v in action.items()])[None, :, None]
                 obs, rewards, dones, infos = self.envs.step(actions)
+                if not isinstance(obs[0], dict):
+                    obs = obs[:, 0]
                 self.save_obs(obs, step, episode)
 
     def pre_train_steve_model(self):
