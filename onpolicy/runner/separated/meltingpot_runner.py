@@ -39,16 +39,12 @@ class MeltingpotRunner(Runner):
         super(MeltingpotRunner, self).__init__(config)
 
     def run(self):
-        self.warmup()
-
         start = time.time()
-
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
-
         print('num episodes to run (separated):', episodes)
 
         for episode in range(episodes):
-            self.envs.reset()
+            self.warmup()
 
             print(f'Episode {episode} start at {time.time()}')
             if self.use_linear_lr_decay:
