@@ -346,4 +346,49 @@ def get_config():
     parser.add_argument("--use_com_att", type=str2bool, default=False, )
     parser.add_argument("--use_x_reshape", type=str2bool, default=False, )
 
+    parser.add_argument("--steve_video_seq_len", type=int, default=3, )
+    parser.add_argument('--num_workers', type=int, default=1)
+    parser.add_argument('--image_size', type=int, default=88)
+    parser.add_argument('--img_channels', type=int, default=3)
+
+    parser.add_argument('--checkpoint_path', default='/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/steve/checkpoint.pt.tar')
+    parser.add_argument('--data_path', default='/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/steve/data/*')
+    parser.add_argument('--log_path', default='/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/steve/logs/')
+
+    parser.add_argument('--lr_dvae', type=float, default=3e-4)
+    parser.add_argument('--lr_enc', type=float, default=1e-4)
+    parser.add_argument('--lr_dec', type=float, default=3e-4)
+    parser.add_argument('--lr_warmup_steps', type=int, default=30000)
+    parser.add_argument('--lr_half_life', type=int, default=250000)
+    parser.add_argument('--clip', type=float, default=0.05)
+    parser.add_argument('--epochs', type=int, default=500)
+    parser.add_argument('--steps', type=int, default=200000)
+
+    parser.add_argument('--num_iterations', type=int, default=2)
+    parser.add_argument('--num_slots', type=int, default=15)
+    parser.add_argument('--cnn_hidden_size', type=int, default=64)
+    parser.add_argument('--slot_size', type=int, default=192)
+    parser.add_argument('--mlp_hidden_size', type=int, default=192)
+    parser.add_argument('--num_predictor_blocks', type=int, default=1)
+    parser.add_argument('--num_predictor_heads', type=int, default=4)
+    parser.add_argument('--predictor_dropout', type=int, default=0.0)
+
+    parser.add_argument('--vocab_size', type=int, default=4096)
+    parser.add_argument('--num_decoder_blocks', type=int, default=8)
+    parser.add_argument('--num_decoder_heads', type=int, default=4)
+    parser.add_argument('--d_model', type=int, default=192)
+    parser.add_argument('--dropout', type=int, default=0.1)
+
+    parser.add_argument('--tau_start', type=float, default=1.0)
+    parser.add_argument('--tau_final', type=float, default=0.1)
+    parser.add_argument('--tau_steps', type=int, default=30000)
+
+    parser.add_argument('--hard', action='store_true')
+    parser.add_argument('--use_dp', default=True, action='store_true')
+
+    parser.add_argument('--collect_data', type=str2bool, default=False)
+    parser.add_argument('--collect_ep_num_steve', type=int, default=10)
+    parser.add_argument('--pretrain_steve', type=str2bool, default=True)
+    parser.add_argument('--steve_pretrain_batch_size', type=int, default=2)
+
     return parser

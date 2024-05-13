@@ -37,20 +37,25 @@ def flatten_lists(input_list):
 class MeltingpotRunner(Runner):
     def __init__(self, config):
         super(MeltingpotRunner, self).__init__(config)
+        self.steve_video_seq_len = self.all_args.steve_video_seq_len
+        self.collect_data = self.all_args.collect_data
+        self.collect_ep_num = self.all_args.collect_ep_num_steve
+        self.steve_data_path = self.all_args.data_path[:-1]
+        self.pretrain_steve = self.all_args.pretrain_steve
 
     def run(self):
-        self.warmup()
+        if self.collect_data:
+            self.collect_img_data()
+        if self.pretrain_steve:
+            self.pre_train_steve_model()
 
         start = time.time()
-
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
-
         print('num episodes to run (separated):', episodes)
 
         for episode in range(episodes):
-            self.envs.reset()
-
             print(f'Episode {episode} start at {time.time()}')
+            self.warmup()
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
@@ -171,11 +176,13 @@ class MeltingpotRunner(Runner):
         rnn_states = []
         rnn_states_critic = []
 
+        video_start_point = max(step - self.steve_video_seq_len + 1, 0)
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
+            obs_video = self.buffer[agent_id].obs[video_start_point:step + 1]
             value, action, action_log_prob, rnn_state, rnn_state_critic \
                 = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
-                                                            self.buffer[agent_id].obs[step],
+                                                            obs_video,
                                                             self.buffer[agent_id].rnn_states[step],
                                                             self.buffer[agent_id].rnn_states_critic[step],
                                                             self.buffer[agent_id].masks[step])
@@ -508,10 +515,26 @@ class MeltingpotRunner(Runner):
             imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
 
     def save_obs(self, obs, step, episode):
-        img_t = obs[0]['player_0']['RGB'][0]
-        img_share = obs[0]['player_0']['WORLD.RGB'][0]
+        base_path = self.steve_data_path + str(episode) + "_"
+        obs_t = obs[0]
+        for k, v in obs_t.items():
+            if not os.path.exists(base_path + k):
+                os.makedirs(base_path + k)
+            img_t = v['RGB'][0]
+            matplotlib.image.imsave(base_path + k + "/" + str(step) + '.png', img_t)
 
-        count = str(episode * self.episode_length + step)
-        path = "/mnt/e/pycharm_projects/meltingpot-main/collected_img/"
-        matplotlib.image.imsave(path + 'agent0_' + count + '.png', img_t)
-        matplotlib.image.imsave(path + 'share' + count + '.png', img_share)
+    def collect_img_data(self):
+        for episode in range(self.collect_ep_num):
+            self.envs.reset()
+            print(f'Collect data episode {episode}')
+            for step in range(self.episode_length):
+                # collect some image data
+                action = self.envs.action_space.sample()
+                actions = np.array([v for k, v in action.items()])[None, :, None]
+                obs, rewards, dones, infos = self.envs.step(actions)
+                self.save_obs(obs, step, episode)
+
+    def pre_train_steve_model(self):
+        from onpolicy.algorithms.utils.STEVE.steve_pretrain import train
+        train(self.all_args)
+

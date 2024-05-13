@@ -94,6 +94,8 @@ class R_Actor(nn.Module):
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
 
+        # TODO introduce steve
+
         actor_features = self.base(obs)
         output = self.rnn(actor_features, rnn_states, masks=masks)
         actor_features, rnn_states = output[:2]
