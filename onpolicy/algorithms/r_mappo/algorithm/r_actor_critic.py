@@ -1,5 +1,10 @@
+import os
+import math
 import torch
 import torch.nn as nn
+from torch.optim import Adam
+from onpolicy.algorithms.utils.STEVE.steve import STEVE
+from onpolicy.algorithms.utils.STEVE.utils import cosine_anneal, linear_warmup
 from onpolicy.algorithms.utils.util import init, check, calculate_conv_params
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
 from onpolicy.algorithms.utils.modularity import SCOFF
@@ -47,6 +52,32 @@ class R_Actor(nn.Module):
         self._attention_module = args.attention_module
 
         self._obs_shape = obs_shape
+        self.args = args
+
+        args.image_size = obs_shape[0]
+        self.steve = STEVE(args)
+
+        self.steve_global_step = 0
+        if os.path.isfile(args.checkpoint_path):
+            checkpoint = torch.load(args.checkpoint_path, map_location='cpu')
+            self.steve.load_state_dict(checkpoint['model'])
+            self.steve_global_step = checkpoint['global_step']
+        else:
+            raise Exception
+
+        self.hard = args.hard
+        self.tau = cosine_anneal(
+            self.steve_global_step,
+            args.tau_start,
+            args.tau_final,
+            0,
+            args.tau_steps)
+
+        self.steve_optimizer = Adam([
+            {'params': (x[1] for x in self.steve.named_parameters() if 'dvae' in x[0]), 'lr': args.lr_dvae},
+            {'params': (x[1] for x in self.steve.named_parameters() if 'steve_encoder' in x[0]), 'lr': 0.0},
+            {'params': (x[1] for x in self.steve.named_parameters() if 'steve_decoder' in x[0]), 'lr': 0.0},
+        ])
 
         base = CNNBase if len(obs_shape) == 3 else MLPBase
         self.base = base(args, obs_shape)
@@ -94,9 +125,14 @@ class R_Actor(nn.Module):
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
 
-        # TODO introduce steve
+        # input shape should be (batch, seq, channel, height, width), 1 scaled image
+        (recon, cross_entropy, mse, att_mask) = self.steve(obs.permute(1, 0, 4, 2, 3) / 255.0, self.tau, self.hard)
+        last_frame_mask = att_mask[:, -1, :, :, :, :].sum(dim=1)
+        last_frame_mask[last_frame_mask > 1] = 1
+        masked_obs = obs[-1, :, :, :, :] * last_frame_mask.permute(0, 2, 3, 1)
 
-        actor_features = self.base(obs)
+        # CNN layer takes 255 scaled image
+        actor_features = self.base(masked_obs)
         output = self.rnn(actor_features, rnn_states, masks=masks)
         actor_features, rnn_states = output[:2]
         if self.rnn_attention_module == "LSTM":
@@ -134,7 +170,50 @@ class R_Actor(nn.Module):
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
 
-        actor_features = self.base(obs)
+        lr_warmup_factor_enc = linear_warmup(
+            self.steve_global_step,
+            0.,
+            1.0,
+            0.,
+            self.args.lr_warmup_steps)
+
+        lr_warmup_factor_dec = linear_warmup(
+            self.steve_global_step,
+            0.,
+            1.0,
+            0,
+            self.args.lr_warmup_steps)
+
+        lr_decay_factor = math.exp(self.steve_global_step / self.args.lr_half_life * math.log(0.5))
+
+        self.steve_optimizer.param_groups[0]['lr'] = self.args.lr_dvae
+        self.steve_optimizer.param_groups[1]['lr'] = lr_decay_factor * lr_warmup_factor_enc * self.args.lr_enc
+        self.steve_optimizer.param_groups[2]['lr'] = lr_decay_factor * lr_warmup_factor_dec * self.args.lr_dec
+
+        batch_size = self.args.n_rollout_threads
+        seq_len = int(obs.shape[0] / batch_size)
+
+        steve_obs = obs.reshape((seq_len,) + (batch_size,) + self._obs_shape).permute(1, 0, 4, 2, 3) / 255.0
+        full_att_mask = []
+
+        total_loss = 0
+        num_mini_batch = int(seq_len // self.args.steve_video_seq_len) + 1
+        for i in range(num_mini_batch):
+            start_idx = i * self.args.steve_video_seq_len
+            end_idx = min(start_idx + self.args.steve_video_seq_len, seq_len)
+            # input shape should be (batch, seq, channel, height, width), 1 scaled image
+            (recon, cross_entropy, mse, partial_mask) = self.steve(steve_obs[:, start_idx:end_idx], self.tau, self.hard)
+            full_att_mask.append(partial_mask)
+            total_loss = total_loss + cross_entropy + mse
+
+        att_mask = torch.cat(full_att_mask, dim=1)
+        total_mask = att_mask.sum(dim=2)
+        total_mask[total_mask > 1] = 1
+        masked_obs = obs * total_mask.permute(1, 0, 3, 4, 2).reshape(
+            (batch_size * seq_len,) + self._obs_shape[:-1] + (1,))
+
+        # CNN layer takes 255 scaled image
+        actor_features = self.base(masked_obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy or self.use_attention:
             output = self.rnn(actor_features, rnn_states, masks=masks)
@@ -158,7 +237,7 @@ class R_Actor(nn.Module):
                                                                        active_masks if self._use_policy_active_masks
                                                                        else None)
 
-        return action_log_probs, dist_entropy
+        return action_log_probs, dist_entropy, total_loss
 
 
 class R_Critic(nn.Module):

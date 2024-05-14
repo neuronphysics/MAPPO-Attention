@@ -243,6 +243,7 @@ def train(args):
                 'best_epoch': best_epoch,
                 'model': model.module.state_dict() if args.use_dp else model.state_dict(),
                 'optimizer': optimizer.state_dict(),
+                'global_step': global_step
             }
 
             torch.save(checkpoint, os.path.join(log_dir, 'checkpoint.pt.tar'))

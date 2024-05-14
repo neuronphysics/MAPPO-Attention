@@ -91,8 +91,8 @@ class SlotAttentionVideo(nn.Module):
                     slots = slots + self.mlp(self.norm_mlp(slots))
 
             # collect
-            attns_collect += [attn_vis]
-            slots_collect += [slots]
+            attns_collect = attns_collect + [attn_vis]
+            slots_collect = slots_collect + [slots]
 
             # predictor
             slots = self.predictor(slots)
