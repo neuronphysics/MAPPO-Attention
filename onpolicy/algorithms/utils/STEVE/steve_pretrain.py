@@ -20,7 +20,7 @@ from .data import GlobVideoDataset
 from .utils import cosine_anneal, linear_warmup
 
 
-def visualize(video, recon_dvae, att_mask, N=1, num_slots=15):
+def visualize(video, recon_dvae, att_mask, attns_vis, N=1, num_slots=15):
     B, T, C, H, W = video.size()
 
     frames = []
@@ -28,18 +28,19 @@ def visualize(video, recon_dvae, att_mask, N=1, num_slots=15):
         video_t = video[:N, t, None, :, :, :]
         recon_dvae_t = recon_dvae[:N, t, None, :, :, :]
         att_mask_t = att_mask[:N, t, :, :, :, :].repeat(1, 1, 3, 1, 1)
-
-        att_mask_t[att_mask_t <= 0.5] = 0
-        att_mask_t[att_mask_t > 0.5] = 1
-        masked_video_t = video_t * att_mask_t
+        attns_vis_t = attns_vis[:N, t, :, :, :, :]
 
         total_mask = att_mask_t.sum(dim=1)
         total_mask = total_mask.unsqueeze(1)
         total_mask[total_mask > 1] = 1
         total_mask_video = video_t * total_mask
 
+        # att_mask_t[att_mask_t <= 0.2] = 0
+        # att_mask_t[att_mask_t > 0.2] = 1
+        masked_video_t = video_t * att_mask_t
+
         # tile
-        tiles = torch.cat((video_t, recon_dvae_t, total_mask_video, masked_video_t), dim=1).flatten(end_dim=1)
+        tiles = torch.cat((video_t, recon_dvae_t, total_mask_video, masked_video_t, attns_vis_t), dim=1).flatten(end_dim=1)
 
         # grid
         frame = vutils.make_grid(tiles, nrow=(num_slots + 3), pad_value=0.8)
@@ -56,13 +57,13 @@ def train(args):
             wandb.log({name: value}, step)
         else:
             writer.add_scalar(name, value, step)
-    
+
     def log_video(name, frames):
         if use_wandb:
-            wandb.log({"video": wandb.Video(frames.cpu().numpy()[0], fps=4, format="gif")})
+            wandb.log({"video": wandb.Video(frames.cpu().numpy()[0], fps=1, format="gif")})
         else:
-            writer.add_video(name, frames)
-    
+            writer.add_video(name, frames, fps=1)
+
     torch.manual_seed(args.seed)
     num_slots = args.num_slots
     use_wandb = args.use_wandb
@@ -73,8 +74,9 @@ def train(args):
     writer = SummaryWriter(log_dir)
     writer.add_text('hparams', arg_str)
 
-    train_dataset = GlobVideoDataset(root=args.data_path, phase='train', ep_len=args.steve_video_seq_len, )
-    val_dataset = GlobVideoDataset(root=args.data_path, phase='val', ep_len=args.steve_video_seq_len, )
+    train_dataset = GlobVideoDataset(root=args.data_path, phase='train', ep_len=args.steve_video_seq_len,
+                                     img_glob="*.pt")
+    val_dataset = GlobVideoDataset(root=args.data_path, phase='val', ep_len=args.steve_video_seq_len, img_glob="*.pt")
 
     loader_kwargs = {
         'batch_size': args.steve_pretrain_batch_size,
@@ -160,7 +162,7 @@ def train(args):
 
             optimizer.zero_grad()
 
-            (recon, cross_entropy, mse, att_mask) = model(video, tau, args.hard)
+            (recon, cross_entropy, mse, att_mask, attns_vis) = model(video, tau, args.hard)
 
             if args.use_dp:
                 mse = mse.mean()
@@ -188,7 +190,7 @@ def train(args):
 
         if epoch % 10 == 0:
             with torch.no_grad():
-                frames = visualize(video, recon, att_mask, N=1, num_slots=num_slots)
+                frames = visualize(video, recon, att_mask, attns_vis, N=1, num_slots=num_slots)
                 log_video('TRAIN_recons/epoch={:03}'.format(epoch + 1), frames)
 
         with torch.no_grad():
@@ -200,7 +202,7 @@ def train(args):
             for batch, video in enumerate(val_loader):
                 video = video.cuda()
 
-                (recon, cross_entropy, mse, att_mask) = model(video, tau, args.hard)
+                (recon, cross_entropy, mse, att_mask, attns_vis) = model(video, tau, args.hard)
 
                 if args.use_dp:
                     mse = mse.mean()
@@ -232,7 +234,7 @@ def train(args):
                                os.path.join(log_dir, f'best_model_until_{args.steps}_steps.pt'))
 
                 if 50 <= epoch:
-                    frames = visualize(video, recon, att_mask, N=1, num_slots=num_slots)
+                    frames = visualize(video, recon, att_mask, attns_vis, N=1, num_slots=num_slots)
                     log_video('VAL_recons/epoch={:03}'.format(epoch + 1), frames)
 
             log_scaler('VAL/best_loss', best_val_loss, epoch + 1)
@@ -251,5 +253,3 @@ def train(args):
             print('====> Best Loss = {:F} @ Epoch {}'.format(best_val_loss, best_epoch))
 
     writer.close()
-
-

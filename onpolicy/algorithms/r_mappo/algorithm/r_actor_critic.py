@@ -63,7 +63,8 @@ class R_Actor(nn.Module):
             self.steve.load_state_dict(checkpoint['model'])
             self.steve_global_step = checkpoint['global_step']
         else:
-            raise Exception
+            self.steve_global_step = 0
+            print("Error: No STEVE model loaded")
 
         self.hard = args.hard
         self.tau = cosine_anneal(
@@ -201,6 +202,8 @@ class R_Actor(nn.Module):
         for i in range(num_mini_batch):
             start_idx = i * self.args.steve_video_seq_len
             end_idx = min(start_idx + self.args.steve_video_seq_len, seq_len)
+            if start_idx >= end_idx:
+                continue
             # input shape should be (batch, seq, channel, height, width), 1 scaled image
             (recon, cross_entropy, mse, partial_mask) = self.steve(steve_obs[:, start_idx:end_idx], self.tau, self.hard)
             full_att_mask.append(partial_mask)

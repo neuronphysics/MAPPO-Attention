@@ -5,7 +5,7 @@
 
 *.pyc
 __pycache__/
-**/results/Meltingpot
+**/results
 # Ignore .DS_Store (macOS folder metadata)
 .DS_Store
 core.*

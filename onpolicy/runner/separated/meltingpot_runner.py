@@ -514,19 +514,22 @@ class MeltingpotRunner(Runner):
         if self.all_args.save_gifs:
             imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
 
-    def save_obs(self, obs, step, episode):
-        base_path = self.steve_data_path + str(episode) + "_"
-        obs_t = obs[0]
-        for k, v in obs_t.items():
-            if not os.path.exists(base_path + k):
-                os.makedirs(base_path + k)
-            img_t = v['RGB'][0]
-            matplotlib.image.imsave(base_path + k + "/" + str(step) + '.png', img_t)
+    def save_obs(self, obs, episode):
+        base_path = self.steve_data_path + str(episode) + "ep"
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+
+        # obs is (ep_len, agent, H, W, C)
+        obs = torch.from_numpy(np.stack(obs, 1))
+        ag, ep, H, W, C = obs.shape
+        for i in range(ag):
+            torch.save(obs[i], base_path + "/" + str(i) + "_data.pt")
 
     def collect_img_data(self):
         for episode in range(self.collect_ep_num):
             self.envs.reset()
             print(f'Collect data episode {episode}')
+            ep_data = []
             for step in range(self.episode_length):
                 # collect some image data
                 action = self.envs.action_space.sample()
@@ -534,9 +537,16 @@ class MeltingpotRunner(Runner):
                 obs, rewards, dones, infos = self.envs.step(actions)
                 if not isinstance(obs[0], dict):
                     obs = obs[:, 0]
-                self.save_obs(obs, step, episode)
+
+                obs_t = obs[0]
+                agent_obs = []
+                for k, v in obs_t.items():
+                    img_t = v['RGB'][0]
+                    agent_obs.append(img_t)
+                agent_obs = np.stack(agent_obs, 0)
+                ep_data.append(agent_obs)
+            self.save_obs(ep_data, episode)
 
     def pre_train_steve_model(self):
         from onpolicy.algorithms.utils.STEVE.steve_pretrain import train
         train(self.all_args)
-

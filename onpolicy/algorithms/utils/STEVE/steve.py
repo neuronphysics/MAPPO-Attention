@@ -261,6 +261,7 @@ class STEVE(nn.Module):
             .reshape(B, T, self.num_slots, 1, H_enc, W_enc) \
             .repeat_interleave(H // H_enc, dim=-2) \
             .repeat_interleave(W // W_enc, dim=-1)  # B, T, num_slots, 1, H, W
+        attns_vis = video.unsqueeze(2) * attns + (1. - attns)
 
         # decode
         slots = self.steve_encoder.slot_proj(slots)  # B, T, num_slots, d_model
@@ -271,4 +272,5 @@ class STEVE(nn.Module):
         return (dvae_recon.clamp(0., 1.),
                 cross_entropy,
                 dvae_mse,
-                attns)
+                attns,
+                attns_vis)

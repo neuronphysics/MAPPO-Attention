@@ -30,24 +30,22 @@ class GlobVideoDataset(Dataset):
         # chunk into episodes
         self.episodes = []
         for dir in self.total_dirs:
-            frame_buffer = []
             image_paths = sorted(glob.glob(os.path.join(dir, img_glob)))
             for path in image_paths:
-                frame_buffer.append(path)
-                if len(frame_buffer) == self.ep_len:
-                    self.episodes.append(frame_buffer)
-                    frame_buffer = []
+                frame_buffer = []
+                data_tmp = torch.load(path)
+                for i in range(data_tmp.shape[0]):
+                    frame_buffer.append(data_tmp[i])
+                    if (i + 1) % self.ep_len == 0:
+                        self.episodes.append(torch.stack(frame_buffer, 0))
+                        frame_buffer = []
 
+        self.episodes = torch.stack(self.episodes, dim=0).permute(0, 1, 4, 2, 3) / 255.0
         self.transform = transforms.ToTensor()
 
     def __len__(self):
         return len(self.episodes)
 
     def __getitem__(self, idx):
-        video = []
-        for img_loc in self.episodes[idx]:
-            image = Image.open(img_loc).convert("RGB")
-            tensor_image = self.transform(image)
-            video += [tensor_image]
-        video = torch.stack(video, dim=0)
-        return video
+        # (batch, seq, channel, height, width)
+        return self.episodes[idx]
