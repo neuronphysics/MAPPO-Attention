@@ -370,7 +370,7 @@ class SubprocVecEnv(ShareVecEnv):
                     break  # Exit the loop after receiving data
 
                 elapsed_time = time.time() - start_time
-                if elapsed_time >= 20.0:  # 5 seconds timeout
+                if elapsed_time >= 60.0:  # 5 seconds timeout
                     print(f"Timeout while waiting for process {i}.")
                     break
 
