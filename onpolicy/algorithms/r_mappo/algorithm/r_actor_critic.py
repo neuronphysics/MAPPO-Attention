@@ -41,6 +41,16 @@ class R_Actor(nn.Module):
         self._use_recurrent_policy = args.use_recurrent_policy
         self.scoff_do_relational_memory = args.scoff_do_relational_memory
 
+        self.scoff_num_modules_read_input = args.scoff_num_modules_read_input
+        self.scoff_inp_heads = args.scoff_inp_heads
+        self.scoff_share_comm = args.scoff_share_comm
+        self.scoff_share_inp = args.scoff_share_inp
+        self.scoff_memory_mlp = args.scoff_memory_mlp
+        self.scoff_memory_slots = args.scoff_memory_slots
+        self.scoff_memory_head_size = args.scoff_memory_head_size
+        self.scoff_num_memory_heads = args.scoff_num_memory_heads
+        self.scoff_num_memory_topk = args.scoff_memory_topk
+
         obs_shape = get_shape_from_obs_space(obs_space)
 
         self.use_attention = args.use_attention
@@ -60,6 +70,12 @@ class R_Actor(nn.Module):
                                comm_dropout=self.drop_out, input_dropout=self.drop_out)
             elif self._attention_module == "SCOFF":
                 self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
+                                 num_modules_read_input=self.scoff_num_modules_read_input,
+                                 inp_heads=self.scoff_inp_heads, share_comm=self.scoff_share_comm,
+                                 share_inp=self.scoff_share_inp,
+                                 memory_mlp=self.scoff_memory_mlp, memory_slots=self.scoff_memory_slots,
+                                 memory_head_size=self.scoff_memory_head_size,
+                                 num_memory_heads=self.scoff_num_memory_heads, memory_topk=self.scoff_num_memory_topk,
                                  num_templates=1, rnn_cell=self.rnn_attention_module, n_layers=1,
                                  bidirectional=self.use_bidirectional, dropout=self.drop_out,
                                  version=self._use_version_scoff, do_relational_memory=self.scoff_do_relational_memory)
@@ -194,6 +210,16 @@ class R_Critic(nn.Module):
         self.use_attention = args.use_attention
         self._attention_module = args.attention_module
 
+        self.scoff_num_modules_read_input = args.scoff_num_modules_read_input
+        self.scoff_inp_heads = args.scoff_inp_heads
+        self.scoff_share_comm = args.scoff_share_comm
+        self.scoff_share_inp = args.scoff_share_inp
+        self.scoff_memory_mlp = args.scoff_memory_mlp
+        self.scoff_memory_slots = args.scoff_memory_slots
+        self.scoff_memory_head_size = args.scoff_memory_head_size
+        self.scoff_num_memory_heads = args.scoff_num_memory_heads
+        self.scoff_num_memory_topk = args.scoff_memory_topk
+
         self._obs_shape = cent_obs_shape
 
         base = CNNBase if len(self._obs_shape) == 3 else MLPBase
@@ -210,6 +236,12 @@ class R_Critic(nn.Module):
 
             elif self._attention_module == "SCOFF":
                 self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
+                                 num_modules_read_input=self.scoff_num_modules_read_input,
+                                 inp_heads=self.scoff_inp_heads, share_comm=self.scoff_share_comm,
+                                 share_inp=self.scoff_share_inp,
+                                 memory_mlp=self.scoff_memory_mlp, memory_slots=self.scoff_memory_slots,
+                                 memory_head_size=self.scoff_memory_head_size,
+                                 num_memory_heads=self.scoff_num_memory_heads, memory_topk=self.scoff_num_memory_topk,
                                  num_templates=1, rnn_cell=self.rnn_attention_module, n_layers=1,
                                  bidirectional=self.use_bidirectional, dropout=self.drop_out,
                                  version=self._use_version_scoff, do_relational_memory=self.scoff_do_relational_memory)

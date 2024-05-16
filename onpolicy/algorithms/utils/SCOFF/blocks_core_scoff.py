@@ -32,7 +32,6 @@ class Identity(torch.autograd.Function):
 class BlocksCore(nn.Module):
 
     def __init__(self,
-                 ninp,
                  nhid,
                  num_blocks_in,
                  num_blocks_out,
@@ -46,7 +45,6 @@ class BlocksCore(nn.Module):
                  n_templates,
                  share_inp,
                  share_comm,
-                 perm_inv=True,
                  memory_slots=4,
                  num_memory_heads=4,
                  memory_head_size=16,
@@ -54,10 +52,6 @@ class BlocksCore(nn.Module):
                  attention_out=340,
                  version=0,
                  device=None,
-                 num_rules=None,
-                 rule_time_steps=None,
-                 application_option=3,
-                 rule_selection='gumble'
                  ):
         super(BlocksCore, self).__init__()
         self.nhid = nhid
@@ -73,16 +67,7 @@ class BlocksCore(nn.Module):
         self.device = device
         self.num_modules_read_input = num_modules_read_input
         self.inp_heads = inp_heads
-        self.ninp = ninp
-        self.set_transformer = perm_inv
         self.n_templates = n_templates
-
-        if n_templates == 0:
-            self.set_transformer = False
-
-        if self.set_transformer:
-            self.set = nn.Sequential(nn.Linear(self.block_size_out, self.block_size_out), nn.ReLU(),
-                                     nn.Linear(self.block_size_out, self.block_size_out))
 
         self.mha = MultiHeadAttention(n_head=4, d_model_read=self.block_size_out, d_model_write=self.block_size_out,
                                       d_model_out=self.block_size_out, d_k=32, d_v=32,
@@ -94,7 +79,7 @@ class BlocksCore(nn.Module):
         if self.version:
             self.att_out = self.block_size_out
             self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out,
-                                              d_model_write=int(ninp / self.num_units),
+                                              d_model_write=int(self.nhid / self.num_units),
                                               d_model_out=self.att_out, d_k=64, d_v=self.att_out, num_blocks_read=1,
                                               num_blocks_write=num_blocks_in + 1, residual=False,
                                               topk=self.num_blocks_in + 1, n_templates=1, share_comm=False,
@@ -109,27 +94,6 @@ class BlocksCore(nn.Module):
                                               num_blocks_write=self.num_modules_read_input, residual=False,
                                               dropout=0.1, topk=self.num_blocks_in + 1, n_templates=1, share_comm=False,
                                               share_inp=share_inp, grad_sparse=False, skip_write=True)
-
-        design_config = {'comm': True, 'grad': False,
-                         'transformer': True if application_option != 5 else False,
-                         'application_option': application_option,
-                         'selection': rule_selection}
-
-        rule_config = {'rule_time_steps': rule_time_steps, 'num_rules': num_rules,
-                       'rule_emb_dim': 64, 'rule_query_dim': 32,
-                       'rule_value_dim': 64, 'rule_key_dim': 32, 'rule_heads': 4, 'rule_dropout': 0.5}
-
-        self.use_rules = rule_config is not None and rule_config['num_rules'] > 0
-
-        if rule_config is not None and rule_config['num_rules'] > 0:
-            self.rule_time_steps = rule_config['rule_time_steps']
-            self.rule_network = RuleNetwork(self.block_size_out, num_blocks_out, num_rules=rule_config['num_rules'],
-                                            rule_dim=rule_config['rule_emb_dim'],
-                                            query_dim=rule_config['rule_query_dim'],
-                                            value_dim=rule_config['rule_value_dim'],
-                                            key_dim=rule_config['rule_key_dim'],
-                                            num_heads=rule_config['rule_heads'], dropout=rule_config['rule_dropout'],
-                                            design_config=design_config).to(device)
 
         if do_gru:
             if n_templates != 0:
@@ -146,7 +110,6 @@ class BlocksCore(nn.Module):
 
         if self.do_rel:
             memory_key_size = 32
-            gate_style = 'unit'
             self.relational_memory = RelationalMemory(
                 mem_slots=memory_slots,
                 head_size=memory_head_size,
@@ -184,7 +147,7 @@ class BlocksCore(nn.Module):
     def blockify_params(self):
         self.block_lstm.blockify_params()
 
-    def forward(self, inp, hx, h_masks=None, message_to_rule_network=None):
+    def forward(self, inp, hx, h_masks=None):
         # inp (batch, input_size), masks (batch)
         batch_size = inp.shape[0]
 
@@ -243,8 +206,6 @@ class BlocksCore(nn.Module):
         mask = mask.detach()
         memory_inp_mask = memory_inp_mask.detach()
 
-        entropy = 0
-
         hx_new, temp_attention = self.block_lstm(inp_use, hx.transpose(0, 1), h_masks.unsqueeze(-1))
         y, next_h = hx_new
 
@@ -258,15 +219,6 @@ class BlocksCore(nn.Module):
             hx_new = hx_new + hx_new_att
 
             hx_new = hx_new.reshape((batch_size, self.nhid))
-
-        if self.use_rules:
-            hx_new = hx_new.reshape((hx_new.shape[0], self.num_units, self.block_size_out))
-            # encoder_input = encoder_input.reshape((hx_new.shape[0], self.num_units, self.block_size_out))
-            for r in range(self.rule_time_steps):
-                rule_, entropy_ = self.rule_network(hx_new, message_to_rule_network=message_to_rule_network)
-                entropy += entropy_
-                hx_new = rule_ + hx_new
-            hx_new = hx_new.reshape((hx_new.shape[0], self.nhid))
 
         hx = mask * hx_new + (1 - mask) * hx_old.squeeze(0)
 
@@ -283,7 +235,6 @@ class BlocksCore(nn.Module):
             )
 
             # Information gets read from memory, state dependent information reading from blocks.
-            old_memory = self.memory
             out_hx_mem_new, out_mem_2, _ = self.mem_att(
                 hx.reshape((hx.shape[0], self.num_units, self.block_size_out)),
                 self.memory,
@@ -293,21 +244,14 @@ class BlocksCore(nn.Module):
                 hx.shape[0], self.num_units * self.block_size_out
             )
 
-        if self.set_transformer:
-            hx = hx.reshape((hx.shape[0], self.num_units, self.block_size_out)).reshape(
-                (hx.shape[0] * self.num_units, self.block_size_out))
-            hx = self.set(hx).reshape((batch_size, self.num_units, self.block_size_out)).reshape(batch_size,
-                                                                                                 self.nhid)
-
-        # hx = Identity().apply(hx)
-        return hx, mask, block_mask, temp_attention, entropy
+        return hx, mask, block_mask, temp_attention
 
     def reset_relational_memory(self, batch_size: int):
         self.memory = self.relational_memory.initial_state(batch_size).to(self.device)
 
     def step_attention(self, hx_new, cx_new, mask):
         hx_new = hx_new.reshape((hx_new.shape[0], self.num_units, self.block_size_out))
-        # bg = blocked_grad()
+
         hx_new_grad_mask = blocked_grad.apply(hx_new,
                                               mask.reshape((mask.shape[0],
                                                             self.num_units,
@@ -317,13 +261,3 @@ class BlocksCore(nn.Module):
         hx_new = hx_new.reshape((hx_new.shape[0], self.nhid))
         extra_loss = extra_loss_att
         return hx_new, cx_new, extra_loss
-
-
-'''
-if __name__ == "__main__":
-    bc = BlocksCore(512, 1, 4, 4)
-    inp = torch.randn(10, 512)
-    hx = torch.randn(10,512)
-    cx = torch.randn(10,512)
-    hx, cx = bc(inp, hx, cx)
-'''

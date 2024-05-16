@@ -39,6 +39,9 @@ class MeltingpotRunner(Runner):
         super(MeltingpotRunner, self).__init__(config)
 
     def run(self):
+        if self.all_args.pretrain_slot_att:
+            self.train_slot_att()
+
         start = time.time()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
         print('num episodes to run (separated):', episodes)
@@ -511,3 +514,7 @@ class MeltingpotRunner(Runner):
         path = "/mnt/e/pycharm_projects/meltingpot-main/collected_img/"
         matplotlib.image.imsave(path + 'agent0_' + count + '.png', img_t)
         matplotlib.image.imsave(path + 'share' + count + '.png', img_share)
+
+    def train_slot_att(self):
+        from onpolicy.algorithms.utils.SLOTATT.train_slot_att import start_train_slot_att
+        start_train_slot_att(self.all_args)

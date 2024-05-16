@@ -11,11 +11,9 @@ class RNNModel(nn.Module):
                  tie_weights=False, use_cudnn_version=False, use_adaptive_softmax=False, cutoffs=None,
                  discrete_input=False, n_templates=0, share_inp=True, share_comm=True,
                  memory_mlp=4, num_blocks=6, update_topk=4, memorytopk=4,
-                 use_gru=False, do_rel=False, num_modules_read_input=2, inp_heads=1,
+                 use_gru=False, do_rel=False, num_modules_read_input=4, inp_heads=4,
                  device=None, memory_slots=4, memory_head_size=16,
-                 num_memory_heads=4, attention_out=512, version=1, step_att=True,
-                 num_rules=0, rule_time_steps=0, perm_inv=True, application_option=3, use_dropout=True,
-                 rule_selection='gumble'):
+                 num_memory_heads=4, attention_out=340, version=1, step_att=True):
 
         super(RNNModel, self).__init__()
         self.device = device
@@ -27,7 +25,6 @@ class RNNModel(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.n_templates = n_templates
         self.do_rel = do_rel
-        self.use_dropout = use_dropout
 
         self.args_to_init_blocks = {
             "ntoken": ntoken,
@@ -52,7 +49,6 @@ class RNNModel(nn.Module):
             "num_modules_read_input": num_modules_read_input,
             "inp_heads": inp_heads,
             "nhid": nhid,
-            "perm_inv": perm_inv,
         }
         self.num_blocks = num_blocks
         self.nhid = nhid
@@ -62,15 +58,6 @@ class RNNModel(nn.Module):
         self.bc_lst = None
         self.sigmoid = nn.Sigmoid()
         self.decoder = None
-
-        self.rule_selection = rule_selection
-
-        self.application_option = application_option
-
-        self.perm_inv = perm_inv
-
-        self.num_rules = num_rules
-        self.rule_time_steps = rule_time_steps
 
         self.rnn_type = rnn_type
 
@@ -121,7 +108,6 @@ class RNNModel(nn.Module):
         num_modules_read_input = self.args_to_init_blocks["num_modules_read_input"]
         inp_heads = self.args_to_init_blocks["inp_heads"]
         nhid = self.args_to_init_blocks["nhid"]
-        perm_inv = self.args_to_init_blocks["perm_inv"]
 
         if self.discrete_input:
             self.encoder = nn.Embedding(ntoken, ninp)
@@ -131,23 +117,23 @@ class RNNModel(nn.Module):
         bc_lst = []
 
         bc_lst.append(
-            BlocksCore(ninp, nhid, 1, num_blocks, topk, memorytopk, step_att, num_modules_read_input, inp_heads,
+            BlocksCore(nhid, 1, num_blocks, topk, memorytopk, step_att, num_modules_read_input, inp_heads,
                        do_gru=use_gru,
-                       do_rel=do_rel, perm_inv=perm_inv, device=device, n_templates=n_templates,
+                       do_rel=do_rel, device=device, n_templates=n_templates,
                        share_inp=share_inp, share_comm=share_comm, memory_mlp=memory_mlp,
                        memory_slots=memory_slots, num_memory_heads=num_memory_heads,
                        memory_head_size=memory_head_size, attention_out=attention_out,
-                       version=version, num_rules=self.num_rules, rule_time_steps=self.rule_time_steps,
-                       application_option=self.application_option, rule_selection=self.rule_selection))
+                       version=version))
         self.bc_lst = nn.ModuleList(bc_lst)
 
+        self.decoder = nn.Linear(self.nhid, ntoken)
         if tie_weights:
             if self.nhid != ninp:
                 raise ValueError('When using the tied flag, '
                                  'nhid must be equal to emsize')
             self.decoder.weight = self.encoder.weight
 
-
+        self.init_blocks_weights()
 
     def reparameterize(self, mu, logvar):
         if True:  # self.training:
@@ -157,39 +143,33 @@ class RNNModel(nn.Module):
         else:
             return mu
 
-    def forward(self, input, hidden, message_to_rule_network=None, masks=None):
+    def forward(self, input, hidden, masks=None):
         extra_loss = 0.0
+        timesteps, batch_size, _ = input.shape
 
-        # input_to_blocks = input.reshape(batch_size, self.block_size * self.num_blocks)
-        emb = self.drop(self.encoder(input))
-        timesteps, batch_size, _ = emb.shape
-
-        entropy = 0
+        emb = self.encoder(input)
 
         if True:
             # for loop implementation with RNNCell
             layer_input = emb
             new_hidden = []
             for idx_layer in range(0, self.nlayers):
-                # print('idx layer', idx_layer)
                 output = []
                 bmasklst = []
                 template_attn = []
 
                 self.bc_lst[idx_layer].blockify_params()
 
-                hx = hidden[idx_layer]
+                hx = hidden[0]
 
                 if self.do_rel:
                     self.bc_lst[idx_layer].reset_relational_memory(input.shape[1])
 
                 for idx_step in range(input.shape[0]):
-                    hx, mask, bmask, temp_attn, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx,
-                                                                                  h_masks=masks[idx_step],
-                                                                                  message_to_rule_network=message_to_rule_network)
+                    hx, mask, bmask, temp_attn = self.bc_lst[idx_layer](layer_input[idx_step], hx,
+                                                                        h_masks=masks[idx_step])
                     hx = hx.unsqueeze(0)
 
-                    entropy += entropy_
                     output.append(hx)
                     bmasklst.append(bmask)
                     template_attn.append(temp_attn)
@@ -207,16 +187,16 @@ class RNNModel(nn.Module):
         block_mask = bmask.squeeze(0)
 
         output = self.drop(output)
+        dec = output.view(output.size(0) * output.size(1), self.nhid)
+        dec = self.decoder(dec)
+        return dec.view(output.size(0), output.size(1), dec.size(1)), new_hidden, extra_loss, block_mask, template_attn
 
-        return output, new_hidden, extra_loss, block_mask, template_attn, entropy
-
-
-def init_hidden(self, bsz):
-    weight = next(self.bc_lst[0].block_lstm.parameters())
-    if True or self.rnn_type == 'LSTM' or self.rnn_type == 'LSTMCell':
-        return (weight.new_zeros(self.nlayers, bsz, self.nhid),
-                weight.new_zeros(self.nlayers, bsz, self.nhid))
-        # return (weight.new(self.nlayers, bsz, self.nhid).normal_(),
-        #        weight.new(self.nlayers, bsz, self.nhid).normal_())
-    else:
-        return weight.new_zeros(self.nlayers, bsz, self.nhid)
+    def init_hidden(self, bsz):
+        weight = next(self.bc_lst[0].block_lstm.parameters())
+        if True or self.rnn_type == 'LSTM' or self.rnn_type == 'LSTMCell':
+            return (weight.new_zeros(self.nlayers, bsz, self.nhid),
+                    weight.new_zeros(self.nlayers, bsz, self.nhid))
+            # return (weight.new(self.nlayers, bsz, self.nhid).normal_(),
+            #        weight.new(self.nlayers, bsz, self.nhid).normal_())
+        else:
+            return weight.new_zeros(self.nlayers, bsz, self.nhid)
