@@ -45,7 +45,13 @@ def generate_model(args):
 
 
 def load_slot_att_model(model, args):
-    model_state_dict = torch.load(args.slot_att_work_path + "model.pt")
+    if args.attention_module == "RIM":
+        num_slots = args.rim_num_units
+    else:
+        num_slots = args.scoff_num_units
+    latent_size = args.hidden_size // num_slots
+    model_name = "ns_" + num_slots + "_ls_" + latent_size + "_model.pt"
+    model_state_dict = torch.load(args.slot_att_work_path + model_name)
     model.load_state_dict(model_state_dict)
 
 

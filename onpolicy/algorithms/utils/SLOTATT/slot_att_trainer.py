@@ -10,7 +10,6 @@ from .utils import linear_warmup_exp_decay, init_xavier_, BaseTrainer, BaseModel
 
 @dataclass
 class SlotAttentionTrainer(BaseTrainer):
-
     use_exp_decay: bool
     exp_decay_rate: Optional[float]
     exp_decay_steps: Optional[int]
@@ -41,6 +40,10 @@ class SlotAttentionTrainer(BaseTrainer):
             ),
         )
         self.lr_schedulers.append(lr_scheduler)
+
+        # change save path
+        self.checkpoint_handler.model_path = self.working_dir + "/ns_" + str(model.num_slots) + "_ls_" + str(
+            model.latent_size) + "_model.pt"
 
     @torch.no_grad()
     def _init_model(self):
