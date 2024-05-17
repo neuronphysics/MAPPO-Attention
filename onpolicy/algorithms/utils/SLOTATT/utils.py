@@ -707,30 +707,24 @@ class TBLogger:
         slot = _flatten_slots(out["slot"][:n_img], sqrt_nrow)
         self.add_image("slot", slot.clamp(0.0, 1.0), step)
 
-        flat_mask = _flatten_slots(batch["mask"][:n_img], sqrt_nrow)
-        mask = make_grid(flat_mask, nrow=sqrt_nrow).float()
-        self.add_image("mask: true", mask, step)
+        if "mask" in batch:
+            flat_mask = _flatten_slots(batch["mask"][:n_img], sqrt_nrow)
+            mask = make_grid(flat_mask, nrow=sqrt_nrow).float()
+            self.add_image("mask: true", mask, step)
+
+        masked_img = x.unsqueeze(1) * out['mask'][:n_img]
+        flat_masked_img = _flatten_slots(masked_img, sqrt_nrow)
+        mask_img_grid = make_grid(flat_masked_img, nrow=sqrt_nrow).float()
+        self.add_image("mask x image", mask_img_grid, step)
 
         flat_pred_mask = _flatten_slots(out["mask"][:n_img], sqrt_nrow)
         pred_mask = make_grid(flat_pred_mask, nrow=sqrt_nrow)
         self.add_image("mask: pred", pred_mask, step)
 
         mask_segmap, pred_mask_segmap = _compute_segmentation_mask(batch, n_img, out)
-        self.add_images("segmentation: true", mask_segmap, step)
+        if mask_segmap is not None:
+            self.add_images("segmentation: true", mask_segmap, step)
         self.add_images("segmentation: pred", pred_mask_segmap, step)
-
-        # if mask.shape == pred_mask.shape:
-        #     true_pred_mask = torch.cat([flat_mask, flat_pred_mask], dim=-1)
-        #     true_pred_mask = make_grid(true_pred_mask, nrow=sqrt_nrow)
-        #     true_pred_mask_segmap = _flatten_slots(
-        #         torch.stack([mask_segmap, pred_mask_segmap], dim=1), nrow=sqrt_nrow
-        #     )
-        #     self.add_image("masks: true-pred", true_pred_mask, step)
-        #     self.add_image(
-        #         "segmentation: true-pred",
-        #         true_pred_mask_segmap,
-        #         step,
-        #     )
 
     @torch.no_grad()
     def _log_train_losses(self, engine):
@@ -825,21 +819,24 @@ def _flatten_slots(images: Tensor, nrow: int):
 
 
 def _compute_segmentation_mask(batch, num_images, output):
-    # [bs, ns, 1, H, W] to [bs, 1, H, W]
-    mask_segmap = batch["mask"][:num_images].argmax(1)
+    if "mask" in batch:
+        # [bs, ns, 1, H, W] to [bs, 1, H, W]
+        mask_segmap = batch["mask"][:num_images].argmax(1)
+        # If shape is [bs, H, W], turn it into [bs, 1, H, W]
+        if mask_segmap.shape[1] != 1:
+            mask_segmap = mask_segmap.unsqueeze(1)
+
+        mask_segmap = apply_color_map(mask_segmap)
+    else:
+        mask_segmap = None
 
     # [bs, ns, 1, H, W] to [bs, 1, H, W]
     pred_mask_segmap = output["mask"][:num_images].argmax(1)
 
     # If shape is [bs, H, W], turn it into [bs, 1, H, W]
-    if mask_segmap.shape[1] != 1:
-        mask_segmap = mask_segmap.unsqueeze(1)
-
-    # If shape is [bs, H, W], turn it into [bs, 1, H, W]
     if pred_mask_segmap.shape[1] != 1:
         pred_mask_segmap = pred_mask_segmap.unsqueeze(1)
 
-    mask_segmap = apply_color_map(mask_segmap)
     pred_mask_segmap = apply_color_map(pred_mask_segmap)
     return mask_segmap, pred_mask_segmap
 
@@ -945,7 +942,7 @@ def apply_color_map(image_categorical, color_map=None):
     out_shape[1] = 3
     dst_tensor = torch.zeros(*out_shape, dtype=image_categorical.dtype)
     for i in range(input_shape[0]):
-        dst_tensor_i = color_map[image_categorical[i].long() % len(color_map)].squeeze()
+        dst_tensor_i = color_map[image_categorical[i].cpu().long() % len(color_map)].squeeze()
         if dst_tensor_i.shape[0] != 3:
             dst_tensor_i = dst_tensor_i.permute(2, 0, 1)
         dst_tensor[i] = dst_tensor_i
@@ -1000,47 +997,58 @@ class MetricsEvaluator:
     def _eval_step(self, engine: Engine, batch: dict):
         batch, output = self._forward_pass(batch)
 
-        # One-hot to categorical masks
-        true_mask = batch["mask"].cpu().argmax(dim=1)
-        pred_mask = output["mask"].cpu().argmax(dim=1, keepdim=True).squeeze(2)
-
         # Compute metrics
         reconstruction = make_recon_img(output["slot"], output["mask"]).clamp(0.0, 1.0)
         mse_full = (batch["image"] - reconstruction) ** 2
         mse = mse_full.mean([1, 2, 3])
-        if output["mask"].shape[1] == 1:  # not an object-centric model
-            ari = mean_segcover = scaled_segcover = torch.full(
-                (true_mask.shape[0],), fill_value=torch.nan
-            )
+
+        if "mask" in batch:
+            # One-hot to categorical masks
+            true_mask = batch["mask"].cpu().argmax(dim=1)
+            pred_mask = output["mask"].cpu().argmax(dim=1, keepdim=True).squeeze(2)
+
+            if output["mask"].shape[1] == 1:  # not an object-centric model
+                ari = mean_segcover = scaled_segcover = torch.full(
+                    (true_mask.shape[0],), fill_value=torch.nan
+                )
+            else:
+                # Num background objects should be equal (for each sample) to:
+                # batch["visibility"].sum([1, 2]) - batch["num_actual_objects"].squeeze(1)
+                ari = ari_(true_mask, pred_mask, self.num_ignored_objects)
+                mean_segcover, scaled_segcover = segmentation_covering(
+                    true_mask, pred_mask, self.num_ignored_objects
+                )
         else:
-            # Num background objects should be equal (for each sample) to:
-            # batch["visibility"].sum([1, 2]) - batch["num_actual_objects"].squeeze(1)
-            ari = ari_(true_mask, pred_mask, self.num_ignored_objects)
-            mean_segcover, scaled_segcover = segmentation_covering(
-                true_mask, pred_mask, self.num_ignored_objects
-            )
+            ari = None
+            mean_segcover = None
+            scaled_segcover = None
 
-        # Mask shape (B, O, 1, H, W), is_foreground (B, O, 1), is_modified (B, O), where
-        # O = max num objects. Expand the last 2 to (B, O, 1, 1, 1) for broadcasting.
-        unsqueezed_shape = (*batch["is_foreground"].shape, 1, 1)
-        is_fg = batch["is_foreground"].view(*unsqueezed_shape)
-        is_modified = batch["is_modified"].view(*unsqueezed_shape)
+        if "is_foreground" in batch:
+            # Mask shape (B, O, 1, H, W), is_foreground (B, O, 1), is_modified (B, O), where
+            # O = max num objects. Expand the last 2 to (B, O, 1, 1, 1) for broadcasting.
+            unsqueezed_shape = (*batch["is_foreground"].shape, 1, 1)
+            is_fg = batch["is_foreground"].view(*unsqueezed_shape)
+            is_modified = batch["is_modified"].view(*unsqueezed_shape)
 
-        # Mask with foreground objects: shape (B, 1, H, W)
-        fg_mask = (batch["mask"] * is_fg).sum(1)
-        # Mask with unmodified foreground objects: shape (B, 1, H, W)
-        unmodified_fg_mask = (batch["mask"] * is_fg * (1 - is_modified)).sum(1)
+            # Mask with foreground objects: shape (B, 1, H, W)
+            fg_mask = (batch["mask"] * is_fg).sum(1)
+            # Mask with unmodified foreground objects: shape (B, 1, H, W)
+            unmodified_fg_mask = (batch["mask"] * is_fg * (1 - is_modified)).sum(1)
 
-        # MSE computed only on foreground objects.
-        fg_mse = (mse_full * fg_mask).mean([1, 2, 3])
-        # MSE computed only on foreground objects that were not modified.
-        unmodified_fg_mse = (mse_full * unmodified_fg_mask).mean([1, 2, 3])
+            # MSE computed only on foreground objects.
+            fg_mse = (mse_full * fg_mask).mean([1, 2, 3])
+            # MSE computed only on foreground objects that were not modified.
+            unmodified_fg_mse = (mse_full * unmodified_fg_mask).mean([1, 2, 3])
+        else:
+            unmodified_fg_mse = None
+            fg_mse = None
 
         # Collect loss values from model output
         loss_values = {}
         for loss_term in self.loss_terms:
             loss_values[loss_term] = output[loss_term]
 
+        # for unlabeled dataset the there is only mse and loss value returned
         # Return with shape (batch_size, )
         return dict(
             ari=ari,
@@ -1065,6 +1073,11 @@ class MetricsEvaluator:
         def accumulate_metrics(engine):
             for name in self.metrics + list(self.loss_terms):
                 batch_results = engine.state.output[name]
+                if batch_results is None:
+                    if name in results:
+                        results.pop(name)
+                    continue
+
                 if batch_results.dim() == 0:  # scalar
                     batch_size = engine.state.batch["image"].shape[0]
                     batch_results = [batch_results] * batch_size
@@ -1079,7 +1092,7 @@ class MetricsEvaluator:
 
         # Split results into losses and metrics
         losses = {k: results[k] for k in self.loss_terms}
-        metrics = {k: results[k] for k in self.metrics}
+        metrics = {k: results[k] for k in self.metrics if k in results}
 
         return dict_tensor_mean(losses), dict_tensor_mean(metrics)
 
@@ -1091,10 +1104,11 @@ def dict_tensor_mean(data: Dict[str, List[Tensor]]) -> Dict[str, float]:
     return output
 
 
+@dataclass
 class BaseTrainer:
     device: str
     steps: int
-    optimizer_config: DictConfig
+    optimizer_config: Dict
     clip_grad_norm: Optional[float]
     checkpoint_steps: int
     logloss_steps: int
@@ -1106,8 +1120,8 @@ class BaseTrainer:
     resubmit_hours: Optional[float]
     working_dir: Path
 
-    model: BaseModel
-    dataloaders: List[DataLoader]
+    model: BaseModel = field(init=False)
+    dataloaders: List[DataLoader] = field(init=False)
     optimizers: List[Optimizer] = field(init=False)
     trainer: Engine = field(init=False)
     evaluator: MetricsEvaluator = field(init=False)
@@ -1117,8 +1131,6 @@ class BaseTrainer:
     training_start: float = field(init=False)
 
     def __post_init__(self):
-        if self.resubmit_steps is not None and self.resubmit_hours is not None:
-            raise ValueError("resubmit_steps and resubmit_hours cannot both be set.")
         self.checkpoint_handler = TrainCheckpointHandler(self.working_dir, self.device)
         self.lr_schedulers = []  # No scheduler by default - subclasses append to this.
 
@@ -1215,10 +1227,7 @@ class BaseTrainer:
         self.model = model
         self.dataloaders = dataloaders
         self.eval_step = ForwardPass(self.model, self.device)
-        tensorboard_dir = (
-                self.working_dir
-                / "tensorboard"
-        )
+        tensorboard_dir = self.working_dir + "tensorboard"
         self.trainer = Engine(self.train_step)
         self.logger = TBLogger(
             tensorboard_dir,

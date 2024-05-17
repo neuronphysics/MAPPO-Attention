@@ -189,7 +189,7 @@ class Runner(object):
                                                                                           agent_id].rnn_states.shape[
                                                                                       2:])
 
-                old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
+                old_actions_logprob, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
                     self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
                     input_rnn_states,
                     self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
@@ -213,7 +213,7 @@ class Runner(object):
                                                                                           agent_id].rnn_states.shape[
                                                                                       2:])
 
-                new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
+                new_actions_logprob, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
                     self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
                     input_rnn_states,
                     self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),

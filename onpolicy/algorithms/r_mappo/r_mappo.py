@@ -121,14 +121,14 @@ class R_MAPPO():
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
 
         # Reshape to do in a single forward pass for all steps
-        values, action_log_probs, dist_entropy = self.policy.evaluate_actions(share_obs_batch,
-                                                                              obs_batch,
-                                                                              rnn_states_batch,
-                                                                              rnn_states_critic_batch,
-                                                                              actions_batch,
-                                                                              masks_batch,
-                                                                              available_actions_batch,
-                                                                              active_masks_batch)
+        values, action_log_probs, dist_entropy, slot_att_loss = self.policy.evaluate_actions(share_obs_batch,
+                                                                                             obs_batch,
+                                                                                             rnn_states_batch,
+                                                                                             rnn_states_critic_batch,
+                                                                                             actions_batch,
+                                                                                             masks_batch,
+                                                                                             available_actions_batch,
+                                                                                             active_masks_batch)
         # actor update
         imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
 
@@ -148,7 +148,7 @@ class R_MAPPO():
 
         if update_actor:
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
-            total_loss.backward()
+            total_loss.backward(retain_graph=True)
 
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
@@ -156,6 +156,11 @@ class R_MAPPO():
             actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
 
         self.policy.actor_optimizer.step()
+
+        self.policy.slot_att_optimizer.zero_grad()
+        slot_att_loss.backward()
+        self.policy.slot_att_optimizer.step()
+        self.policy.slot_att_lr_scheduler.step()
 
         # critic update
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)

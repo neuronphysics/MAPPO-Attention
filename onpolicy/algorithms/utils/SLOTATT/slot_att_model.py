@@ -154,7 +154,7 @@ class SlotAttentionModule(nn.Module):
         self.norm_pre_ff = nn.LayerNorm(dim, eps=0.001)
         self.dim = dim
 
-    def forward(self, inputs: Tensor, num_slots: Optional[int] = None) -> Tensor:
+    def forward(self, inputs: Tensor, num_slots: Optional[int] = None):
         b, n, _ = inputs.shape
         if num_slots is None:
             num_slots = self.num_slots
@@ -185,7 +185,7 @@ class SlotAttentionModule(nn.Module):
             slots = slots.reshape(b, -1, self.dim)
             slots = slots + self.mlp(self.norm_pre_ff(slots))
 
-        return slots
+        return slots, attn
 
 
 @dataclass(eq=False, repr=False)
@@ -243,7 +243,7 @@ class SlotAttentionAE(BaseModel):
             x = x * 2.0 - 1.0
         encoded = self.encoder(x)
         encoded = encoded.permute(0, 2, 1)
-        z = self.slot_attention(encoded)
+        z, attn = self.slot_attention(encoded)
         bs = z.size(0)
         slots = z.flatten(0, 1)
         slots = self.spatial_broadcast(slots)
@@ -264,4 +264,5 @@ class SlotAttentionAE(BaseModel):
             "representation": z,  # (B, slots, latent dim)
             #
             "reconstruction": recon_img,  # (B, 3, H, W)
+            "attn": attn
         }

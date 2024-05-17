@@ -346,9 +346,7 @@ def get_config():
     parser.add_argument("--use_com_att", type=str2bool, default=False, )
     parser.add_argument("--use_x_reshape", type=str2bool, default=False, )
 
-    parser.add_argument("--pretrain_slot_att", type=str2bool, default=False, )
-
-    parser.add_argument("--scoff_num_modules_read_input", type=int, default=2,)
+    parser.add_argument("--scoff_num_modules_read_input", type=int, default=2, )
     parser.add_argument("--scoff_inp_heads", type=int, default=4, )
     parser.add_argument("--scoff_share_comm", type=str2bool, default=True, )
     parser.add_argument("--scoff_share_inp", type=str2bool, default=True, )
@@ -357,5 +355,24 @@ def get_config():
     parser.add_argument("--scoff_memory_head_size", type=int, default=60, )
     parser.add_argument("--scoff_num_memory_heads", type=int, default=4, )
     parser.add_argument("--scoff_memory_topk", type=int, default=4, )
+
+    parser.add_argument("--pretrain_slot_att", type=str2bool, default=False, )
+    parser.add_argument("--slot_train_step", type=int, default=1000000, )
+    parser.add_argument("--slot_clip_grade_norm", type=float, default=1.0)
+    parser.add_argument("--slot_save_fre", type=int, default=10000, )
+    parser.add_argument("--slot_log_fre", type=int, default=1000, )
+    parser.add_argument("--slot_att_work_path", type=str,
+                        default="/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/slot_att/", )
+    parser.add_argument("--slot_att_use_exp_decay", type=str2bool, default=True, )
+    parser.add_argument("--slot_att_exp_decay_rate", type=float, default=0.5, )
+    parser.add_argument("--slot_att_exp_decay_step", type=int, default=100000, )
+    parser.add_argument("--slot_att_use_warmup", type=str2bool, default=True, )
+    parser.add_argument("--slot_att_warmup_step", type=int, default=10000, )
+    parser.add_argument("--slot_pretrain_batch_size", type=int, default=2, )
+
+    parser.add_argument("--slot_att_lr", type=float, default=0.00005, )
+    parser.add_argument("--slot_use_lr_scheduler", type=str2bool, default=True, )
+    parser.add_argument("--slot_att_load_model", type=str2bool, default=False, )
+    parser.add_argument("--use_slot_att", type=str2bool, default=True, )
 
     return parser

@@ -10,6 +10,7 @@ from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 from onpolicy.algorithms.utils.rim_cell import RIM
 from absl import logging
+from onpolicy.algorithms.utils.SLOTATT.train_slot_att import generate_model
 
 
 class R_Actor(nn.Module):
@@ -55,19 +56,22 @@ class R_Actor(nn.Module):
 
         self.use_attention = args.use_attention
         self._attention_module = args.attention_module
+        self.use_slot_att = args.use_slot_att
 
         self._obs_shape = obs_shape
 
         base = CNNBase if len(obs_shape) == 3 else MLPBase
         self.base = base(args, obs_shape)
 
+        if self.use_slot_att:
+            self.slot_att = generate_model(args)
+            args.use_input_att = False
+            args.use_x_reshape = True
+
         if self.use_attention and len(self._obs_shape) >= 3:
             if self._attention_module == "RIM":
                 self.rnn = RIM(device, self.hidden_size, self.hidden_size // args.rim_num_units, args.rim_num_units,
-                               args.rim_topk, use_pos_encoding=args.use_pos_encoding, use_input_att=args.use_input_att,
-                               use_com_att=args.use_com_att, use_x_reshape=args.use_x_reshape,
-                               rnn_cell=self.rnn_attention_module, n_layers=1, bidirectional=self.use_bidirectional,
-                               comm_dropout=self.drop_out, input_dropout=self.drop_out)
+                               args.rim_topk, args)
             elif self._attention_module == "SCOFF":
                 self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
                                  num_modules_read_input=self.scoff_num_modules_read_input,
@@ -110,7 +114,13 @@ class R_Actor(nn.Module):
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
 
-        actor_features = self.base(obs)
+        if self.use_slot_att:
+            # slot att model takes (batch, 3, H, W) and returns a dict
+            batch, _, _, _ = obs.shape
+            out = self.slot_att(obs.permute(0, 3, 1, 2))
+            actor_features = out['representation'].reshape(batch, -1)
+        else:
+            actor_features = self.base(obs)
         output = self.rnn(actor_features, rnn_states, masks=masks)
         actor_features, rnn_states = output[:2]
         if self.rnn_attention_module == "LSTM":
@@ -148,7 +158,15 @@ class R_Actor(nn.Module):
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
 
-        actor_features = self.base(obs)
+        slot_att_loss = None
+        if self.use_slot_att:
+            # slot att model takes (batch, 3, H, W) and returns a dict
+            batch, _, _, _ = obs.shape
+            out = self.slot_att(obs.permute(0, 3, 1, 2))
+            actor_features = out['representation'].reshape(batch, -1)
+            slot_att_loss = out["loss"]
+        else:
+            actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy or self.use_attention:
             output = self.rnn(actor_features, rnn_states, masks=masks)
@@ -172,7 +190,7 @@ class R_Actor(nn.Module):
                                                                        active_masks if self._use_policy_active_masks
                                                                        else None)
 
-        return action_log_probs, dist_entropy
+        return action_log_probs, dist_entropy, slot_att_loss
 
 
 class R_Critic(nn.Module):
@@ -229,10 +247,7 @@ class R_Critic(nn.Module):
 
             if self._attention_module == "RIM":
                 self.rnn = RIM(device, self.hidden_size, self.hidden_size // args.rim_num_units, args.rim_num_units,
-                               args.rim_topk, use_pos_encoding=args.use_pos_encoding, use_input_att=args.use_input_att,
-                               use_com_att=args.use_com_att, use_x_reshape=args.use_x_reshape,
-                               rnn_cell=self.rnn_attention_module, n_layers=1, bidirectional=self.use_bidirectional,
-                               comm_dropout=self.drop_out, input_dropout=self.drop_out)
+                               args.rim_topk, args)
 
             elif self._attention_module == "SCOFF":
                 self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,

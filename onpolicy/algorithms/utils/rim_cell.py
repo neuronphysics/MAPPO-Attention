@@ -119,57 +119,50 @@ class GroupGRUCell(nn.Module):
 
 
 class RIMCell(nn.Module):
-    def __init__(self,
-                 device, input_size, hidden_size, num_units=6, rnn_cell='LSTM', input_key_size=64, input_value_size=400,
-                 input_query_size=64,
-                 num_input_heads=1, input_dropout=0.1, comm_key_size=32, comm_value_size=100, comm_query_size=32,
-                 num_comm_heads=4, comm_dropout=0.1,
-                 k=4, use_input_att=False, use_com_att=False, use_x_reshape=False
-                 ):
+    def __init__(self, device, input_size, hidden_size, num_units, k, args):
         super().__init__()
         self.device = device
         self.hidden_size = hidden_size
         self.num_units = num_units
-        self.rnn_cell = rnn_cell
-        self.key_size = input_key_size
+        self.input_key_size = 64
+        self.key_size = self.input_key_size
         self.k = k
-        self.num_input_heads = num_input_heads
-        self.num_comm_heads = num_comm_heads
-        self.input_key_size = input_key_size
-        self.input_query_size = input_query_size
-        self.input_value_size = input_value_size
+        self.num_input_heads = 1
+        self.num_comm_heads = 4
 
-        self.comm_key_size = comm_key_size
-        self.comm_query_size = comm_query_size
-        self.comm_value_size = comm_value_size
+        self.use_slot_att = args.use_slot_att
+        self.input_query_size = 64
+        self.input_value_size = self.hidden_size if self.use_slot_att else 400
 
-        self.key = nn.Linear(input_size, num_input_heads * input_query_size).to(self.device)
-        self.value = nn.Linear(input_size, num_input_heads * input_value_size).to(self.device)
+        self.input_dropout_rate = args.drop_out
+        self.comm_dropout_rate = args.drop_out
 
-        self.use_input_att = use_input_att
-        self.use_com_att = use_com_att
-        self.use_x_reshape = use_x_reshape
+        self.comm_key_size = 32
+        self.comm_query_size = 32
+        self.comm_value_size = 100
 
-        if self.rnn_cell == 'GRU':
-            self.rnn = nn.ModuleList([RNNLayer(input_value_size, hidden_size, 1, False) for _ in range(num_units)])
-            # self.rnn = nn.ModuleList([LayerNormGRUCell(input_value_size, hidden_size) for _ in range(num_units)])
-            self.query = GroupLinearLayer(hidden_size, input_key_size * num_input_heads, self.num_units)
-        else:
-            self.rnn = nn.ModuleList([nn.LSTMCell(input_value_size, hidden_size) for _ in range(num_units)])
-            self.query = GroupLinearLayer(hidden_size, input_key_size * num_input_heads, self.num_units)
+        self.key = nn.Linear(input_size, self.num_input_heads * self.input_query_size).to(self.device)
+        self.value = nn.Linear(input_size, self.num_input_heads * self.input_value_size).to(self.device)
 
-        self.query_ = GroupLinearLayer(hidden_size, comm_query_size * num_comm_heads, self.num_units)
-        self.key_ = GroupLinearLayer(hidden_size, comm_key_size * num_comm_heads, self.num_units)
-        self.value_ = GroupLinearLayer(hidden_size, comm_value_size * num_comm_heads, self.num_units)
-        self.comm_attention_output = GroupLinearLayer(num_comm_heads * comm_value_size, self.hidden_size,
+        self.use_input_att = args.use_input_att
+        self.use_com_att = args.use_com_att
+        self.use_x_reshape = args.use_x_reshape
+
+        self.rnn = nn.ModuleList([RNNLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
+        self.query = GroupLinearLayer(hidden_size, self.input_key_size * self.num_input_heads, self.num_units)
+
+        self.query_ = GroupLinearLayer(hidden_size, self.comm_query_size * self.num_comm_heads, self.num_units)
+        self.key_ = GroupLinearLayer(hidden_size, self.comm_key_size * self.num_comm_heads, self.num_units)
+        self.value_ = GroupLinearLayer(hidden_size, self.comm_value_size * self.num_comm_heads, self.num_units)
+        self.comm_attention_output = GroupLinearLayer(self.num_comm_heads * self.comm_value_size, self.hidden_size,
                                                       self.num_units)
-        self.comm_dropout = nn.Dropout(p=input_dropout)
-        self.input_dropout = nn.Dropout(p=comm_dropout)
+        self.comm_dropout = nn.Dropout(p=self.comm_dropout_rate)
+        self.input_dropout = nn.Dropout(p=self.input_dropout_rate)
 
         if self.use_x_reshape:
-            self.input_linear = nn.Linear(self.hidden_size, input_value_size)
+            self.input_linear = nn.Linear(self.hidden_size, self.input_value_size)
         else:
-            self.input_linear = nn.Linear(self.num_units * self.hidden_size, input_value_size)
+            self.input_linear = nn.Linear(self.num_units * self.hidden_size, self.input_value_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
@@ -189,12 +182,12 @@ class RIMCell(nn.Module):
         value_layer = self.value(x)
         query_layer = self.query(h)
 
-        key_layer = self.transpose_for_scores(key_layer, self.num_input_heads, self.input_key_size)
+        key_layer = self.transpose_for_scores(key_layer, self.num_input_heads, self.self.input_key_size)
         value_layer = torch.mean(self.transpose_for_scores(value_layer, self.num_input_heads, self.input_value_size),
                                  dim=1)
         query_layer = self.transpose_for_scores(query_layer, self.num_input_heads, self.input_query_size)
 
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2)) / math.sqrt(self.input_key_size)
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2)) / math.sqrt(self.self.input_key_size)
         attention_scores = torch.mean(attention_scores, dim=1)
         mask_ = torch.zeros(x.size(0), self.num_units).to(self.device)
 
@@ -267,7 +260,8 @@ class RIMCell(nn.Module):
                 inputs = x.reshape(batch_size, ep, self.num_units, self.hidden_size).permute(2, 0, 1, 3)
             else:
                 inputs = x.unsqueeze(0).repeat(self.num_units, 1, 1, 1)
-            inputs = self.input_linear(inputs)
+            if not self.use_slot_att:
+                inputs = self.input_linear(inputs)
             mask = torch.ones(batch_size, self.num_units, 1).to(self.device)
 
         h_old = (hs * 1.0)
@@ -309,42 +303,24 @@ class RIMCell(nn.Module):
 
 
 class RIM(nn.Module):
-    def __init__(self, device, input_size, hidden_size, num_units, k, rnn_cell, n_layers, bidirectional,
-                 use_pos_encoding=False, use_input_att=False, use_com_att=False, use_x_reshape=False, **kwargs):
+    def __init__(self, device, input_size, hidden_size, num_units, k, args):
         super().__init__()
         self.device = device
-        self.n_layers = n_layers
-        self.num_directions = 2 if bidirectional else 1
-        self.rnn_cell = rnn_cell
+        self.n_layers = 1
+        self.rnn_cell = args.rnn_attention_module
         self.num_units = num_units
         self.hidden_size = hidden_size
 
-        self.use_pos_encoding = use_pos_encoding
-        self.use_input_att = use_input_att
-        self.use_com_att = use_com_att
-        self.use_x_reshape = use_x_reshape
-
+        self.use_pos_encoding = args.use_pos_encoding
         self.pos_encoder = SinusoidalPosition(input_size, device)
 
         self.x_layer_norm = nn.LayerNorm(self.hidden_size * self.num_units)
-        if self.num_directions == 2:
-            self.rimcell = nn.ModuleList([RIMCell(self.device, input_size, hidden_size, num_units, rnn_cell,
-                                                  k=k, use_input_att=use_input_att, use_com_att=use_com_att,
-                                                  use_x_reshape=use_x_reshape,
-                                                  **kwargs).to(self.device) if i < 2 else
-                                          RIMCell(self.device, 2 * hidden_size * self.num_units, hidden_size, num_units,
-                                                  rnn_cell, k=k, use_input_att=use_input_att, use_com_att=use_com_att,
-                                                  use_x_reshape=use_x_reshape, **kwargs).to(self.device) for i in
-                                          range(self.n_layers * self.num_directions)])
-        else:
-            self.rimcell = nn.ModuleList([RIMCell(self.device, input_size, hidden_size, num_units, rnn_cell, k=k,
-                                                  use_input_att=use_input_att, use_com_att=use_com_att,
-                                                  use_x_reshape=use_x_reshape,
-                                                  **kwargs).to(self.device) if i == 0 else
-                                          RIMCell(self.device, hidden_size * self.num_units, hidden_size, num_units,
-                                                  rnn_cell, k=k, use_input_att=use_input_att, use_com_att=use_com_att,
-                                                  use_x_reshape=use_x_reshape, **kwargs).to(self.device) for i in
-                                          range(self.n_layers)])
+
+        self.rimcell = nn.ModuleList([RIMCell(self.device, input_size, hidden_size, num_units, k,
+                                              args).to(self.device) if i == 0 else
+                                      RIMCell(self.device, hidden_size * self.num_units, hidden_size, num_units,
+                                              k, args).to(self.device) for i in
+                                      range(self.n_layers)])
 
     def layer(self, rim_layer, x, h, c=None, direction=0, mask=None):
         batch_size = x.size(1)
@@ -399,34 +375,12 @@ class RIM(nn.Module):
             torch.randn(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(
                 self.device), 1, 0)
         hs = list(hs)
-        cs = None
-        if self.rnn_cell == 'LSTM':
-            cs = torch.split(c, 1, 0) if c is not None else torch.split(
-                torch.randn(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(
-                    self.device), 1, 0)
-            cs = list(cs)
 
-        for n in range(self.n_layers):
-            idx = n * self.num_directions
-            if cs is not None:
-                x_fw, hs[idx], cs[idx] = self.layer(self.rimcell[idx], x, hs[idx], cs[idx])
-            else:
-                x_fw, hs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=None, mask=masks)
-            if self.num_directions == 2:
-                idx = n * self.num_directions + 1
-                if cs is not None:
-                    x_bw, hs[idx], cs[idx] = self.layer(self.rimcell[idx], x, hs[idx], cs[idx], direction=1)
-                else:
-                    x_bw, hs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=None, direction=1)
-
-                x = torch.cat((x_fw, x_bw), dim=2)
-            else:
-                x = x_fw
+        for idx in range(self.n_layers):
+            x, hs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=None, mask=masks)
 
         hs = torch.stack(hs, dim=0)
 
         x = x.transpose(0, 1).reshape(ep_len * batch_num, self.num_units * self.hidden_size)
-        if cs is not None:
-            cs = torch.stack(cs, dim=0)
-            return x, hs, cs
+
         return x, hs
