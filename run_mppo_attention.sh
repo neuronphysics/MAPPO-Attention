@@ -91,8 +91,17 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 wandb login a2a1bab96ebbc3869c65e3632485e02fcae9cc42
 echo "Start running the train_mpe_comm.sh script ..."
 cd $DIR/onpolicy/scripts/train
-CUDA_VISIBLE_DEVICES=0,1 python train_mpe.py --use_valuenorm --use_popart --env_name "MPE" --algorithm_name "mappo" --experiment_name "check" \
-    --scenario_name "simple_speaker_listener" --num_agents 2 --num_landmarks 3 --seed 1 --use_render \
-    --n_training_threads 1 --n_rollout_threads 128 --num_mini_batch 1 --episode_length 25 --num_env_steps 2000000 \
-    --ppo_epoch 15 --gain 0.01 --lr 7e-4 --critic_lr 7e-4 --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy
+#CUDA_VISIBLE_DEVICES=0,1 python train_mpe.py --use_valuenorm --use_popart --env_name "MPE" --algorithm_name "mappo" --experiment_name "check" \
+#    --scenario_name "simple_speaker_listener" --num_agents 2 --num_landmarks 3 --seed 1 --use_render \
+#    --n_training_threads 1 --n_rollout_threads 128 --num_mini_batch 1 --episode_length 25 --num_env_steps 2000000 \
+#    --ppo_epoch 15 --gain 0.01 --lr 7e-4 --critic_lr 7e-4 --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy
 
+CUDA_VISIBLE_DEVICES=0 python3 entry_point.py  --use_valuenorm False --use_popart True --env_name "Meltingpot" \
+  --algorithm_name "mappo" --experiment_name "pretrain_slot_att" \
+  --substrate_name "territory__rooms" --num_agents 9 --seed 111 --lr 0.00002 --critic_lr 0.00002 --n_rollout_threads 2 --max_grad_norm 0.2 \
+  --use_wandb True --user_name "c38su" --wandb_name "c38su" --share_policy False --use_centralized_V False --use_attention True \
+  --entropy_coef 0.004 --attention_module "RIM" --rim_num_units 6 --rim_topk 6 --hidden_size 600 \
+  --num_env_steps 4000000 --log_interval 1 --episode_length 1000 --downsample True --img_scale_factor 2 \
+  --pretrain_slot_att True --slot_train_step 40000000 --slot_att_work_path "/home/sstevec/projects/def-jhoey/sstevec/meltingpot_collect/onpolicy/scripts/results/slot_att/" \
+  --slot_att_load_model False --slot_pretrain_batch_size 64
+~

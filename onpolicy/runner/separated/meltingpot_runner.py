@@ -516,5 +516,10 @@ class MeltingpotRunner(Runner):
         matplotlib.image.imsave(path + 'share' + count + '.png', img_share)
 
     def train_slot_att(self):
-        from onpolicy.algorithms.utils.SLOTATT.train_slot_att import start_train_slot_att
+        from onpolicy.algorithms.utils.SLOTATT.train_slot_att import start_train_slot_att, load_slot_att_model
         start_train_slot_att(self.all_args)
+
+        for agent_id in range(self.num_agents):
+            self.trainer[agent_id].prep_rollout()
+            model = self.trainer[agent_id].policy.actor.slot_att
+            load_slot_att_model(model, self.all_args)

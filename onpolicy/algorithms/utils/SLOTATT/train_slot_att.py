@@ -39,10 +39,14 @@ def generate_model(args):
                             num_slots=num_slots)
 
     if args.slot_att_load_model:
-        model_state_dict = torch.load(args.slot_att_work_path + "model.pt")
-        model.load_state_dict(model_state_dict)
+        load_slot_att_model(model, args)
 
     return model
+
+
+def load_slot_att_model(model, args):
+    model_state_dict = torch.load(args.slot_att_work_path + "model.pt")
+    model.load_state_dict(model_state_dict)
 
 
 def start_train_slot_att(args):
