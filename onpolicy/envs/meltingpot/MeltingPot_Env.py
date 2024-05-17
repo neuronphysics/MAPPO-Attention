@@ -318,11 +318,7 @@ def downsample_observation(array: np.ndarray, scaled) -> np.ndarray:
     return frame
 
 
-def _downsample_multi_timestep(timestep: dm_env.TimeStep, scaled) -> dm_env.TimeStep:
-    return timestep._replace(
-        observation=[{k: downsample_observation(v, scaled) if k == 'WORLD.RGB' or k == 'RGB' else v for k, v in
-                      observation.items()
-                      } for observation in timestep.observation])
+
 
 
 def _downsample_multi_spec(spec, scaled):
@@ -337,24 +333,49 @@ class DownSamplingSubstrateWrapper(observables.ObservableLab2dWrapper):
     to significant speedups in training.
     """
 
-    def __init__(self, substrate: substrate.Substrate, scaled):
+    def __init__(self, substrate: substrate.Substrate, cfg):
         super().__init__(substrate)
-        self._scaled = scaled
+        self.cfg = cfg
+        self.agent_scale = cfg["agent_scale"]
+        self.world_scale = cfg["world_scale"]
 
     def reset(self) -> dm_env.TimeStep:
         timestep = super().reset()
-        return _downsample_multi_timestep(timestep, self._scaled)
+        return self.down_sample_multi_timestep(timestep)
 
     def step(self, actions) -> dm_env.TimeStep:
         timestep = super().step(actions)
-
-        return _downsample_multi_timestep(timestep, self._scaled)
+        return self.down_sample_multi_timestep(timestep)
 
     def observation_spec(self) -> Sequence[Mapping[str, Any]]:
         spec = super().observation_spec()
-        return [
-            {k: _downsample_multi_spec(v, self._scaled) if k == 'WORLD.RGB' or k == 'RGB' else v for k, v in s.items()}
-            for s in spec]
+        res = []
+        for s in spec:
+            tmp = {}
+            for k, v in s.items():
+                if k == 'WORLD.RGB':
+                    tmp[k] = _downsample_multi_spec(v, self.world_scale)
+                elif k == 'RGB':
+                    tmp[k] = _downsample_multi_spec(v, self.agent_scale)
+                else:
+                    tmp[k] = v
+            res.append(tmp)
+        return res
+
+    def down_sample_multi_timestep(self, timestep: dm_env.TimeStep) -> dm_env.TimeStep:
+        new_obs = []
+        for observation in timestep.observation:
+            tmp = {}
+            for k, v in observation.items():
+                if k == 'WORLD.RGB':
+                    tmp[k] = downsample_observation(v, self.world_scale)
+                elif k == 'RGB':
+                    tmp[k] = downsample_observation(v, self.agent_scale)
+                else:
+                    tmp[k] = v
+            new_obs.append(tmp)
+
+        return timestep._replace(observation=new_obs)
 
 
 def env_creator(env_config):
@@ -362,7 +383,7 @@ def env_creator(env_config):
     env_config = config_dict.ConfigDict(env_config)
     env = meltingpot_substrate.build(env_config['substrate'], roles=env_config['roles'])
 
-    env = DownSamplingSubstrateWrapper(env, env_config['scaled'])
+    env = DownSamplingSubstrateWrapper(env, env_config)
 
     env = MeltingPotEnv(env)
 

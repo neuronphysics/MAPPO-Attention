@@ -330,6 +330,9 @@ def get_config():
     parser.add_argument("--img_scale_factor", type=int, default=8,
                         help="the scale factor of each rendered image in saved video.")
 
+    parser.add_argument("--world_img_scale_factor", type=int, default=8,
+                        help="the scale factor of each rendered image in saved video.")
+
     # additional parameters
     parser.add_argument("--drop_out", type=float,
                         default=0.5, help="specify the drop out")

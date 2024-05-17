@@ -1297,6 +1297,7 @@ class BaseTrainer:
             logging.info("Starting evaluation")
             self.model.eval()
             losses, metrics = self.evaluator.eval(self.model)
+            print(f"Checkpoint {self.logvalid_steps} steps: validate loss: {losses['loss']}, mse: {metrics['mse']}")
             self.logger.log_dict(
                 metrics=losses,
                 iteration_num=self.trainer.state.iteration,
