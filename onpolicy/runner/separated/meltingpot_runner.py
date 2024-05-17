@@ -39,6 +39,8 @@ class MeltingpotRunner(Runner):
         super(MeltingpotRunner, self).__init__(config)
 
     def run(self):
+        if self.all_args.collect_data:
+            self.collect_img_data()
         if self.all_args.pretrain_slot_att:
             self.train_slot_att()
 
@@ -506,15 +508,6 @@ class MeltingpotRunner(Runner):
         if self.all_args.save_gifs:
             imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
 
-    def save_obs(self, obs, step, episode):
-        img_t = obs[0]['player_0']['RGB'][0]
-        img_share = obs[0]['player_0']['WORLD.RGB'][0]
-
-        count = str(episode * self.episode_length + step)
-        path = "/mnt/e/pycharm_projects/meltingpot-main/collected_img/"
-        matplotlib.image.imsave(path + 'agent0_' + count + '.png', img_t)
-        matplotlib.image.imsave(path + 'share' + count + '.png', img_share)
-
     def train_slot_att(self):
         from onpolicy.algorithms.utils.SLOTATT.train_slot_att import start_train_slot_att, load_slot_att_model
         start_train_slot_att(self.all_args)
@@ -523,3 +516,36 @@ class MeltingpotRunner(Runner):
             self.trainer[agent_id].prep_rollout()
             model = self.trainer[agent_id].policy.actor.slot_att
             load_slot_att_model(model, self.all_args)
+
+    def save_obs(self, obs, episode):
+        base_path = self.all_args.slot_att_work_path + "data/" + str(episode) + "ep"
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+
+        # obs is (ep_len, agent, H, W, C)
+        obs = torch.from_numpy(np.stack(obs, 1))
+        ag, ep, H, W, C = obs.shape
+        for i in range(ag):
+            torch.save(obs[i], base_path + "/" + str(i) + "_data.pt")
+
+    def collect_img_data(self):
+        for episode in range(self.all_args.collect_data_ep_num):
+            self.envs.reset()
+            print(f'Collect data episode {episode}')
+            ep_data = []
+            for step in range(self.episode_length):
+                # collect some image data
+                action = self.envs.action_space.sample()
+                actions = np.array([v for k, v in action.items()])[None, :, None]
+                obs, rewards, dones, infos = self.envs.step(actions)
+                if not isinstance(obs[0], dict):
+                    obs = obs[:, 0]
+
+                obs_t = obs[0]
+                agent_obs = []
+                for k, v in obs_t.items():
+                    img_t = v['RGB'][0]
+                    agent_obs.append(img_t)
+                agent_obs = np.stack(agent_obs, 0)
+                ep_data.append(agent_obs)
+            self.save_obs(ep_data, episode)

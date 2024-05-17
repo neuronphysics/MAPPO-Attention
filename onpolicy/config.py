@@ -374,5 +374,7 @@ def get_config():
     parser.add_argument("--slot_use_lr_scheduler", type=str2bool, default=True, )
     parser.add_argument("--slot_att_load_model", type=str2bool, default=False, )
     parser.add_argument("--use_slot_att", type=str2bool, default=True, )
+    parser.add_argument("--collect_data_ep_num", type=int, default=10, )
+    parser.add_argument("--collect_data", type=str2bool, default=False, )
 
     return parser
