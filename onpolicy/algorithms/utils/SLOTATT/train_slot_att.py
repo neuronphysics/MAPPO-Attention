@@ -50,7 +50,7 @@ def load_slot_att_model(model, args):
     else:
         num_slots = args.scoff_num_units
     latent_size = args.hidden_size // num_slots
-    model_name = "ns_" + num_slots + "_ls_" + latent_size + "_model.pt"
+    model_name = "ns_" + str(num_slots) + "_ls_" + str(latent_size) + "_model.pt"
     model_state_dict = torch.load(args.slot_att_work_path + model_name)
     model.load_state_dict(model_state_dict)
 
