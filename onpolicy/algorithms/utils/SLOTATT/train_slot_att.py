@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 
 def generate_model(args):
     img_size = 44
-
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
     if args.attention_module == "RIM":
         num_slots = args.rim_num_units
     else:
@@ -38,6 +38,7 @@ def generate_model(args):
                             encoder_params=encoder_params, decoder_params=decoder_params,
                             num_slots=num_slots)
 
+    model.to(device)
     if args.slot_att_load_model:
         load_slot_att_model(model, args)
 
