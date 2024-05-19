@@ -145,29 +145,23 @@ class R_MAPPO():
 
         policy_loss = policy_action_loss
 
-        self.policy.actor_optimizer.zero_grad()
+        if self.use_slot_att:
+            self.policy.slot_att_optimizer.zero_grad()
+            slot_att_loss.backward(retain_graph=True)
 
         if update_actor:
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
-            total_loss.backward(retain_graph=True)
+            total_loss.backward()
 
-        if self._use_max_grad_norm:
-            actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
-        else:
-            actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
-
-        self.policy.actor_optimizer.step()
+        actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
 
         if self.use_slot_att:
-            self.policy.slot_att_optimizer.zero_grad()
-            slot_att_loss.backward()
             self.policy.slot_att_optimizer.step()
             self.policy.slot_att_lr_scheduler.step()
+            self.policy.slot_att_optimizer.zero_grad()
 
         # critic update
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
-
-        self.policy.critic_optimizer.zero_grad()
 
         total_critic_loss = (value_loss * self.value_loss_coef)
         total_critic_loss.backward()
@@ -176,8 +170,6 @@ class R_MAPPO():
             critic_grad_norm = nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
         else:
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
-
-        self.policy.critic_optimizer.step()
 
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
@@ -220,12 +212,12 @@ class R_MAPPO():
                 value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
                     = self.ppo_update(sample, update_actor)
 
-                train_info['value_loss'] += value_loss.item()
-                train_info['policy_loss'] += policy_loss.item()
-                train_info['dist_entropy'] += dist_entropy.item()
-                train_info['actor_grad_norm'] += actor_grad_norm
-                train_info['critic_grad_norm'] += critic_grad_norm
-                train_info['ratio'] += imp_weights.mean()
+                train_info['value_loss'] = train_info['value_loss'] + value_loss.item()
+                train_info['policy_loss'] = train_info['policy_loss'] + policy_loss.item()
+                train_info['dist_entropy'] = train_info['dist_entropy'] + dist_entropy.item()
+                train_info['actor_grad_norm'] = train_info['actor_grad_norm'] + actor_grad_norm
+                train_info['critic_grad_norm'] = train_info['critic_grad_norm'] + critic_grad_norm
+                train_info['ratio'] = train_info['ratio'] + imp_weights.mean()
 
         num_updates = self.ppo_epoch * self.num_mini_batch
 

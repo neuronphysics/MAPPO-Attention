@@ -139,21 +139,22 @@ class R_Actor(nn.Module):
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
 
+        torch.cuda.empty_cache()
         slot_att_total_loss = 0
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
             batch, _, _, _ = obs.shape
             mini_batch_size = 5
             num_batch = batch // mini_batch_size
-            res = []
+            actor_features = []
             for idx in range(num_batch):
                 start_idx = idx * mini_batch_size
                 end_idx = start_idx + mini_batch_size
                 out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2))
-                res.append(out_tmp['representation'])
+                actor_features.append(out_tmp['representation'])
                 slot_att_total_loss = slot_att_total_loss + out_tmp["loss"]
 
-            actor_features = torch.cat(res, 0)
+            actor_features = torch.cat(actor_features, 0)
             actor_features = actor_features.reshape(batch, -1)
         else:
             actor_features = self.base(obs)
@@ -180,6 +181,7 @@ class R_Actor(nn.Module):
                                                                        active_masks if self._use_policy_active_masks
                                                                        else None)
 
+        torch.cuda.empty_cache()
         return action_log_probs, dist_entropy, slot_att_total_loss
 
 

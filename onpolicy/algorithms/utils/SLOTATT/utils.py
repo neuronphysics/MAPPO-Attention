@@ -565,9 +565,9 @@ def linear_warmup_exp_decay(
     def lr_lambda(step):
         multiplier = 1.0
         if warmup_steps is not None and step < warmup_steps:
-            multiplier *= step / warmup_steps
+            multiplier = multiplier * (step / warmup_steps)
         if use_exp_decay:
-            multiplier *= exp_decay_rate ** (step / exp_decay_steps)
+            multiplier = multiplier * (exp_decay_rate ** (step / exp_decay_steps))
         return multiplier
 
     return lr_lambda

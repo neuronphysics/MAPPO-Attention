@@ -28,8 +28,8 @@ def zero_matrix_elements(matrix, k):
     for b in range(0, k):
         new_mat[b * g1: (b + 1) * g1, b * g2: (b + 1) * g2] += matrix[b * g1: (b + 1) * g1, b * g2: (b + 1) * g2]
 
-    matrix *= 0.0
-    matrix += new_mat
+    matrix = matrix * 0.0
+    matrix = matrix + new_mat
 
 
 class BlockGRU(nn.Module):

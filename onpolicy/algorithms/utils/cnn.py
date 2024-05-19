@@ -274,9 +274,9 @@ class FourierPositionEncoding(nn.Module):
         num_dims = len(self.max_resolution)
         encoding_size = self.num_bands * num_dims
         if not self.sine_only:
-            encoding_size *= 2
+            encoding_size = encoding_size * 2
         if self.concat_pos:
-            encoding_size += self.num_dimensions
+            encoding_size = encoding_size + self.num_dimensions
 
         return encoding_size
 

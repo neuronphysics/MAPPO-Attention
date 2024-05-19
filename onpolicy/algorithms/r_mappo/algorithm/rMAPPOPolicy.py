@@ -36,15 +36,54 @@ class R_MAPPOPolicy:
 
         actor_params = list(self.actor.base.parameters()) + list(self.actor.rnn.parameters()) + list(
             self.actor.act.parameters())
-        self.actor_optimizer = torch.optim.Adam(actor_params,
-                                                lr=self.lr, eps=self.opti_eps,
-                                                weight_decay=self.weight_decay)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
-                                                 lr=self.critic_lr,
-                                                 eps=self.opti_eps,
-                                                 weight_decay=self.weight_decay)
+        actor_optimizer_dict = {p: torch.optim.Adam([p], lr=self.lr, eps=self.opti_eps,
+                                                    weight_decay=self.weight_decay, foreach=False) for p in
+                                actor_params}
+
+        def actor_optimizer_hook(parameter) -> None:
+            actor_optimizer_dict[parameter].step()
+            actor_optimizer_dict[parameter].zero_grad()
+
+        # Register the hook onto every parameter
+        for p in actor_params:
+            p.register_post_accumulate_grad_hook(actor_optimizer_hook)
+
+        self.actor_optimizers = actor_optimizer_dict
+        # self.actor_optimizer = torch.optim.Adam(actor_params,
+        #                                         lr=self.lr, eps=self.opti_eps,
+        #                                         weight_decay=self.weight_decay)
+
+        critic_optimizer_dict = {p: torch.optim.Adam([p], lr=self.critic_lr, eps=self.opti_eps,
+                                                     weight_decay=self.weight_decay, foreach=False) for p in
+                                 self.critic.parameters()}
+
+        def critic_optimizer_hook(parameter) -> None:
+            critic_optimizer_dict[parameter].step()
+            critic_optimizer_dict[parameter].zero_grad()
+
+        # Register the hook onto every parameter
+        for p in self.critic.parameters():
+            p.register_post_accumulate_grad_hook(critic_optimizer_hook)
+
+        self.critic_optimizers = critic_optimizer_dict
+        # self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
+        #                                          lr=self.critic_lr,
+        #                                          eps=self.opti_eps,
+        #                                          weight_decay=self.weight_decay)
 
         if args.use_slot_att:
+            # slot_att_optimizer_dict = {p: torch.optim.Adam([p], lr=args.slot_att_lr, eps=self.opti_eps,
+            #                                                weight_decay=self.weight_decay, foreach=False) for p in
+            #                            self.actor.slot_att.parameters()}
+            #
+            # def slot_att_optimizer_hook(parameter) -> None:
+            #     slot_att_optimizer_dict[parameter].step()
+            #     slot_att_optimizer_dict[parameter].zero_grad()
+            #
+            # # Register the hook onto every parameter
+            # for p in self.actor.slot_att.parameters():
+            #     p.register_post_accumulate_grad_hook(slot_att_optimizer_hook)
+
             self.slot_att_optimizer = torch.optim.Adam(self.actor.slot_att.parameters(),
                                                        lr=args.slot_att_lr,
                                                        eps=self.opti_eps,
@@ -61,8 +100,10 @@ class R_MAPPOPolicy:
         :param episode: (int) current training episode.
         :param episodes: (int) total number of training episodes.
         """
-        update_linear_schedule(self.actor_optimizer, episode, episodes, self.lr)
-        update_linear_schedule(self.critic_optimizer, episode, episodes, self.critic_lr)
+        for k, v in self.actor_optimizers.items():
+            update_linear_schedule(v, episode, episodes, self.lr)
+        for k, v in self.critic_optimizers.items():
+            update_linear_schedule(v, episode, episodes, self.critic_lr)
 
     # def get_actions(self, cent_obs, obs, rnn_states_actor, rnn_states_critic, masks, available_actions=None,
     #                 deterministic=False):
