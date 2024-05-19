@@ -7,20 +7,25 @@ from onpolicy.algorithms.utils.SCOFF.blocks_core_scoff import BlocksCore
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5,
+    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, args, dropout=0.5,
                  tie_weights=False, use_cudnn_version=False, use_adaptive_softmax=False, cutoffs=None,
-                 discrete_input=False, n_templates=0, share_inp=True, share_comm=True,
-                 memory_mlp=4, num_blocks=6, update_topk=4, memorytopk=4,
-                 use_gru=False, do_rel=False, num_modules_read_input=4, inp_heads=4,
-                 device=None, memory_slots=4, memory_head_size=16,
-                 num_memory_heads=4, attention_out=340, version=1, step_att=True):
+                 discrete_input=False, n_templates=0, num_blocks=6, update_topk=4, use_gru=False, do_rel=False,
+                 device=None, attention_out=340, version=1, step_att=True):
 
         super(RNNModel, self).__init__()
+        self.args = args
+        self.num_modules_read_input = args.scoff_num_modules_read_input
+        self.inp_heads = args.scoff_inp_heads
+        self.share_comm = args.scoff_share_comm
+        self.share_inp = args.scoff_share_inp
+        self.memory_mlp = args.scoff_memory_mlp
+        self.memory_slots = args.scoff_memory_slots
+        self.memory_head_size = args.scoff_memory_head_size
+        self.num_memory_heads = args.scoff_num_memory_heads
+
         self.device = device
         self.topk = update_topk
-        self.memorytopk = memorytopk
-        self.num_modules_read_input = num_modules_read_input
-        self.inp_heads = inp_heads
+        self.memorytopk = args.scoff_memory_topk
         self.use_cudnn_version = use_cudnn_version
         self.drop = nn.Dropout(dropout)
         self.n_templates = n_templates
@@ -33,12 +38,12 @@ class RNNModel(nn.Module):
             "tie_weights": tie_weights,
             "do_rel": do_rel,
             "device": device,
-            "memory_slots": memory_slots,
-            "memory_head_size": memory_head_size,
-            "num_memory_heads": num_memory_heads,
-            "share_inp": share_inp,
-            "share_comm": share_comm,
-            "memory_mlp": memory_mlp,
+            "memory_slots": self.memory_slots,
+            "memory_head_size": self.memory_head_size,
+            "num_memory_heads": self.num_memory_heads,
+            "share_inp": self.share_inp,
+            "share_comm": self.share_comm,
+            "memory_mlp":self. memory_mlp,
             "attention_out": attention_out,
             "version": version,
             "step_att": step_att,
@@ -46,8 +51,8 @@ class RNNModel(nn.Module):
             "memorytopk": self.memorytopk,
             "num_blocks": num_blocks,
             "n_templates": n_templates,
-            "num_modules_read_input": num_modules_read_input,
-            "inp_heads": inp_heads,
+            "num_modules_read_input": self.num_modules_read_input,
+            "inp_heads": self.inp_heads,
             "nhid": nhid,
         }
         self.num_blocks = num_blocks
@@ -123,7 +128,7 @@ class RNNModel(nn.Module):
                        share_inp=share_inp, share_comm=share_comm, memory_mlp=memory_mlp,
                        memory_slots=memory_slots, num_memory_heads=num_memory_heads,
                        memory_head_size=memory_head_size, attention_out=attention_out,
-                       version=version))
+                       version=version, args=self.args))
         self.bc_lst = nn.ModuleList(bc_lst)
 
         self.decoder = nn.Linear(self.nhid, ntoken)

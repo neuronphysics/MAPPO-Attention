@@ -23,25 +23,7 @@ class SCOFF(nn.Module):
                  hidden_size,
                  num_units,
                  k,
-                 memory_topk,
-                 num_modules_read_input,
-                 inp_heads,
-                 share_comm,
-                 share_inp,
-                 memory_mlp,
-                 memory_slots,
-                 memory_head_size,
-                 num_memory_heads,
-                 num_templates=0,
-                 rnn_cell='GRU',
-                 n_layers=1,
-                 version=0,
-                 attention_out=85,
-                 bidirectional=False,
-                 batch_first=False,
-                 dropout=0.0,
-                 step_att=True,
-                 do_relational_memory=False,
+                 args
                  ):
         super().__init__()
         """
@@ -69,27 +51,25 @@ class SCOFF(nn.Module):
             self.device = torch.device('cuda')
         else:
             self.device = torch.device('cpu')
-        self.n_layers = n_layers
-        self.num_directions = 2 if bidirectional else 1
-        self.rnn_cell = rnn_cell
+        self.n_layers = 1
+        self.num_templates = 1
+        self.rnn_cell = args.rnn_attention_module
         self.num_units = num_units
         self.hidden_size = hidden_size // num_units
-        self.batch_first = batch_first
-        self.do_rel = do_relational_memory
+        self.batch_first = False
+        self.do_rel = args.scoff_do_relational_memory
+        self.version = args.use_version_scoff
+        self.drop_out = args.drop_out
+        self.step_att = True
+        self.attention_out = 85
 
-        self.scoff_cell = RNNModelScoff(rnn_cell, input_size, hidden_size, hidden_size, nlayers=1,
-                                        n_templates=num_templates, tie_weights=False, num_blocks=num_units,
-                                        update_topk=k,
+        self.scoff_cell = RNNModelScoff(self.rnn_cell, input_size, hidden_size, hidden_size, nlayers=1,
+                                        n_templates=self.num_templates, tie_weights=False, num_blocks=num_units,
+                                        update_topk=k, dropout=self.drop_out, step_att=self.step_att,
+                                        attention_out=self.attention_out,
                                         use_cudnn_version=False, use_adaptive_softmax=False, discrete_input=False,
-                                        use_gru=rnn_cell == 'GRU', version=version, memorytopk=memory_topk,
-                                        num_modules_read_input=num_modules_read_input, inp_heads=inp_heads,
-                                        attention_out=attention_out, dropout=dropout, share_comm=share_comm,
-                                        share_inp=share_inp,
-                                        memory_mlp=memory_mlp, memory_slots=memory_slots,
-                                        memory_head_size=memory_head_size,
-                                        num_memory_heads=num_memory_heads,
-                                        step_att=step_att,
-                                        do_rel=self.do_rel).to(self.device)
+                                        use_gru=self.rnn_cell == 'GRU', version=self.version,
+                                        do_rel=self.do_rel, args=args).to(self.device)
 
     def layer(self, rim_layer, x, h, direction=0, message_to_rule_network=None, masks=None):
         batch_size = x.size(1)

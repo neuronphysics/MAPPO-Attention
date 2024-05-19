@@ -43,15 +43,17 @@ class R_MAPPOPolicy:
                                                  lr=self.critic_lr,
                                                  eps=self.opti_eps,
                                                  weight_decay=self.weight_decay)
-        self.slot_att_optimizer = torch.optim.Adam(self.actor.slot_att.parameters(),
-                                                   lr=args.slot_att_lr,
-                                                   eps=self.opti_eps,
-                                                   weight_decay=self.weight_decay)
-        self.slot_att_lr_scheduler = LambdaLR(
-            self.slot_att_optimizer,
-            lr_lambda=linear_warmup_exp_decay(
-                args.slot_att_warmup_step, args.slot_att_exp_decay_rate, args.slot_att_exp_decay_step),
-        )
+
+        if args.use_slot_att:
+            self.slot_att_optimizer = torch.optim.Adam(self.actor.slot_att.parameters(),
+                                                       lr=args.slot_att_lr,
+                                                       eps=self.opti_eps,
+                                                       weight_decay=self.weight_decay)
+            self.slot_att_lr_scheduler = LambdaLR(
+                self.slot_att_optimizer,
+                lr_lambda=linear_warmup_exp_decay(
+                    args.slot_att_warmup_step, args.slot_att_exp_decay_rate, args.slot_att_exp_decay_step),
+            )
 
     def lr_decay(self, episode, episodes):
         """

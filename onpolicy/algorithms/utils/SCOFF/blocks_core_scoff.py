@@ -45,6 +45,7 @@ class BlocksCore(nn.Module):
                  n_templates,
                  share_inp,
                  share_comm,
+                 args,
                  memory_slots=4,
                  num_memory_heads=4,
                  memory_head_size=16,
@@ -54,6 +55,7 @@ class BlocksCore(nn.Module):
                  device=None,
                  ):
         super(BlocksCore, self).__init__()
+        self.args = args
         self.nhid = nhid
         self.num_blocks_in = num_blocks_in
         self.num_units = num_blocks_out
@@ -161,22 +163,25 @@ class BlocksCore(nn.Module):
             )
 
         if self.version:
-            input_to_attention = [_process_input(_input) for _input in
-                                  torch.chunk(inp_use, chunks=self.num_units, dim=1)]
+            if self.args.use_input_att:
+                input_to_attention = [_process_input(_input) for _input in
+                                      torch.chunk(inp_use, chunks=self.num_units, dim=1)]
 
-            split_hx = [chunk.transpose(0, 1) for chunk in
-                        torch.chunk(hx, chunks=self.num_units, dim=2)]
+                split_hx = [chunk.transpose(0, 1) for chunk in
+                            torch.chunk(hx, chunks=self.num_units, dim=2)]
 
-            output = [self.inp_att(q=_hx, k=_inp, v=_inp) for
-                      _hx, _inp in zip(split_hx, input_to_attention)]
+                output = [self.inp_att(q=_hx, k=_inp, v=_inp) for
+                          _hx, _inp in zip(split_hx, input_to_attention)]
 
-            inp_use_list, iatt_list, _ = zip(*output)
+                inp_use_list, iatt_list, _ = zip(*output)
 
-            inp_use = torch.cat(inp_use_list, dim=1)
-            iatt = torch.cat(iatt_list, dim=1)
+                inp_use = torch.cat(inp_use_list, dim=1)
+                iatt = torch.cat(iatt_list, dim=1)
 
-            inp_use = inp_use.reshape((inp_use.shape[0], self.att_out * self.num_units))
-
+                inp_use = inp_use.reshape((inp_use.shape[0], self.att_out * self.num_units))
+            else:
+                inp_use = inp
+                iatt = None
         else:
             # use attention here.
             inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.block_size_in))
@@ -189,15 +194,20 @@ class BlocksCore(nn.Module):
 
             inp_use = inp_use.reshape((inp_use.shape[0], self.att_out * self.num_units))
 
-        new_mask = torch.ones_like(iatt[:, :, 0])
+        if self.args.use_input_att:
+            new_mask = torch.ones_like(iatt[:, :, 0])
 
-        if (self.num_units - self.topkval) > 0:
-            bottomk_indices = torch.topk(iatt[:, :, 0], dim=1,
-                                         sorted=True, largest=True,
-                                         k=self.num_units - self.topkval)[1]
+            if (self.num_units - self.topkval) > 0:
+                bottomk_indices = torch.topk(iatt[:, :, 0], dim=1,
+                                             sorted=True, largest=True,
+                                             k=self.num_units - self.topkval)[1]
 
-            new_mask.index_put_((torch.arange(bottomk_indices.size(0)).unsqueeze(1), bottomk_indices),
-                                torch.zeros_like(bottomk_indices[0], dtype=new_mask.dtype))
+                new_mask.index_put_((torch.arange(bottomk_indices.size(0)).unsqueeze(1), bottomk_indices),
+                                    torch.zeros_like(bottomk_indices[0], dtype=new_mask.dtype))
+        else:
+            new_mask = torch.ones(batch_size, self.num_units).to(inp.device)
+
+        # mask shape (batch, num_unit), inp_use shape (batch, num_unit * hidden)
         mask = new_mask
         memory_inp_mask = mask
         block_mask = mask.reshape((inp_use.shape[0], self.num_units, 1))

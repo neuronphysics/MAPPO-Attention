@@ -41,6 +41,7 @@ class R_MAPPO():
         self._use_valuenorm = args.use_valuenorm
         self._use_value_active_masks = args.use_value_active_masks
         self._use_policy_active_masks = args.use_policy_active_masks
+        self.use_slot_att = args.use_slot_att
 
         if self.use_attention == True:
             self._use_naive_recurrent_policy = False
@@ -157,10 +158,11 @@ class R_MAPPO():
 
         self.policy.actor_optimizer.step()
 
-        self.policy.slot_att_optimizer.zero_grad()
-        slot_att_loss.backward()
-        self.policy.slot_att_optimizer.step()
-        self.policy.slot_att_lr_scheduler.step()
+        if self.use_slot_att:
+            self.policy.slot_att_optimizer.zero_grad()
+            slot_att_loss.backward()
+            self.policy.slot_att_optimizer.step()
+            self.policy.slot_att_lr_scheduler.step()
 
         # critic update
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
