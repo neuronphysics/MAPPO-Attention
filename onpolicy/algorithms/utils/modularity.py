@@ -52,7 +52,7 @@ class SCOFF(nn.Module):
         else:
             self.device = torch.device('cpu')
         self.n_layers = 1
-        self.num_templates = 1
+        self.num_templates = args.scoff_num_schemas
         self.rnn_cell = args.rnn_attention_module
         self.num_units = num_units
         self.hidden_size = hidden_size // num_units

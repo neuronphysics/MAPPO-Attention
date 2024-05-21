@@ -358,6 +358,7 @@ def get_config():
     parser.add_argument("--scoff_memory_head_size", type=int, default=32, )
     parser.add_argument("--scoff_num_memory_heads", type=int, default=4, )
     parser.add_argument("--scoff_memory_topk", type=int, default=4, )
+    parser.add_argument("--scoff_num_schemas", type=int, default=3, help="number of schemas")
 
     parser.add_argument("--pretrain_slot_att", type=str2bool, default=False, )
     parser.add_argument("--slot_train_step", type=int, default=1000000, )
