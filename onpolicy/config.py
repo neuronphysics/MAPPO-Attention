@@ -333,7 +333,7 @@ def get_config():
     parser.add_argument("--world_img_scale_factor", type=int, default=8,
                         help="the scale factor of each rendered image in saved video.")
 
-    # additional parameters
+    # additional modular attention parameters
     parser.add_argument("--drop_out", type=float,
                         default=0.5, help="specify the drop out")
     parser.add_argument("--rnn_attention_module", type=str,
@@ -349,13 +349,13 @@ def get_config():
     parser.add_argument("--use_com_att", type=str2bool, default=False, )
     parser.add_argument("--use_x_reshape", type=str2bool, default=False, )
 
-    parser.add_argument("--scoff_num_modules_read_input", type=int, default=2, )
+    parser.add_argument("--scoff_num_modules_read_input", type=int, default=4, )
     parser.add_argument("--scoff_inp_heads", type=int, default=4, )
     parser.add_argument("--scoff_share_comm", type=str2bool, default=True, )
     parser.add_argument("--scoff_share_inp", type=str2bool, default=True, )
     parser.add_argument("--scoff_memory_mlp", type=int, default=4, )
     parser.add_argument("--scoff_memory_slots", type=int, default=4, )
-    parser.add_argument("--scoff_memory_head_size", type=int, default=60, )
+    parser.add_argument("--scoff_memory_head_size", type=int, default=32, )
     parser.add_argument("--scoff_num_memory_heads", type=int, default=4, )
     parser.add_argument("--scoff_memory_topk", type=int, default=4, )
 

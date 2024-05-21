@@ -18,6 +18,11 @@ class SelectAttention(nn.Module):
         self.gll_write = nn.Linear(d_write, d_k)
         self.gll_read = nn.Linear(d_read, d_k)
         self.temperature = math.sqrt(d_k)
+        # Initialize the linear layers
+        nn.init.xavier_uniform_(self.gll_write.weight)
+        nn.init.zeros_(self.gll_write.bias)
+        nn.init.xavier_uniform_(self.gll_read.weight)
+        nn.init.zeros_(self.gll_read.bias)
 
     def forward(self, q, k):
         read = self.gll_read(q)
@@ -32,7 +37,7 @@ class ScaledDotProductAttention(nn.Module):
     def __init__(self, temperature, topk, grad_sparse, attn_dropout=0.1, flag=False):
         super().__init__()
         self.temperature = temperature
-        # self.dropout = nn.Dropout(attn_dropout)
+        self.dropout = nn.Dropout(attn_dropout)
         self.softmax = nn.Softmax(dim=2)
         self.grad_sparse = grad_sparse
 
@@ -78,6 +83,7 @@ class ScaledDotProductAttention(nn.Module):
                 sparse_attn = sparse_attn.reshape((mb, ins, outs))
             attn = sparse_attn * 1.0
 
+        attn = self.dropout(attn)
         output = torch.bmm(attn, v)
 
         return output, attn, extra_loss
@@ -127,6 +133,9 @@ class MultiHeadAttention(nn.Module):
         # self.layer_norm = nn.LayerNorm(d_model)
 
         self.gate_fc = nn.Linear(n_head * d_v, d_model_out)
+        # Initialize the linear layers
+        nn.init.xavier_uniform_(self.gate_fc.weight)
+        nn.init.zeros_(self.gate_fc.bias)
 
         if not skip_write:
             self.fc = nn.Linear(n_head * d_v, d_model_out)
