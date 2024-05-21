@@ -71,30 +71,6 @@ class SCOFF(nn.Module):
                                         use_gru=self.rnn_cell == 'GRU', version=self.version,
                                         do_rel=self.do_rel, args=args).to(self.device)
 
-    def layer(self, rim_layer, x, h, direction=0, message_to_rule_network=None, masks=None):
-        batch_size = x.size(1)
-        xs = list(torch.split(x, 1, dim=0))
-
-        if direction == 1: xs.reverse()
-        xs = torch.cat(xs, dim=0)
-
-        hidden = h
-        entropy = 0
-
-        outputs, hidden, _, _, _, entropy_ = rim_layer(xs, hidden,
-                                                       message_to_rule_network=message_to_rule_network, masks=masks)
-        entropy += entropy_
-
-        hs = hidden  # self.rim_inverse_transform_hidden(hidden)
-
-        outputs = list(torch.split(outputs, 1, dim=0))
-
-        if direction == 1: outputs.reverse()
-        outputs = torch.cat(outputs, dim=0)
-
-        hs_ = hs.reshape(batch_size, -1)
-        return outputs, hs_, entropy
-
     def forward(self, x, h, masks=None):
         """
         Input: x (seq_len, batch_size, feature_size
