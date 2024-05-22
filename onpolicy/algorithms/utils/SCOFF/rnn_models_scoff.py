@@ -10,7 +10,7 @@ class RNNModel(nn.Module):
     def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, args, dropout=0.5,
                  tie_weights=False, use_cudnn_version=False, use_adaptive_softmax=False, cutoffs=None,
                  discrete_input=False, n_templates=0, num_blocks=6, update_topk=4, use_gru=False, do_rel=False,
-                 device=None, attention_out=340, version=1, step_att=True):
+                 device=None, attention_out=340, version=1):
 
         super(RNNModel, self).__init__()
         self.args = args
@@ -46,7 +46,6 @@ class RNNModel(nn.Module):
             "memory_mlp":self. memory_mlp,
             "attention_out": attention_out,
             "version": version,
-            "step_att": step_att,
             "topk": update_topk,
             "memorytopk": self.memorytopk,
             "num_blocks": num_blocks,
@@ -105,7 +104,6 @@ class RNNModel(nn.Module):
         memory_mlp = self.args_to_init_blocks["memory_mlp"]
         attention_out = self.args_to_init_blocks["attention_out"]
         version = self.args_to_init_blocks["version"]
-        step_att = self.args_to_init_blocks["step_att"]
         topk = self.args_to_init_blocks["topk"]
         memorytopk = self.args_to_init_blocks["memorytopk"]
         num_blocks = self.args_to_init_blocks["num_blocks"]
@@ -122,7 +120,7 @@ class RNNModel(nn.Module):
         bc_lst = []
 
         bc_lst.append(
-            BlocksCore(nhid, 1, num_blocks, topk, memorytopk, step_att, num_modules_read_input, inp_heads,
+            BlocksCore(nhid, 1, num_blocks, topk, memorytopk, num_modules_read_input, inp_heads,
                        do_gru=use_gru,
                        do_rel=do_rel, device=device, n_templates=n_templates,
                        share_inp=share_inp, share_comm=share_comm, memory_mlp=memory_mlp,

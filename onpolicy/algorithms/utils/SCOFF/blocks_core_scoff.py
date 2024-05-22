@@ -37,7 +37,6 @@ class BlocksCore(nn.Module):
                  num_blocks_out,
                  topkval,
                  memorytopk,
-                 step_att,
                  num_modules_read_input,
                  inp_heads,
                  do_gru,
@@ -63,7 +62,7 @@ class BlocksCore(nn.Module):
         self.block_size_out = nhid // num_blocks_out
         self.topkval = topkval
         self.memorytopk = memorytopk
-        self.step_att = step_att
+        self.step_att = args.use_com_att
         self.do_gru = do_gru
         self.do_rel = do_rel
         self.device = device
@@ -229,6 +228,8 @@ class BlocksCore(nn.Module):
             hx_new = hx_new + hx_new_att
 
             hx_new = hx_new.reshape((batch_size, self.nhid))
+        else:
+            hx_new = next_h
 
         hx = mask * hx_new + (1 - mask) * hx_old.squeeze(0)
 
