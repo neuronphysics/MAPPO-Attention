@@ -60,7 +60,7 @@ class SCOFF(nn.Module):
         self.do_rel = args.scoff_do_relational_memory
         self.version = args.use_version_scoff
         self.drop_out = args.drop_out
-        self.step_att = True
+        self.step_att = args.scoff_communication_attention
         self.attention_out = 85
 
         self.scoff_cell = RNNModelScoff(self.rnn_cell, input_size, hidden_size, hidden_size, nlayers=1,
