@@ -44,7 +44,7 @@ class BlockGRU(nn.Module):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.k = k
 
-        self.gru = RNNLayer(ninp, nhid, 1, False).to(self.device)
+        self.gru = nn.GRUCell(ninp, nhid)
 
         self.nhid = nhid
         self.ninp = ninp
@@ -74,8 +74,8 @@ class BlockGRU(nn.Module):
                     zero_matrix_elements(p[self.nhid * e: self.nhid * (e + 1)], k=self.k)
 
     def forward(self, input, h, masks):
-        hnext = self.gru(input, h, masks)
-        return hnext, None
+        hnext = self.gru(input, h.squeeze(1))
+        return hnext.unsqueeze(1), None
 
 
 class SharedBlockGRU(nn.Module):
@@ -94,7 +94,7 @@ class SharedBlockGRU(nn.Module):
         self.n_templates = n_templates
 
         self.templates = nn.ModuleList(
-                [RNNLayer(ninp, self.m, 1, False).to(self.device) for _ in range(0, self.n_templates)])
+                [nn.GRUCell(ninp, self.m) for _ in range(0, self.n_templates)])
 
         self.nhid = nhid
 
@@ -137,8 +137,11 @@ class SharedBlockGRU(nn.Module):
 
         h_masks = masks.repeat(self.k, 1)
         for template in self.templates:
-            x_out, hnext_l = template(x, h, h_masks)
-            hnext_stack.append(hnext_l)
+            # x shape (batch * num_unit, input_size) h is (batch * num_unit, 1, per_unit_hidden_size)
+            hnext_l = template(x, h.squeeze(1))
+
+            # expect h_next (batch * num_unit, 1, per_unit_hidden_size)
+            hnext_stack.append(hnext_l.unsqueeze(1))
 
         hnext = torch.cat(hnext_stack, 1)
 

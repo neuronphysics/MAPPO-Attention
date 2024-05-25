@@ -82,17 +82,51 @@ class SCOFF(nn.Module):
         if x.size(0) == h.size(0):
             ep_len = 1
             x = x.unsqueeze(0)
+            # scoff cell take x (ep_len, batch, input_size) h take (num_layer, 1, batch, hidden_size)
+            x_fw, hs, _, _, _ = self.scoff_cell(x, (h.transpose(0, 1) * masks.unsqueeze(0)).unsqueeze(0), masks=masks)
+            hs = hs.squeeze(0)
         else:
             # x is a (episode_len, batch_num, -1) tensor that has been flattened to (episode_len * batch_num, -1)
             ep_len = int(x.size(0) / batch_num)
             x = x.view(ep_len, batch_num, x.size(1))
 
-        # Same deal with masks
-        masks = masks.view(ep_len, batch_num)
+            # Same deal with masks
+            masks = masks.view(ep_len, batch_num)
 
-        h = h.transpose(0, 1)
+            has_zeros = ((masks[1:] == 0.0)
+                         .any(dim=-1)
+                         .nonzero()
+                         .squeeze()
+                         .cpu())
 
-        x_fw, hs, _, _, _ = self.scoff_cell(x, h.unsqueeze(0), masks=masks)
+            # +1 to correct the masks[1:]
+            if has_zeros.dim() == 0:
+                # Deal with scalar
+                has_zeros = [has_zeros.item() + 1]
+            else:
+                has_zeros = (has_zeros + 1).numpy().tolist()
+
+            # add t=0 and t=episode_len to the list
+            has_zeros = [0] + has_zeros + [ep_len]
+
+            h = h.transpose(0, 1)
+
+            outputs = []
+            for i in range(len(has_zeros) - 1):
+                # We can now process steps that don't have any zeros in masks together!
+                # This is much faster
+                start_idx = has_zeros[i]
+                end_idx = has_zeros[i + 1]
+                temp = (h * masks[start_idx].view(1, -1, 1)).contiguous()
+
+                # scoff cell take x (ep_len, batch, input_size) h take (num_layer, 1, batch, hidden_size)
+                x_fw, h, _, _, _ = self.scoff_cell(x[start_idx:end_idx], temp.unsqueeze(0), masks=masks)
+                # x_fw size (batch, input_size), hs (num_layer, 1, batch, hidden_size)
+                h = h.squeeze(0)
+
+                outputs.append(x_fw)
+            x_fw = torch.cat(outputs, dim=0)
+            hs = h
 
         # x should be (seq, batch, input_dim)
         x_fw = x_fw.reshape(ep_len * batch_num, self.num_units * self.hidden_size)

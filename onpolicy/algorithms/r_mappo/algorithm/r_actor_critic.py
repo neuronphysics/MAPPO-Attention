@@ -103,6 +103,7 @@ class R_Actor(nn.Module):
         else:
             actor_features = self.base(obs)
         output = self.rnn(actor_features, rnn_states, masks=masks)
+        # expect actor_feature (batch, input_size) rnn_state (1, batch, hidden_size)
         actor_features, rnn_states = output[:2]
         if self.rnn_attention_module == "LSTM":
             c = output[-1]
