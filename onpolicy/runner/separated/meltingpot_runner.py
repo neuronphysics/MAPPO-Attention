@@ -43,6 +43,8 @@ class MeltingpotRunner(Runner):
             self.collect_img_data()
         if self.all_args.pretrain_slot_att:
             self.train_slot_att()
+        if self.all_args.no_train:
+            return
 
         start = time.time()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
@@ -58,13 +60,6 @@ class MeltingpotRunner(Runner):
 
             step_time = time.time()
             for step in range(self.episode_length):
-                # collect some image data
-                # action = self.envs.action_space.sample()
-                # actions = np.array([v for k, v in action.items()])[None, :, None]
-                # obs, rewards, dones, infos = self.envs.step(actions)
-                # self.save_obs(obs, step, episode)
-                # continue
-
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
 
@@ -518,7 +513,8 @@ class MeltingpotRunner(Runner):
             load_slot_att_model(model, self.all_args)
 
     def save_obs(self, obs, episode):
-        base_path = self.all_args.slot_att_work_path + "data/" + str(episode) + "ep"
+        base_path = self.all_args.slot_att_work_path + "data/" + self.all_args.substrate_name + "_" + str(
+            episode) + "ep"
         if not os.path.exists(base_path):
             os.makedirs(base_path)
 
@@ -528,11 +524,22 @@ class MeltingpotRunner(Runner):
         for i in range(ag):
             torch.save(obs[i], base_path + "/" + str(i) + "_data.pt")
 
+    def save_world_obs(self, obs, episode):
+        base_path = self.all_args.slot_att_work_path + "world_data/" + self.all_args.substrate_name + "_" + str(
+            episode) + "ep"
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+
+        # obs is (ep_len, H, W, C)
+        obs = torch.from_numpy(np.stack(obs, 0))
+        torch.save(obs, base_path + "/" + "world_data.pt")
+
     def collect_img_data(self):
         for episode in range(self.all_args.collect_data_ep_num):
             self.envs.reset()
             print(f'Collect data episode {episode}')
             ep_data = []
+            world_ep_data = []
             for step in range(self.episode_length):
                 # collect some image data
                 action = self.envs.action_space.sample()
@@ -548,4 +555,8 @@ class MeltingpotRunner(Runner):
                     agent_obs.append(img_t)
                 agent_obs = np.stack(agent_obs, 0)
                 ep_data.append(agent_obs)
-            self.save_obs(ep_data, episode)
+                world_ep_data.append(obs_t['player_0']['WORLD.RGB'][0])
+            if self.all_args.collect_agent:
+                self.save_obs(ep_data, episode)
+            if self.all_args.collect_world:
+                self.save_world_obs(world_ep_data, episode)

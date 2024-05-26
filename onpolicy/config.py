@@ -380,5 +380,8 @@ def get_config():
     parser.add_argument("--use_slot_att", type=str2bool, default=True, )
     parser.add_argument("--collect_data_ep_num", type=int, default=10, )
     parser.add_argument("--collect_data", type=str2bool, default=False, )
+    parser.add_argument("--collect_agent", type=str2bool, default=False, )
+    parser.add_argument("--collect_world", type=str2bool, default=False, )
+    parser.add_argument("--no_train", type=str2bool, default=False, )
 
     return parser
