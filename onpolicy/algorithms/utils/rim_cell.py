@@ -187,7 +187,7 @@ class RIMCell(nn.Module):
                                  dim=1)
         query_layer = self.transpose_for_scores(query_layer, self.num_input_heads, self.input_query_size)
 
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2)) / math.sqrt(self.self.input_key_size)
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2)) / math.sqrt(self.input_key_size)
         attention_scores = torch.mean(attention_scores, dim=1)
         mask_ = torch.zeros(x.size(0), self.num_units).to(self.device)
 
