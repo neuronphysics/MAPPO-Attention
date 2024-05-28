@@ -40,6 +40,9 @@ class GlobDataset(Dataset):
             image_paths = sorted(glob.glob(os.path.join(dir, img_glob)))
             for path in image_paths:
                 data_tmp = torch.load(path).permute(0, 3, 1, 2)
+                _, _, h, w = data_tmp.shape
+                if h <= self.crop_size or w <= self.crop_size:
+                    continue
                 for t in data_tmp:
                     for i in range(self.crop_repeat):
                         cropped_img = self.random_crop_img(t)
