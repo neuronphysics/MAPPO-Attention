@@ -182,12 +182,12 @@ class RIMCell(nn.Module):
         value_layer = self.value(x)
         query_layer = self.query(h)
 
-        key_layer = self.transpose_for_scores(key_layer, self.num_input_heads, self.self.input_key_size)
+        key_layer = self.transpose_for_scores(key_layer, self.num_input_heads, self.input_key_size)
         value_layer = torch.mean(self.transpose_for_scores(value_layer, self.num_input_heads, self.input_value_size),
                                  dim=1)
         query_layer = self.transpose_for_scores(query_layer, self.num_input_heads, self.input_query_size)
 
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2)) / math.sqrt(self.self.input_key_size)
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2)) / math.sqrt(self.input_key_size)
         attention_scores = torch.mean(attention_scores, dim=1)
         mask_ = torch.zeros(x.size(0), self.num_units).to(self.device)
 
