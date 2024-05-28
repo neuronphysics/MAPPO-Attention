@@ -162,7 +162,7 @@ class R_MAPPO():
             self.policy.slot_att_optimizer.zero_grad()
             slot_att_loss.backward()
             self.policy.slot_att_optimizer.step()
-            self.policy.slot_att_lr_scheduler.step()
+            self.policy.slot_att_lr_scheduler['lr_scheduler']['scheduler'].step()
 
         # critic update
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)

@@ -10,7 +10,9 @@ from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 from onpolicy.algorithms.utils.rim_cell import RIM
 from absl import logging
-from onpolicy.algorithms.utils.SLOTATT.train_slot_att import generate_model
+from onpolicy.algorithms.utils.dinosaur.train_base_model import generate_model, get_loss_function
+from torchvision.transforms.functional import to_pil_image, InterpolationMode
+from torchvision.transforms import Resize
 
 
 class R_Actor(nn.Module):
@@ -40,6 +42,7 @@ class R_Actor(nn.Module):
         self.tpdv = dict(dtype=torch.float32, device=device)
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
+        self.resize = Resize((224, 224), interpolation=InterpolationMode.BILINEAR)
 
         obs_shape = get_shape_from_obs_space(obs_space)
 
@@ -54,6 +57,7 @@ class R_Actor(nn.Module):
 
         if self.use_slot_att:
             self.slot_att = generate_model(args)
+            self.slot_loss_fn = get_loss_function(args)
             args.use_input_att = False
             args.use_x_reshape = True
 
@@ -98,8 +102,8 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
             batch, _, _, _ = obs.shape
-            out = self.slot_att(obs.permute(0, 3, 1, 2))
-            actor_features = out['representation'].reshape(batch, -1)
+            out, per_out = self.slot_att(self.resize(obs.permute(0, 3, 1, 2)))
+            actor_features = per_out.objects.reshape(batch, -1)
         else:
             actor_features = self.base(obs)
         output = self.rnn(actor_features, rnn_states, masks=masks)
@@ -150,9 +154,11 @@ class R_Actor(nn.Module):
             for idx in range(num_batch):
                 start_idx = idx * mini_batch_size
                 end_idx = start_idx + mini_batch_size
-                out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2))
-                res.append(out_tmp['representation'])
-                slot_att_total_loss = slot_att_total_loss + out_tmp["loss"]
+                out_tmp, per_out_tmp = self.slot_att(self.resize(obs[start_idx:end_idx].permute(0, 3, 1, 2)))
+                res.append(per_out_tmp.objects)
+
+                tmp_loss = self.slot_loss_fn(out_tmp.reconstruction, out_tmp.target)
+                slot_att_total_loss = slot_att_total_loss + tmp_loss
 
             actor_features = torch.cat(res, 0)
             actor_features = actor_features.reshape(batch, -1)

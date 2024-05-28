@@ -361,10 +361,12 @@ def get_config():
     parser.add_argument("--scoff_num_schemas", type=int, default=3, help="number of schemas")
 
     parser.add_argument("--pretrain_slot_att", type=str2bool, default=False, )
-    parser.add_argument("--slot_train_step", type=int, default=1000000, )
-    parser.add_argument("--slot_clip_grade_norm", type=float, default=1.0)
-    parser.add_argument("--slot_save_fre", type=int, default=10000, )
-    parser.add_argument("--slot_log_fre", type=int, default=1000, )
+    parser.add_argument("--slot_train_ep", type=int, default=2000, )
+    parser.add_argument("--slot_train_batch", type=int, default=2, )
+    parser.add_argument('--slot_att_crop_repeat', type=int, default=5)
+    parser.add_argument("--slot_clip_grade_norm", type=float, default=0.05)
+    parser.add_argument("--slot_save_fre", type=int, default=3, )
+    parser.add_argument("--slot_log_fre", type=int, default=5, )
     parser.add_argument("--slot_att_work_path", type=str,
                         default="/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/slot_att/", )
     parser.add_argument("--slot_att_use_exp_decay", type=str2bool, default=True, )
@@ -374,7 +376,7 @@ def get_config():
     parser.add_argument("--slot_att_warmup_step", type=int, default=10000, )
     parser.add_argument("--slot_pretrain_batch_size", type=int, default=2, )
 
-    parser.add_argument("--slot_att_lr", type=float, default=0.00005, )
+    parser.add_argument("--slot_att_lr", type=float, default=0.0004, )
     parser.add_argument("--slot_use_lr_scheduler", type=str2bool, default=True, )
     parser.add_argument("--slot_att_load_model", type=str2bool, default=False, )
     parser.add_argument("--use_slot_att", type=str2bool, default=True, )

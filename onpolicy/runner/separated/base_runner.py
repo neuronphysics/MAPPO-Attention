@@ -18,6 +18,8 @@ class Runner(object):
     def __init__(self, config):
 
         self.all_args = config['all_args']
+        self.all_args.device = "cuda" if torch.cuda.is_available() else "cpu"
+
         self.envs = config['envs']
         self.eval_envs = config['eval_envs']
         self.device = config['device']
