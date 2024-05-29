@@ -94,7 +94,7 @@ class SharedBlockGRU(nn.Module):
         self.n_templates = n_templates
 
         self.templates = nn.ModuleList(
-                [nn.GRUCell(ninp // self.k, self.m) for _ in range(0, self.n_templates)])
+                [nn.GRUCell(ninp, self.m) for _ in range(0, self.n_templates)])
 
         self.nhid = nhid
 
@@ -127,7 +127,8 @@ class SharedBlockGRU(nn.Module):
         bs = h.shape[0]
         h = h.reshape(bs * self.k, self.m)
 
-        x = x.reshape(x.shape[0] * self.k, self.m)
+        x = x.unsqueeze(1).repeat(1, self.k, 1)
+        x = x.reshape(x.shape[0] * self.k, x.shape[2])
 
         h = h.unsqueeze(1)
         h_read = self.gll_read(h)
