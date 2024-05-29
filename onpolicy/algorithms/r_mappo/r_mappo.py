@@ -130,6 +130,7 @@ class R_MAPPO():
                                                                                              masks_batch,
                                                                                              available_actions_batch,
                                                                                              active_masks_batch)
+        torch.cuda.empty_cache()
         # actor update
         imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
 
@@ -163,8 +164,11 @@ class R_MAPPO():
             slot_att_loss.backward()
             self.policy.slot_att_optimizer.step()
             self.policy.slot_att_lr_scheduler.step()
+            self.policy.slot_att_optimizer.zero_grad()
+        self.policy.actor_optimizer.zero_grad()
 
         # critic update
+        torch.cuda.empty_cache()
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
 
         self.policy.critic_optimizer.zero_grad()
@@ -178,6 +182,7 @@ class R_MAPPO():
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
 
         self.policy.critic_optimizer.step()
+        self.policy.critic_optimizer.zero_grad()
 
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
