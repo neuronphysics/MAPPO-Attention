@@ -1,7 +1,7 @@
 import os
 import glob
 import torch
-
+import random
 from PIL import Image, ImageFile
 from torchvision import transforms
 from torch.utils.data import Dataset
@@ -10,34 +10,68 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class GlobDataset(Dataset):
-    def __init__(self, root, phase, img_glob='*.png'):
-        self.root = root
-        self.total_dirs = sorted(glob.glob(root))
+    def __init__(self, agent_root, world_root, phase, crop_repeat=3, img_glob='*.png'):
+        self.agent_root = agent_root
+        self.world_root = world_root
+        self.agent_total_dirs = sorted(glob.glob(agent_root))
+        self.world_total_dirs = sorted(glob.glob(world_root))
         self.num_background_objects = 1
         self.input_channels = 3
+        self.crop_size = 44
+        self.crop_repeat = crop_repeat
 
-        train_split = int(len(self.total_dirs) * 0.7)
-        val_split = int(len(self.total_dirs) * 0.85)
+        train_split_percent = 0.75
+        train_split = int(len(self.agent_total_dirs) * train_split_percent)
+        val_split = int(len(self.agent_total_dirs))
 
         if phase == 'train':
-            self.total_dirs = self.total_dirs[:train_split]
+            self.agent_total_dirs = self.agent_total_dirs[:train_split]
         elif phase == 'val':
-            self.total_dirs = self.total_dirs[train_split:val_split]
-        elif phase == 'test':
-            self.total_dirs = self.total_dirs[val_split:]
+            self.agent_total_dirs = self.agent_total_dirs[train_split:val_split]
         else:
             pass
 
-        # chunk into episodes
+            # chunk into episodes
         self.episodes = []
-        for dir in self.total_dirs:
+        for dir in self.agent_total_dirs:
             image_paths = sorted(glob.glob(os.path.join(dir, img_glob)))
             for path in image_paths:
-                data_tmp = torch.load(path)
-                self.episodes.append(data_tmp)
+                data_tmp = torch.load(path).permute(0, 3, 1, 2)
+                self.episodes.extend(data_tmp / 255.0)
 
-        self.episodes = torch.cat(self.episodes, dim=0).permute(0, 3, 1, 2) / 255.0
-        self.transform = transforms.ToTensor()
+        train_split = int(len(self.world_total_dirs) * train_split_percent)
+        val_split = int(len(self.world_total_dirs))
+
+        if phase == 'train':
+            self.world_total_dirs = self.world_total_dirs[:train_split]
+        elif phase == 'val':
+            self.world_total_dirs = self.world_total_dirs[train_split:val_split]
+        else:
+            pass
+
+        for dir in self.world_total_dirs:
+            image_paths = sorted(glob.glob(os.path.join(dir, img_glob)))
+            for path in image_paths:
+                data_tmp = torch.load(path).permute(0, 3, 1, 2)
+                _, _, h, w = data_tmp.shape
+                if h <= self.crop_size or w <= self.crop_size:
+                    continue
+                for t in data_tmp:
+                    for i in range(self.crop_repeat):
+                        cropped_img = self.random_crop_img(t)
+                        self.episodes.append(cropped_img / 255.0)
+
+        self.episodes = torch.stack(self.episodes, dim=0)
+
+    def random_crop_img(self, img):
+        max_x = img.shape[2] - self.crop_size
+        max_y = img.shape[1] - self.crop_size
+
+        x = random.randint(0, max_x)
+        y = random.randint(0, max_y)
+
+        crop_img = img[:, y:y + self.crop_size, x:x + self.crop_size]
+        return crop_img
 
     def __len__(self):
         return len(self.episodes)

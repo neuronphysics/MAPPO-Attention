@@ -362,6 +362,7 @@ def get_config():
 
     parser.add_argument("--pretrain_slot_att", type=str2bool, default=False, )
     parser.add_argument("--slot_train_step", type=int, default=1000000, )
+    parser.add_argument('--slot_att_crop_repeat', type=int, default=5)
     parser.add_argument("--slot_clip_grade_norm", type=float, default=1.0)
     parser.add_argument("--slot_save_fre", type=int, default=10000, )
     parser.add_argument("--slot_log_fre", type=int, default=1000, )

@@ -2,9 +2,11 @@ from dataclasses import dataclass, field
 from math import sqrt
 from typing import Dict, List, Literal, Optional, Tuple, Union
 
+import numpy as np
+from torch.nn import functional as F
 import torch
 from torch import Tensor, nn
-
+from typing import Callable
 from .utils import BaseModel, get_conv_output_shape, make_sequential_from_config, PositionalEmbedding
 
 
@@ -194,6 +196,7 @@ class SlotAttentionAE(BaseModel):
 
     encoder_params: Dict
     decoder_params: Dict
+    lose_fn_type: str
     input_channels: int = 3
     eps: float = 1e-8
     mlp_size: int = 128
@@ -203,10 +206,18 @@ class SlotAttentionAE(BaseModel):
 
     encoder: Encoder = field(init=False)
     decoder: Decoder = field(init=False)
+    loss_fn: Callable = field(init=False)
 
     def __post_init__(self):
         super().__post_init__()
-        self.loss_fn = nn.MSELoss()
+
+        if self.lose_fn_type == "mse":
+            self.loss_fn = nn.MSELoss()
+        elif self.lose_fn_type == "cosine":
+            self.loss_fn = lambda x1, x2: -nn.functional.cosine_similarity(x1, x2, dim=-1).mean()
+        elif self.lose_fn_type == "l1":
+            self.loss_fn = nn.functional.l1_loss
+
         if self.w_broadcast == "dataset":
             self.w_broadcast = self.width
         if self.h_broadcast == "dataset":
@@ -238,6 +249,35 @@ class SlotAttentionAE(BaseModel):
         slot = slot.unsqueeze(-1).unsqueeze(-1)
         return slot.repeat(1, 1, self.w_broadcast, self.h_broadcast)
 
+    def slot_similarity_loss(self, slots):
+        """
+        Calculate the similarity loss for slots with shape (batch, num_slot, hidden_size).
+        """
+        batch_size = slots.shape[0]
+        # Normalize slot features
+        slots = F.normalize(slots, dim=-1)  # Normalize along the hidden_size dimension
+
+        # Randomly permute the slots
+        perm = torch.randperm(slots.size(1)).to(slots.device)  # Permute along the num_slot dimension
+
+        # Select a subset of n slots
+        selected_slots = slots[:, perm[:self.num_slots], :]  # [batch, n, hidden_size]
+
+        # Compute similarity matrix
+        sim_matrix = torch.bmm(selected_slots, selected_slots.transpose(1, 2)) * (
+                    1 / np.sqrt(slots.size(2)))  # [batch, n, n]
+
+        # Create mask to remove diagonal elements (self-similarity)
+        mask = torch.eye(self.num_slots).to(slots.device).repeat(batch_size, 1, 1)  # [1, n, n]
+
+        # Mask out the diagonal elements
+        sim_matrix = sim_matrix - mask * sim_matrix
+
+        # Compute similarity loss
+        sim_loss = sim_matrix.sum(dim=(1, 2)) / (self.num_slots * (self.num_slots - 1))
+
+        return sim_loss.mean()  # Return the mean similarity loss over the batch
+
     def forward(self, x: Tensor) -> dict:
         with torch.no_grad():
             x = x * 2.0 - 1.0
@@ -255,6 +295,10 @@ class SlotAttentionAE(BaseModel):
         recon_slots_masked = img_slots * masks
         recon_img = recon_slots_masked.sum(dim=1)
         loss = self.loss_fn(x, recon_img)
+
+        if self.lose_fn_type == "mse":
+            loss = loss + self.slot_similarity_loss(z)
+
         with torch.no_grad():
             recon_slots_output = (img_slots + 1.0) / 2.0
         return {

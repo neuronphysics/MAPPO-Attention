@@ -36,7 +36,7 @@ def generate_model(args):
                       }
     model = SlotAttentionAE(name="slot-attention", width=img_size, height=img_size, latent_size=latent_size,
                             encoder_params=encoder_params, decoder_params=decoder_params,
-                            num_slots=num_slots)
+                            num_slots=num_slots, lose_fn_type="mse")
 
     model.to(device)
     if args.slot_att_load_model:
@@ -59,8 +59,14 @@ def load_slot_att_model(model, args):
 def start_train_slot_att(args):
     model = generate_model(args)
 
-    train_dataset = GlobDataset(root=args.slot_att_work_path + "data/*", phase='train', img_glob="*.pt")
-    val_dataset = GlobDataset(root=args.slot_att_work_path + "data/*", phase='val', img_glob="*.pt")
+    train_dataset = GlobDataset(agent_root=args.slot_att_work_path + "data/*",
+                                world_root=args.slot_att_work_path + "world_data/*",
+                                phase='train', img_glob="*.pt",
+                                crop_repeat=args.slot_att_crop_repeat)
+    val_dataset = GlobDataset(agent_root=args.slot_att_work_path + "data/*",
+                              world_root=args.slot_att_work_path + "world_data/*",
+                              phase='val', img_glob="*.pt",
+                              crop_repeat=args.slot_att_crop_repeat)
 
     loader_kwargs = {
         'batch_size': args.slot_pretrain_batch_size,

@@ -28,8 +28,11 @@ class GroupLinearLayer(nn.Module):
 
     def __init__(self, din, dout, num_blocks):
         super(GroupLinearLayer, self).__init__()
+        self.limit = 1.0 / math.sqrt(din)
 
-        self.w = nn.Parameter(0.01 * torch.randn(num_blocks, din, dout))
+        self.w = nn.Parameter(torch.empty(num_blocks, din, dout))
+        with torch.no_grad():
+            torch.nn.init.uniform_(self.w, -self.limit, self.limit)
 
     def forward(self, x):
         x = x.permute(1, 0, 2)
