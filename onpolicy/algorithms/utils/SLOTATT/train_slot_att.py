@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 
 def generate_model(args):
-    img_size = 44
+    img_size = args.crop_size
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     if args.attention_module == "RIM":
         num_slots = args.rim_num_units
@@ -59,13 +59,13 @@ def load_slot_att_model(model, args):
 def start_train_slot_att(args):
     model = generate_model(args)
 
-    train_dataset = GlobDataset(agent_root=args.slot_att_work_path + "data/*",
+    train_dataset = GlobDataset(
                                 world_root=args.slot_att_work_path + "world_data/*",
-                                phase='train', img_glob="*.pt",
+                                phase='train', img_glob="*.pt", crop_size=args.crop_size,
                                 crop_repeat=args.slot_att_crop_repeat)
-    val_dataset = GlobDataset(agent_root=args.slot_att_work_path + "data/*",
+    val_dataset = GlobDataset(
                               world_root=args.slot_att_work_path + "world_data/*",
-                              phase='val', img_glob="*.pt",
+                              phase='val', img_glob="*.pt", crop_size=args.crop_size,
                               crop_repeat=args.slot_att_crop_repeat)
 
     loader_kwargs = {
