@@ -1,13 +1,14 @@
 from dataclasses import dataclass, field
 from math import sqrt
 from typing import Dict, List, Literal, Optional, Tuple, Union
-
+from onpolicy.algorithms.utils.SLOTATT.discriminator import Discriminator
 import numpy as np
 from torch.nn import functional as F
 import torch
 from torch import Tensor, nn
 from typing import Callable
 from .utils import BaseModel, get_conv_output_shape, make_sequential_from_config, PositionalEmbedding
+from torch.optim import Optimizer
 
 
 class EncoderConfig(Dict):
@@ -196,6 +197,10 @@ class SlotAttentionAE(BaseModel):
 
     encoder_params: Dict
     decoder_params: Dict
+    discrim_params: Dict
+    discrim_optim_params: Dict
+    discrim_train_iter: int
+    weight_gan: float
     lose_fn_type: str
     input_channels: int = 3
     eps: float = 1e-8
@@ -206,10 +211,15 @@ class SlotAttentionAE(BaseModel):
 
     encoder: Encoder = field(init=False)
     decoder: Decoder = field(init=False)
+    discriminator: Discriminator = field(init=False)
+    dis_optimizer: Optimizer = field(init=False)
     loss_fn: Callable = field(init=False)
 
     def __post_init__(self):
         super().__post_init__()
+
+        self.discriminator = Discriminator(**self.discrim_params)
+        self.dis_optimizer = torch.optim.Adam(self.discriminator.parameters(), **self.discrim_optim_params)
 
         if self.lose_fn_type == "mse":
             self.loss_fn = nn.MSELoss()
@@ -265,7 +275,7 @@ class SlotAttentionAE(BaseModel):
 
         # Compute similarity matrix
         sim_matrix = torch.bmm(selected_slots, selected_slots.transpose(1, 2)) * (
-                    1 / np.sqrt(slots.size(2)))  # [batch, n, n]
+                1 / np.sqrt(slots.size(2)))  # [batch, n, n]
 
         # Create mask to remove diagonal elements (self-similarity)
         mask = torch.eye(self.num_slots).to(slots.device).repeat(batch_size, 1, 1)  # [1, n, n]
@@ -300,6 +310,10 @@ class SlotAttentionAE(BaseModel):
             loss = loss + self.slot_similarity_loss(z)
 
         with torch.no_grad():
+            d_fake = self.discriminator(recon_img)
+        loss = loss + self.weight_gan * g_nonsaturating_loss(d_fake)
+
+        with torch.no_grad():
             recon_slots_output = (img_slots + 1.0) / 2.0
         return {
             "loss": loss,  # scalar
@@ -310,3 +324,44 @@ class SlotAttentionAE(BaseModel):
             "reconstruction": recon_img,  # (B, 3, H, W)
             "attn": attn
         }
+
+    def forward_dis(self, x):
+        encoded = self.encoder(x)
+        encoded = encoded.permute(0, 2, 1)
+        z, attn = self.slot_attention(encoded)
+        bs = z.size(0)
+        slots = z.flatten(0, 1)
+        slots = self.spatial_broadcast(slots)
+        img_slots, masks = self.decoder(slots)
+        img_slots = img_slots.view(bs, self.num_slots, 3, self.width, self.height)
+        masks = masks.view(bs, self.num_slots, 1, self.width, self.height)
+        masks = masks.softmax(dim=1)
+
+        recon_slots_masked = img_slots * masks
+        recon_img = recon_slots_masked.sum(dim=1)
+        fake_pred = self.discriminator(recon_img)
+        real_pred = self.discriminator(x)
+
+        real_loss, fake_loss = d_logistic_loss(real_pred, fake_pred)
+
+        return real_loss + fake_loss
+
+    def train_discriminator(self, x):
+        for i in range(self.discrim_train_iter):
+            self.dis_optimizer.zero_grad()
+            loss = self.forward_dis(x)
+            loss.backward()
+            self.dis_optimizer.step()
+
+
+def g_nonsaturating_loss(fake_pred):
+    loss = F.softplus(-fake_pred).mean()
+
+    return loss
+
+
+def d_logistic_loss(real_pred, fake_pred):
+    real_loss = F.softplus(-real_pred)
+    fake_loss = F.softplus(fake_pred)
+
+    return real_loss.mean(), fake_loss.mean()

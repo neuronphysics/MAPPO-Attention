@@ -160,6 +160,8 @@ class R_MAPPO():
         self.policy.actor_optimizer.step()
 
         if self.use_slot_att:
+            self.policy.actor.slot_att.train_discriminator()
+
             self.policy.slot_att_optimizer.zero_grad()
             slot_att_loss.backward()
             self.policy.slot_att_optimizer.step()

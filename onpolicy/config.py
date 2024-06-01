@@ -375,6 +375,7 @@ def get_config():
     parser.add_argument("--slot_att_use_warmup", type=str2bool, default=True, )
     parser.add_argument("--slot_att_warmup_step", type=int, default=10000, )
     parser.add_argument("--slot_pretrain_batch_size", type=int, default=2, )
+    parser.add_argument("--slot_att_dis_train_iter", type=int, default=2, )
 
     parser.add_argument("--slot_att_lr", type=float, default=0.00005, )
     parser.add_argument("--slot_use_lr_scheduler", type=str2bool, default=True, )

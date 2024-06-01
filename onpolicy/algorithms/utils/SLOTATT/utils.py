@@ -22,6 +22,7 @@ from torchvision.utils import make_grid
 import sys
 from ignite.contrib.handlers import ProgressBar
 from sklearn.metrics import adjusted_rand_score
+from itertools import chain
 
 MANDATORY_FIELDS = [
     "loss",  # training loss
@@ -77,6 +78,9 @@ class ForwardPass:
         if self.preprocess_fn is not None:
             batch = self.preprocess_fn(batch)
         output = self.model(batch["image"])
+
+        self.model.train_discriminator(batch["image"])
+
         return batch, output
 
 
@@ -1108,7 +1112,7 @@ def dict_tensor_mean(data: Dict[str, List[Tensor]]) -> Dict[str, float]:
 class BaseTrainer:
     device: str
     steps: int
-    optimizer_config: Dict
+    optimizer_config: List[Dict]
     clip_grad_norm: Optional[float]
     checkpoint_steps: int
     logloss_steps: int
@@ -1134,14 +1138,18 @@ class BaseTrainer:
         self.checkpoint_handler = TrainCheckpointHandler(self.working_dir, self.device)
         self.lr_schedulers = []  # No scheduler by default - subclasses append to this.
 
-    def _make_optimizers(self, **kwargs):
+    def _make_optimizers(self, optim_config_list: List[Dict]):
         """Makes default optimizer on all model parameters.
 
         Called at the end of `_post_init()`. Override to customize.
         """
-        alg = kwargs.pop("alg")  # In this base implementation, alg is required.
+
+        # the optimizer config for base model is at 0 index
+        model_optim_config = optim_config_list[0]
+        alg = model_optim_config.pop("alg")  # In this base implementation, alg is required.
         opt_class = getattr(torch.optim, alg)
-        self.optimizers = [opt_class(self.model.parameters(), **kwargs)]
+        self.optimizers = [opt_class(chain(self.model.encoder.parameters(), self.model.slot_attention.parameters(),
+                                           self.model.decoder.parameters()), **model_optim_config)]
 
     def _setup_lr_scheduling(self):
         """Registers hook that steps all LR schedulers at each iteration.
@@ -1249,7 +1257,7 @@ class BaseTrainer:
         self.validation_dataloader = self.dataloaders[1]
 
         # Make the optimizers here because we need to save them in the checkpoints.
-        self._make_optimizers(**self.optimizer_config)
+        self._make_optimizers(self.optimizer_config)
 
     def _setup_training(self, load_checkpoint: bool):
         """Completes the setup of the trainer.

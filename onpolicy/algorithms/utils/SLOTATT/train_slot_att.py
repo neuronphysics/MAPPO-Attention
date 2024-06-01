@@ -34,9 +34,20 @@ def generate_model(args):
                       "output_paddings": [0, 0, 0, 0],
                       "activations": ["relu", "relu", "relu", None],
                       }
+
+    discrim_params = {"size": 64,
+                      "ndf": 64,
+                      "image_size": args.crop_size,
+                      }
+    discrim_optimizer_params = {"lr": 0.001,
+                                "betas": (0., 0.9)
+                                }
+
     model = SlotAttentionAE(name="slot-attention", width=img_size, height=img_size, latent_size=latent_size,
                             encoder_params=encoder_params, decoder_params=decoder_params,
-                            num_slots=num_slots, lose_fn_type="mse")
+                            num_slots=num_slots, lose_fn_type="mse", discrim_params=discrim_params, weight_gan=0.05,
+                            discrim_optim_params=discrim_optimizer_params,
+                            discrim_train_iter=args.slot_att_dis_train_iter)
 
     model.to(device)
     if args.slot_att_load_model:
@@ -60,13 +71,13 @@ def start_train_slot_att(args):
     model = generate_model(args)
 
     train_dataset = GlobDataset(
-                                world_root=args.slot_att_work_path + "world_data/*",
-                                phase='train', img_glob="*.pt", crop_size=args.crop_size,
-                                crop_repeat=args.slot_att_crop_repeat)
+        world_root=args.slot_att_work_path + "world_data/*",
+        phase='train', img_glob="*.pt", crop_size=args.crop_size,
+        crop_repeat=args.slot_att_crop_repeat)
     val_dataset = GlobDataset(
-                              world_root=args.slot_att_work_path + "world_data/*",
-                              phase='val', img_glob="*.pt", crop_size=args.crop_size,
-                              crop_repeat=args.slot_att_crop_repeat)
+        world_root=args.slot_att_work_path + "world_data/*",
+        phase='val', img_glob="*.pt", crop_size=args.crop_size,
+        crop_repeat=args.slot_att_crop_repeat)
 
     loader_kwargs = {
         'batch_size': args.slot_pretrain_batch_size,
@@ -81,8 +92,9 @@ def start_train_slot_att(args):
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     steps = args.slot_train_step
-    optimizer_config = {"alg": "Adam",
-                        "lr": 0.0004}
+    optimizer_config = [{"alg": "Adam",
+                         "lr": 0.0004
+                         }, ]
     clip_grad_norm = args.slot_clip_grade_norm
     checkpoint_steps = args.slot_save_fre
     logloss_steps = args.slot_log_fre
