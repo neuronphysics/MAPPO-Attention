@@ -1,84 +1,8 @@
 import torch
 from torch import nn
 import math
-import torch.nn.functional as F
-from onpolicy.algorithms.utils.SLOTATT.cov2d_grad_fix import conv2d
 from torch.nn.modules.utils import _pair
-
-
-class EqualConv2d(nn.Module):
-    def __init__(
-            self, in_channel, out_channel, kernel_size, stride=1, padding=0, bias=True
-    ):
-        super().__init__()
-
-        self.weight = nn.Parameter(
-            torch.randn(out_channel, in_channel, kernel_size, kernel_size)
-        )
-        self.scale = 1 / math.sqrt(in_channel * kernel_size ** 2)
-
-        self.stride = stride
-        self.padding = padding
-
-        if bias:
-            self.bias = nn.Parameter(torch.zeros(out_channel))
-
-        else:
-            self.bias = None
-
-    def forward(self, input):
-        out = conv2d(
-            input,
-            self.weight * self.scale,
-            bias=self.bias,
-            stride=self.stride,
-            padding=self.padding,
-        )
-
-        return out
-
-    def __repr__(self):
-        return (
-            f"{self.__class__.__name__}({self.weight.shape[1]}, {self.weight.shape[0]},"
-            f" {self.weight.shape[2]}, stride={self.stride}, padding={self.padding})"
-        )
-
-
-class EqualLinear(nn.Module):
-    def __init__(
-            self, in_dim, out_dim, bias=True, bias_init=0, lr_mul=1, activation=None
-    ):
-        super().__init__()
-
-        self.weight = nn.Parameter(torch.randn(out_dim, in_dim).div_(lr_mul))
-
-        if bias:
-            self.bias = nn.Parameter(torch.zeros(out_dim).fill_(bias_init))
-
-        else:
-            self.bias = None
-
-        self.activation = activation
-
-        self.scale = (1 / math.sqrt(in_dim)) * lr_mul
-        self.lr_mul = lr_mul
-
-    def forward(self, input):
-        if self.activation:
-            out = F.linear(input, self.weight * self.scale)
-            out = F.leaky_relu(out, 0.2, inplace=True) * 1.4
-
-        else:
-            out = F.linear(
-                input, self.weight * self.scale, bias=self.bias * self.lr_mul
-            )
-
-        return out
-
-    def __repr__(self):
-        return (
-            f"{self.__class__.__name__}({self.weight.shape[1]}, {self.weight.shape[0]})"
-        )
+from onpolicy.algorithms.utils.util import weight_init
 
 
 class ConvLayer(nn.Sequential):
@@ -88,7 +12,6 @@ class ConvLayer(nn.Sequential):
             out_channel,
             kernel_size,
             downsample=False,
-            blur_kernel=[1, 3, 3, 1],
             bias=True,
             activate=True,
             stride=1,
@@ -100,14 +23,8 @@ class ConvLayer(nn.Sequential):
             layers.append(nn.AvgPool2d(kernel_size=2, stride=2))
 
         layers.append(
-            EqualConv2d(
-                in_channel,
-                out_channel,
-                kernel_size,
-                padding=padding,
-                stride=stride,
-                bias=bias and not activate,
-            )
+            nn.Conv2d(in_channels=in_channel, out_channels=out_channel, kernel_size=kernel_size, padding=padding,
+                      stride=stride, bias=bias and not activate)
         )
 
         if activate:
@@ -135,6 +52,11 @@ class ResBlock(nn.Module):
         out = (out + skip) / math.sqrt(2)
 
         return out
+
+
+class mult_layer(nn.Module):
+    def forward(self, x):
+        return x * 1.4
 
 
 class Discriminator(nn.Module):
@@ -174,9 +96,12 @@ class Discriminator(nn.Module):
         final_img_size = conv2d_output_shape(final_img_size, final_img_size, 3, 1, 1)[0]
 
         self.final_linear = nn.Sequential(
-            EqualLinear(channels[4] * final_img_size * final_img_size, channels[4], activation="fused_lrelu"),
-            EqualLinear(channels[4], 1),
+            nn.Linear(channels[4] * final_img_size * final_img_size, channels[4]),
+            nn.LeakyReLU(0.2, inplace=True),
+            mult_layer(),
+            nn.Linear(channels[4], 1),
         )
+        self.apply(weight_init)
 
     def forward(self, input):
         out = self.convs(input) * 1.4

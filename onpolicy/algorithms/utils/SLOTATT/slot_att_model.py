@@ -309,9 +309,8 @@ class SlotAttentionAE(BaseModel):
         if self.lose_fn_type == "mse":
             loss = loss + self.slot_similarity_loss(z)
 
-        with torch.no_grad():
-            d_fake = self.discriminator(recon_img)
-        loss = loss + self.weight_gan * g_nonsaturating_loss(d_fake)
+        d_fake = self.discriminator(recon_img)
+        loss = loss + self.weight_gan * g_nonsaturating_loss(d_fake.detach())
 
         with torch.no_grad():
             recon_slots_output = (img_slots + 1.0) / 2.0
@@ -326,6 +325,8 @@ class SlotAttentionAE(BaseModel):
         }
 
     def forward_dis(self, x):
+        device = x.device
+
         encoded = self.encoder(x)
         encoded = encoded.permute(0, 2, 1)
         z, attn = self.slot_attention(encoded)
@@ -339,18 +340,23 @@ class SlotAttentionAE(BaseModel):
 
         recon_slots_masked = img_slots * masks
         recon_img = recon_slots_masked.sum(dim=1)
-        fake_pred = self.discriminator(recon_img)
+
+        fake_pred = self.discriminator(recon_img.detach())
         real_pred = self.discriminator(x)
 
-        real_loss, fake_loss = d_logistic_loss(real_pred, fake_pred)
+        epsilon = torch.rand(len(x), 1, 1, 1, device=device, requires_grad=True)
+        gradient = get_gradient(self.discriminator, x, recon_img.detach(), epsilon)
+        gp = gradient_penalty(gradient)
+        dis_loss = get_dis_loss(fake_pred, real_pred, gp)
 
-        return real_loss + fake_loss
+        return dis_loss
 
     def train_discriminator(self, x):
         for i in range(self.discrim_train_iter):
             self.dis_optimizer.zero_grad()
             loss = self.forward_dis(x)
-            loss.backward()
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 0.5, norm_type=2)
             self.dis_optimizer.step()
 
 
@@ -365,3 +371,37 @@ def d_logistic_loss(real_pred, fake_pred):
     fake_loss = F.softplus(fake_pred)
 
     return real_loss.mean(), fake_loss.mean()
+
+
+def get_gradient(crit, real, fake, epsilon):
+    mixed_images = real * epsilon + fake * (1 - epsilon)
+    mixed_images = torch.autograd.Variable(mixed_images, requires_grad=True)
+
+    mixed_scores = crit(mixed_images)
+    if not mixed_scores.requires_grad:
+        torch.autograd.set_grad_enabled(True)
+        mixed_scores = crit(mixed_images)
+
+    gradient = torch.autograd.grad(
+        inputs=mixed_images,
+        outputs=mixed_scores,
+        grad_outputs=torch.autograd.Variable(torch.ones_like(mixed_scores), requires_grad=False),
+        create_graph=True,
+        retain_graph=True,
+        allow_unused=True
+    )[0]
+    return gradient
+
+
+def get_dis_loss(crit_fake_pred, crit_real_pred, gp, c_lambda=10):
+    dis_loss = torch.mean(crit_fake_pred) - torch.mean(crit_real_pred) + c_lambda * gp
+    return dis_loss
+
+
+def gradient_penalty(gradient):
+    gradient = gradient.view(len(gradient), -1)
+
+    gradient_norm = gradient.norm(2, dim=1)
+
+    penalty = torch.mean((gradient_norm - 1) ** 2)
+    return penalty
