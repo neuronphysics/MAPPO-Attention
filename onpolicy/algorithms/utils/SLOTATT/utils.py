@@ -72,14 +72,15 @@ class ForwardPass:
     device: Union[torch.device, str]
     preprocess_fn: Optional[Callable] = None
 
-    def __call__(self, batch: dict) -> Tuple[dict, dict]:
+    def __call__(self, batch: dict, mode: str = "train") -> Tuple[dict, dict]:
         for key in batch.keys():
             batch[key] = batch[key].to(self.device, non_blocking=True)
         if self.preprocess_fn is not None:
             batch = self.preprocess_fn(batch)
         output = self.model(batch["image"])
 
-        self.model.train_discriminator(batch["image"])
+        if mode == 'train':
+            self.model.train_discriminator(batch["image"])
 
         return batch, output
 
@@ -999,7 +1000,7 @@ class MetricsEvaluator:
 
     @torch.no_grad()
     def _eval_step(self, engine: Engine, batch: dict):
-        batch, output = self._forward_pass(batch)
+        batch, output = self._forward_pass(batch, mode="eval")
 
         # Compute metrics
         reconstruction = make_recon_img(output["slot"], output["mask"]).clamp(0.0, 1.0)
@@ -1184,7 +1185,7 @@ class BaseTrainer:
     def train_step(self, engine: Engine, batch: dict) -> Tuple[dict, dict]:
         for optimizer in self.optimizers:
             optimizer.zero_grad()
-        batch, output = self.eval_step(batch)
+        batch, output = self.eval_step(batch, mode="train")
         self._check_shapes(batch, output)  # check shapes of mandatory items
         output["loss"].backward()
         if self.clip_grad_norm is not None:

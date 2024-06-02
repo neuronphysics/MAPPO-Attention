@@ -378,9 +378,6 @@ def get_gradient(crit, real, fake, epsilon):
     mixed_images = torch.autograd.Variable(mixed_images, requires_grad=True)
 
     mixed_scores = crit(mixed_images)
-    if not mixed_scores.requires_grad:
-        torch.autograd.set_grad_enabled(True)
-        mixed_scores = crit(mixed_images)
 
     gradient = torch.autograd.grad(
         inputs=mixed_images,
