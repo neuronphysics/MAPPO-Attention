@@ -45,7 +45,8 @@ def generate_model(args):
 
     model = SlotAttentionAE(name="slot-attention", width=img_size, height=img_size, latent_size=latent_size,
                             encoder_params=encoder_params, decoder_params=decoder_params,
-                            num_slots=num_slots, lose_fn_type="mse", discrim_params=discrim_params, weight_gan=0.05,
+                            num_slots=num_slots, lose_fn_type="mse", discrim_params=discrim_params,
+                            weight_gan=args.slot_att_weight_gan,
                             discrim_optim_params=discrim_optimizer_params,
                             discrim_train_iter=args.slot_att_dis_train_iter)
 

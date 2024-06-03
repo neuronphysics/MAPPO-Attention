@@ -377,6 +377,7 @@ def get_config():
     parser.add_argument("--slot_pretrain_batch_size", type=int, default=2, )
     parser.add_argument("--slot_att_dis_train_iter", type=int, default=2, )
 
+    parser.add_argument("--slot_att_weight_gan", type=float, default=0.0001, )
     parser.add_argument("--slot_att_lr", type=float, default=0.00005, )
     parser.add_argument("--slot_use_lr_scheduler", type=str2bool, default=True, )
     parser.add_argument("--slot_att_load_model", type=str2bool, default=False, )

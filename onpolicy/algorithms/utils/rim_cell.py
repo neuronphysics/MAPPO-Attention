@@ -4,7 +4,7 @@ import math
 from modularity import Identity
 import numpy as np
 import torch.multiprocessing as mp
-
+from onpolicy.algorithms.utils.util import as_parameter
 from onpolicy.algorithms.utils.rnn import RNNLayer
 from util import weight_init
 from utilities.LayerNormGRUCell import LayerNormGRUCell
@@ -140,8 +140,8 @@ class RIMCell(nn.Module):
         self.input_dropout_rate = args.drop_out
         self.comm_dropout_rate = args.drop_out
 
-        self.comm_key_size = 32
-        self.comm_query_size = 32
+        self.comm_key_size = 64
+        self.comm_query_size = 64
         self.comm_value_size = 100
 
         self.key = nn.Linear(input_size, self.num_input_heads * self.input_query_size).to(self.device)
@@ -159,6 +159,8 @@ class RIMCell(nn.Module):
         self.value_ = GroupLinearLayer(hidden_size, self.comm_value_size * self.num_comm_heads, self.num_units)
         self.comm_attention_output = GroupLinearLayer(self.num_comm_heads * self.comm_value_size, self.hidden_size,
                                                       self.num_units)
+        as_parameter(self, 'com_res_factor', 1, self.hidden_size)
+
         self.comm_dropout = nn.Dropout(p=self.comm_dropout_rate)
         self.input_dropout = nn.Dropout(p=self.input_dropout_rate)
 
@@ -238,7 +240,7 @@ class RIMCell(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.num_comm_heads * self.comm_value_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
         context_layer = self.comm_attention_output(context_layer)
-        context_layer = context_layer + h
+        context_layer = context_layer + h * self.com_res_factor
 
         return context_layer
 

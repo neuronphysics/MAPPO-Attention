@@ -1,6 +1,6 @@
 import copy
 import numpy as np
-
+import math
 import torch
 import torch.nn as nn
 
@@ -119,3 +119,45 @@ def calculate_conv_params(input_size):
     padding = (kernel_size - 1) // 2
 
     return kernel_size, stride, padding
+
+
+def calculate_init(
+        num_res_layers,
+        output_change_scale='O(logn)',
+) -> int:
+    r"""
+    Calculate initialization for omega.
+
+    Parameters
+    ----------
+    num_res_layers: ``int``, required.
+        The total number of residual layers. Typical n-layer Transformer encoder has 2n residual layers.
+    output_change_scale: ``str``, optional (default = ``'O(logn)'``).
+        The desired output change scale at initialization. Only ``'O(n)'``, ``'O(logn)'`` / ``'default'``,
+        and ``'O(1)'`` are supported.
+
+    Returns
+    -------
+    int: It would return the initialization value.
+    """
+    if 'O(logn)' == output_change_scale or 'default' == output_change_scale:
+        omega_value = (num_res_layers + 1) / math.log(num_res_layers + 1) - 1
+    elif 'O(n)' == output_change_scale:
+        omega_value = 1.
+    else:
+        assert 'O(1)' == output_change_scale, \
+            'only O(n), O(logn), and O(1) output changes are supported.'
+        omega_value = num_res_layers
+    return omega_value ** 0.5
+
+
+def as_parameter(
+        network,
+        parameter_name,
+        num_res_layers,
+        embed_dim,
+        output_change_scale='default',
+) -> None:
+    omega_vector = torch.ones(embed_dim)
+    omega_vector.data.fill_(calculate_init(num_res_layers, output_change_scale))
+    network.register_parameter(parameter_name, torch.nn.Parameter(omega_vector))

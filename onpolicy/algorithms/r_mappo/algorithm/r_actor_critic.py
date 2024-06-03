@@ -219,16 +219,6 @@ class R_Critic(nn.Module):
         self.use_attention = args.use_attention
         self._attention_module = args.attention_module
 
-        self.scoff_num_modules_read_input = args.scoff_num_modules_read_input
-        self.scoff_inp_heads = args.scoff_inp_heads
-        self.scoff_share_comm = args.scoff_share_comm
-        self.scoff_share_inp = args.scoff_share_inp
-        self.scoff_memory_mlp = args.scoff_memory_mlp
-        self.scoff_memory_slots = args.scoff_memory_slots
-        self.scoff_memory_head_size = args.scoff_memory_head_size
-        self.scoff_num_memory_heads = args.scoff_num_memory_heads
-        self.scoff_num_memory_topk = args.scoff_memory_topk
-
         self._obs_shape = cent_obs_shape
 
         base = CNNBase if len(self._obs_shape) == 3 else MLPBase
