@@ -150,7 +150,7 @@ class R_MAPPO():
 
         if update_actor:
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
-            total_loss.backward(retain_graph=True)
+            total_loss.backward(retain_graph=self.use_slot_att)
 
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
