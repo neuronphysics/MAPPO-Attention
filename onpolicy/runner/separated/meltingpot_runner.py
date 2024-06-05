@@ -5,7 +5,7 @@ import numpy as np
 from itertools import chain
 import torch
 import cv2
-from onpolicy.utils.util import update_linear_schedule
+from onpolicy.algorithms.utils.util import global_step_counter
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
 import matplotlib.image
@@ -47,6 +47,7 @@ class MeltingpotRunner(Runner):
             return
 
         start = time.time()
+        self.all_args.global_step = global_step_counter()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
         print('num episodes to run (separated):', episodes)
 
@@ -127,6 +128,8 @@ class MeltingpotRunner(Runner):
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
+
+            self.all_args.global_step.increment()
 
     def warmup(self):
         # reset env

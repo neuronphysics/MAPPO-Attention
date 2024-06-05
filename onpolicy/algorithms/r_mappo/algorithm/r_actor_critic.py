@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from onpolicy.algorithms.utils.util import init, check, calculate_conv_params
+from onpolicy.algorithms.utils.util import init, check, log_info
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
 from onpolicy.algorithms.utils.modularity import SCOFF
 from onpolicy.algorithms.utils.mlp import MLPBase
@@ -22,9 +22,12 @@ class R_Actor(nn.Module):
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
 
-    def __init__(self, args, obs_space, action_space,
+    def __init__(self, args, obs_space, action_space, name,
                  device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super(R_Actor, self).__init__()
+        self.name = name
+        self.args = args
+        self.algo = args.algorithm_name
 
         # new parameters
         self.drop_out = args.drop_out
@@ -72,7 +75,6 @@ class R_Actor(nn.Module):
 
         self.act = ACTLayer(action_space, self.hidden_size, self._use_orthogonal, self._gain)
         self.to(device)
-        self.algo = args.algorithm_name
 
     def forward(self, obs, rnn_states, masks, available_actions=None, deterministic=False):
         """
@@ -105,8 +107,6 @@ class R_Actor(nn.Module):
         output = self.rnn(actor_features, rnn_states, masks=masks)
         # expect actor_feature (batch, input_size) rnn_state (1, batch, hidden_size)
         actor_features, rnn_states = output[:2]
-        if self.rnn_attention_module == "LSTM":
-            c = output[-1]
 
         if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
             rnn_states = rnn_states.permute(1, 0, 2)
@@ -162,8 +162,6 @@ class R_Actor(nn.Module):
         if self._use_naive_recurrent_policy or self._use_recurrent_policy or self.use_attention:
             output = self.rnn(actor_features, rnn_states, masks=masks)
             actor_features, rnn_states = output[:2]
-            if self.rnn_attention_module == "LSTM":
-                c = output[-1]
 
         if self.algo == "hatrpo":
             action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(
@@ -181,6 +179,12 @@ class R_Actor(nn.Module):
                                                                        active_masks if self._use_policy_active_masks
                                                                        else None)
 
+        if self.use_attention and self._attention_module == "RIM":
+            log_info(self.args.use_wandb, self.name, "rim_actor_inp_att_entropy", output[2],
+                     self.args.global_step.cur_ep(), self.args.writer)
+            log_info(self.args.use_wandb, self.name, "rim_actor_com_att_entropy", output[3],
+                     self.args.global_step.cur_ep(), self.args.writer)
+
         return action_log_probs, dist_entropy, slot_att_total_loss
 
 
@@ -193,8 +197,10 @@ class R_Critic(nn.Module):
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
 
-    def __init__(self, args, cent_obs_space, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+    def __init__(self, args, cent_obs_space, name, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super(R_Critic, self).__init__()
+        self.name = name
+        self.args = args
 
         # new parameters
         self.drop_out = args.drop_out
@@ -247,7 +253,7 @@ class R_Critic(nn.Module):
 
         self.to(device)
 
-    def forward(self, cent_obs, rnn_states, masks):
+    def forward(self, cent_obs, rnn_states, masks, mode="collect"):
         """
         Compute actions from the given inputs.
         :param cent_obs: (np.ndarray / torch.Tensor) observation inputs into network.
@@ -264,13 +270,17 @@ class R_Critic(nn.Module):
         critic_features = self.base(cent_obs)
         output = self.rnn(critic_features, rnn_states, masks=masks)
         critic_features, rnn_states = output[:2]
-        if self.rnn_attention_module == "LSTM":
-            c = output[-1]
 
         if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
             rnn_states = rnn_states.permute(1, 0, 2)
 
         critic_features = critic_features.unsqueeze(0)
         values = self.v_out(critic_features)
+
+        if self.use_attention and self._attention_module == "RIM" and mode == 'train':
+            log_info(self.args.use_wandb, self.name, "rim_critic_inp_att_entropy", output[2],
+                     self.args.global_step.cur_ep(), self.args.writer)
+            log_info(self.args.use_wandb, self.name, "rim_critic_com_att_entropy", output[3],
+                     self.args.global_step.cur_ep(), self.args.writer)
 
         return values, rnn_states

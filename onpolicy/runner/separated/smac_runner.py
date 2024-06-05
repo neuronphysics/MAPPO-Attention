@@ -81,7 +81,7 @@ class SMACRunner(Runner):
                     if self.use_wandb:
                         wandb.log({"incre_win_rate": incre_win_rate}, step=total_num_steps)
                     else:
-                        self.writter.add_scalars("incre_win_rate", {"incre_win_rate": incre_win_rate}, total_num_steps)
+                        self.writer.add_scalars("incre_win_rate", {"incre_win_rate": incre_win_rate}, total_num_steps)
                     
                     last_battles_game = battles_game
                     last_battles_won = battles_won
@@ -225,5 +225,5 @@ class SMACRunner(Runner):
                 if self.use_wandb:
                     wandb.log({"eval_win_rate": eval_win_rate}, step=total_num_steps)
                 else:
-                    self.writter.add_scalars("eval_win_rate", {"eval_win_rate": eval_win_rate}, total_num_steps)
+                    self.writer.add_scalars("eval_win_rate", {"eval_win_rate": eval_win_rate}, total_num_steps)
                 break

@@ -3,6 +3,8 @@ import numpy as np
 import math
 import torch
 import torch.nn as nn
+import wandb
+import torch.nn.functional as func
 
 
 def weight_init(m: nn.Module) -> None:
@@ -161,3 +163,26 @@ def as_parameter(
     omega_vector = torch.ones(embed_dim)
     omega_vector.data.fill_(calculate_init(num_res_layers, output_change_scale))
     network.register_parameter(parameter_name, torch.nn.Parameter(omega_vector))
+
+
+def _entropy(p):
+    return -torch.sum(p * torch.log(p + 1e-9), dim=-1).mean()
+
+
+def log_info(use_wandb, agent_name, info_key, info_value, counter, writer=None):
+    agent_k = info_key + "/" + agent_name
+    if use_wandb:
+        wandb.log({agent_k: info_value}, step=counter)
+    else:
+        writer.add_scalars(agent_k, {agent_k: info_value}, counter)
+
+
+class global_step_counter:
+    def __init__(self):
+        self.current_ep = 0
+
+    def increment(self):
+        self.current_ep += 1
+
+    def cur_ep(self):
+        return self.current_ep

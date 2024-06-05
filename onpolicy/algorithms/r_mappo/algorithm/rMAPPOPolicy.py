@@ -16,8 +16,9 @@ class R_MAPPOPolicy:
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
 
-    def __init__(self, args, obs_space, cent_obs_space, act_space,
+    def __init__(self, args, obs_space, cent_obs_space, act_space, name,
                  device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+        self.name = name
         self.device = device
         self.lr = args.lr
         self.critic_lr = args.critic_lr
@@ -28,8 +29,8 @@ class R_MAPPOPolicy:
         self.share_obs_space = cent_obs_space
         self.act_space = act_space
 
-        self.actor = R_Actor(args, self.obs_space, self.act_space, self.device)
-        self.critic = R_Critic(args, self.share_obs_space, self.device)
+        self.actor = R_Actor(args, self.obs_space, self.act_space, name, self.device)
+        self.critic = R_Critic(args, self.share_obs_space, name, self.device)
 
         # actor_parameters = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
         # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
@@ -117,7 +118,7 @@ class R_MAPPOPolicy:
                                                                  deterministic
                                                                  )
 
-        values, rnn_states_critic = self.critic(cent_obs, rnn_states_critic, masks)
+        values, rnn_states_critic = self.critic(cent_obs, rnn_states_critic, masks, "collect")
         return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic
 
     def get_values(self, cent_obs, rnn_states_critic, masks):
@@ -157,7 +158,7 @@ class R_MAPPOPolicy:
                                                                                     available_actions,
                                                                                     active_masks)
 
-        values, _ = self.critic(cent_obs, rnn_states_critic, masks)
+        values, _ = self.critic(cent_obs, rnn_states_critic, masks, "train")
         return values, action_log_probs, dist_entropy, slot_att_loss
 
     def act(self, obs, rnn_states_actor, masks, available_actions=None, deterministic=False):

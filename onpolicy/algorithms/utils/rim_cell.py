@@ -4,7 +4,7 @@ import math
 from modularity import Identity
 import numpy as np
 import torch.multiprocessing as mp
-from onpolicy.algorithms.utils.util import as_parameter
+from onpolicy.algorithms.utils.util import as_parameter, _entropy
 from onpolicy.algorithms.utils.rnn import RNNLayer
 from util import weight_init
 from utilities.LayerNormGRUCell import LayerNormGRUCell
@@ -26,7 +26,7 @@ class blocked_grad(torch.autograd.Function):
 
 class GroupLinearLayer(nn.Module):
 
-    def __init__(self, din, dout, num_blocks):
+    def __init__(self, din, dout, num_blocks, bias=False):
         super(GroupLinearLayer, self).__init__()
         self.limit = 1.0 / math.sqrt(din)
 
@@ -34,11 +34,20 @@ class GroupLinearLayer(nn.Module):
         with torch.no_grad():
             torch.nn.init.uniform_(self.w, -self.limit, self.limit)
 
+        self.bias = bias
+        if bias:
+            self.bias_t = nn.Parameter(torch.FloatTensor(num_blocks, dout).uniform_(-self.limit, self.limit))
+        else:
+            self.bias_t = None
+
     def forward(self, x):
         x = x.permute(1, 0, 2)
-
         x = torch.bmm(x, self.w)
-        return x.permute(1, 0, 2)
+        x = x.permute(1, 0, 2)
+
+        if self.bias:
+            x = x + self.bias_t
+        return x
 
 
 class GroupLSTMCell(nn.Module):
@@ -152,7 +161,8 @@ class RIMCell(nn.Module):
         self.use_x_reshape = args.use_x_reshape
 
         self.rnn = nn.ModuleList([RNNLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
-        self.query = GroupLinearLayer(hidden_size, self.input_key_size * self.num_input_heads, self.num_units)
+        self.query = GroupLinearLayer(hidden_size, self.input_key_size * self.num_input_heads, self.num_units,
+                                      bias=True)
 
         self.query_ = GroupLinearLayer(hidden_size, self.comm_query_size * self.num_comm_heads, self.num_units)
         self.key_ = GroupLinearLayer(hidden_size, self.comm_key_size * self.num_comm_heads, self.num_units)
@@ -204,9 +214,11 @@ class RIMCell(nn.Module):
         mask_[row_index, topk1.indices.view(-1)] = 1
 
         attention_probs = self.input_dropout(nn.Softmax(dim=-1)(attention_scores))
+        entropy = _entropy(attention_probs)
+
         inputs = torch.matmul(attention_probs, value_layer) * mask_.unsqueeze(2)
         inputs = torch.split(inputs, 1, 1)
-        return inputs, mask_
+        return inputs, mask_, entropy
 
     def communication_attention(self, h, mask):
         """
@@ -235,6 +247,9 @@ class RIMCell(nn.Module):
 
         attention_probs = attention_probs * mask.unsqueeze(3)
         attention_probs = self.comm_dropout(attention_probs)
+
+        entropy = _entropy(attention_probs)
+
         context_layer = torch.matmul(attention_probs, value_layer)
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.num_comm_heads * self.comm_value_size,)
@@ -242,9 +257,9 @@ class RIMCell(nn.Module):
         context_layer = self.comm_attention_output(context_layer)
         context_layer = context_layer + h * self.com_res_factor
 
-        return context_layer
+        return context_layer, entropy
 
-    def forward(self, x, hs, cs=None, h_masks=None):
+    def forward(self, x, hs, h_masks=None):
         """
         Input : x (batch_size, 1 , input_size)
                 hs (batch_size, num_units, hidden_size)
@@ -254,11 +269,12 @@ class RIMCell(nn.Module):
         """
         batch_size, ep, input_size = x.shape
 
+        inp_att_entropy = 0
         if self.use_input_att:
             # Compute input attention
             null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
             x = torch.cat((x, null_input), dim=1)
-            inputs, mask = self.input_attention_mask(x, hs)
+            inputs, mask, inp_att_entropy = self.input_attention_mask(x, hs)
             mask = mask.unsqueeze(-1)
         else:
             if self.use_x_reshape:
@@ -270,41 +286,31 @@ class RIMCell(nn.Module):
             mask = torch.ones(batch_size, self.num_units, 1).to(self.device)
 
         h_old = (hs * 1.0)
-        if cs is not None:
-            c_old = cs * 1.0
         hs = list(torch.split(hs, 1, 1))
-        if cs is not None:
-            cs = list(torch.split(cs, 1, 1))
 
         # Compute RNN(LSTM or GRU) output
         x_out = []
         for i in range(self.num_units):
-            if cs is None:
-                y_t, hs[i] = self.rnn[i](inputs[i].squeeze(1), hs[i], h_masks.reshape(-1, 1))
-                x_out.append(y_t)
-            else:
-                hs[i], cs[i] = self.rnn[i](inputs[i].squeeze(1), (hs[i].squeeze(1), cs[i].squeeze(1)))
+            y_t, hs[i] = self.rnn[i](inputs[i].squeeze(1), hs[i], h_masks.reshape(-1, 1))
+            x_out.append(y_t)
+
         hs = torch.cat(hs, dim=1)
         x_final = torch.cat(x_out, dim=1).unsqueeze(1)
-        if cs is not None:
-            cs = torch.stack(cs, dim=1)
 
         # Block gradient through inactive units
         h_new = blocked_grad.apply(hs, mask)
 
         # Compute communication attention
+        com_att_entropy = 0
         if self.use_com_att:
-            h_new = self.communication_attention(h_new, mask.squeeze(2))
+            h_new, com_att_entropy = self.communication_attention(h_new, mask.squeeze(2))
         h_new = self.output_layer_norm(h_new)
 
         # h_new = Identity.apply(h_new)
         hs = (mask * h_new + (1 - mask) * h_old)
-        if cs is not None:
-            cs = mask * cs + (1 - mask) * c_old
-            return x_final, hs, cs
 
         # output res y (batch, 1, num_unit * hidden_size), next state hs (batch, num_unit, hidden_size)
-        return x_final, hs, None
+        return x_final, hs, inp_att_entropy, com_att_entropy
 
 
 class RIM(nn.Module):
@@ -327,7 +333,7 @@ class RIM(nn.Module):
                                               k, args).to(self.device) for i in
                                       range(self.n_layers)])
 
-    def layer(self, rim_layer, x, h, c=None, direction=0, mask=None):
+    def layer(self, rim_layer, x, h, direction=0, mask=None):
         batch_size = x.size(1)
         xs = list(torch.split(x, 1, dim=0))
         masks = list(torch.split(mask, 1, dim=0))
@@ -335,21 +341,21 @@ class RIM(nn.Module):
         if direction == 1:
             xs.reverse()
         hs = h.squeeze(0).view(batch_size, self.num_units, -1)
-        cs = None
-        if c is not None:
-            cs = c.squeeze(0).view(batch_size, self.num_units, -1)
+
         outputs = []
+        total_input_att_entropy = 0
+        total_com_att_entropy = 0
         for x, mask_x in zip(xs, masks):
             x = x.squeeze(0)
-            x_real, hs, cs = rim_layer(x.unsqueeze(1), hs, cs, mask_x)
+            x_real, hs, input_att_entropy, com_att_entropy = rim_layer(x.unsqueeze(1), hs, mask_x)
+            total_input_att_entropy += input_att_entropy
+            total_com_att_entropy += com_att_entropy
             outputs.append(x_real)
         if direction == 1:
             outputs.reverse()
         outputs = torch.cat(outputs, dim=1)
-        if c is not None:
-            return outputs, hs.reshape(batch_size, -1), cs.reshape(batch_size, -1)
-        else:
-            return outputs, hs.reshape(batch_size, -1)
+
+        return outputs, hs.reshape(batch_size, -1), total_input_att_entropy, total_com_att_entropy
 
     def forward(self, x, h=None, c=None, masks=None):
         """
@@ -381,11 +387,15 @@ class RIM(nn.Module):
                 self.device), 1, 0)
         hs = list(hs)
 
+        total_input_att_entropy = 0
+        total_com_att_entropy = 0
         for idx in range(self.n_layers):
-            x, hs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=None, mask=masks)
+            x, hs[idx], input_att_entropy, com_att_entropy = self.layer(self.rimcell[idx], x, hs[idx], mask=masks)
+            total_com_att_entropy += com_att_entropy
+            total_input_att_entropy += input_att_entropy
 
         hs = torch.stack(hs, dim=0)
 
         x = x.transpose(0, 1).reshape(ep_len * batch_num, self.num_units * self.hidden_size)
 
-        return x, hs
+        return x, hs, total_input_att_entropy, total_com_att_entropy

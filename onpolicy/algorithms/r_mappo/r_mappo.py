@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
-from onpolicy.algorithms.utils.util import check
+from onpolicy.algorithms.utils.util import check, log_info
 
 
 class R_MAPPO():
@@ -18,7 +18,7 @@ class R_MAPPO():
                  args,
                  policy,
                  device=torch.device("cpu")):
-
+        self.args = args
         self.device = device
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.policy = policy
@@ -49,8 +49,6 @@ class R_MAPPO():
         else:
             self._use_naive_recurrent_policy = True
             self._use_recurrent_policy = True
-
-        # assert (self._use_popart and self._use_valuenorm) == False, ("self._use_popart and self._use_valuenorm can not be set True simultaneously")
 
         if self._use_popart:
             self.value_normalizer = self.policy.critic.v_out
@@ -105,7 +103,7 @@ class R_MAPPO():
         :update_actor: (bool) whether to update actor network.
 
         :return value_loss: (torch.Tensor) value function loss.
-        :return critic_grad_norm: (torch.Tensor) gradient norm from critic up9date.
+        :return critic_grad_norm: (torch.Tensor) gradient norm from critic update.
         ;return policy_loss: (torch.Tensor) actor(policy) loss value.
         :return dist_entropy: (torch.Tensor) action entropies.
         :return actor_grad_norm: (torch.Tensor) gradient norm from actor update.

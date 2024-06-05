@@ -55,7 +55,7 @@ class Runner(object):
             self.log_dir = str(self.run_dir / 'logs')
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir)
-            self.writter = SummaryWriter(self.log_dir)
+            self.writer = SummaryWriter(self.log_dir)
             self.save_dir = str(self.run_dir / 'models')
             if not os.path.exists(self.save_dir):
                 os.makedirs(self.save_dir)
@@ -65,12 +65,15 @@ class Runner(object):
         else:
             if self.use_wandb:
                 self.save_dir = str(wandb.run.dir)
+                self.all_args.writer = None
             else:
                 self.run_dir = config["run_dir"]
                 self.log_dir = str(self.run_dir / 'logs')
                 if not os.path.exists(self.log_dir):
                     os.makedirs(self.log_dir)
-                self.writter = SummaryWriter(self.log_dir)
+                self.writer = SummaryWriter(self.log_dir)
+                self.all_args.writer = self.writer
+
                 self.save_dir = str(self.run_dir / 'models')
                 if not os.path.exists(self.save_dir):
                     os.makedirs(self.save_dir)
@@ -94,6 +97,7 @@ class Runner(object):
                             self.envs.observation_space[agent_id],
                             share_observation_space,
                             self.envs.action_space[agent_id],
+                            name="agent" + str(agent_id),
                             device=self.device)
             else:
                 player_key = f"player_{agent_id}"
@@ -108,6 +112,7 @@ class Runner(object):
                             self.envs.observation_space[player_key]['RGB'],
                             share_observation_space,
                             self.envs.action_space[player_key],
+                            name="agent" + str(agent_id),
                             device=self.device)
                 # policy network
 
@@ -257,9 +262,9 @@ class Runner(object):
             for k, v in train_infos[agent_id].items():
                 agent_k = "agent%i/" % agent_id + k
                 if self.use_wandb:
-                    wandb.log({agent_k: v}, step=total_num_steps)
+                    wandb.log({agent_k: v}, step=self.all_args.global_step.cur_ep())
                 else:
-                    self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)
+                    self.writer.adadd_scalars(agent_k, {agent_k: v}, global_step=self.all_args.global_step.cur_ep())
 
     def log_env(self, env_infos, total_num_steps):
         for k, v in env_infos.items():
@@ -267,7 +272,7 @@ class Runner(object):
                 if self.use_wandb:
                     wandb.log({k: np.mean(v)}, step=total_num_steps)
                 else:
-                    self.writter.add_scalars(k, {k: np.mean(v)}, total_num_steps)
+                    self.writer.add_scalars(k, {k: np.mean(v)}, total_num_steps)
 
     def count_parameters(self):
         actor_parameters = 0
