@@ -1,13 +1,13 @@
 import torch.cuda
 
-from .slot_att_model import SlotAttentionAE
+from .slot_att_model import SlotAttentionAE, Encoder
 from .slot_att_trainer import SlotAttentionTrainer
 from .data_loader import GlobDataset
 from torch.utils.data import DataLoader
 
 
-def generate_model(args):
-    img_size = args.crop_size
+def generate_model(args, padded_img_size):
+    img_size = padded_img_size
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     if args.attention_module == "RIM":
         num_slots = args.rim_num_units
@@ -15,24 +15,13 @@ def generate_model(args):
         num_slots = args.scoff_num_units
 
     latent_size = args.hidden_size // num_slots
-    encoder_params = {"width": img_size,
-                      "height": img_size,
-                      "channels": [32, 32, 32, 32],
-                      "kernels": [5, 5, 5, 5],
-                      "strides": [1, 1, 1, 1],
-                      "paddings": [2, 2, 2, 2],
-                      "input_channels": 3}
+
+    encoder_params = {"fpn_channel": 256,
+                      "img_size": img_size}
 
     decoder_params = {"width": img_size,
                       "height": img_size,
                       "input_channels": latent_size,
-                      "conv_transposes": False,
-                      "channels": [32, 32, 32, 4],
-                      "kernels": [5, 5, 5, 3],
-                      "strides": [1, 1, 1, 1],
-                      "paddings": [2, 2, 2, 1],
-                      "output_paddings": [0, 0, 0, 0],
-                      "activations": ["relu", "relu", "relu", None],
                       }
     model = SlotAttentionAE(name="slot-attention", width=img_size, height=img_size, latent_size=latent_size,
                             encoder_params=encoder_params, decoder_params=decoder_params,
@@ -57,16 +46,16 @@ def load_slot_att_model(model, args):
 
 
 def start_train_slot_att(args):
-    model = generate_model(args)
-
     train_dataset = GlobDataset(
-                                world_root=args.slot_att_work_path + "world_data/*",
-                                phase='train', img_glob="*.pt", crop_size=args.crop_size,
-                                crop_repeat=args.slot_att_crop_repeat)
+        world_root=args.slot_att_work_path + "world_data/*",
+        phase='train', img_glob="*.pt", crop_size=args.crop_size,
+        crop_repeat=args.slot_att_crop_repeat)
     val_dataset = GlobDataset(
-                              world_root=args.slot_att_work_path + "world_data/*",
-                              phase='val', img_glob="*.pt", crop_size=args.crop_size,
-                              crop_repeat=args.slot_att_crop_repeat)
+        world_root=args.slot_att_work_path + "world_data/*",
+        phase='val', img_glob="*.pt", crop_size=args.crop_size,
+        crop_repeat=args.slot_att_crop_repeat)
+
+    model = generate_model(args, train_dataset.total_pad_size + args.crop_size)
 
     loader_kwargs = {
         'batch_size': args.slot_pretrain_batch_size,

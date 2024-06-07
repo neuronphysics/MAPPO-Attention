@@ -8,75 +8,58 @@ import torch
 from torch import Tensor, nn
 from typing import Callable
 from .utils import BaseModel, get_conv_output_shape, make_sequential_from_config, PositionalEmbedding
-
-
-class EncoderConfig(Dict):
-    channels: List[int]
-    kernels: List[int]
-    strides: List[int]
-    paddings: List[int]
-    width: int
-    height: int
-    input_channels: int = 3
-
-
-class DecoderConfig(Dict):
-    conv_tranposes: List[bool]
-    channels: List[int]
-    kernels: List[int]
-    strides: List[int]
-    paddings: List[int]
-    width: int
-    height: int
-    input_channels: int = 3
+from .coord import AddCoords
+from onpolicy.algorithms.utils.SLOTATT.resnet import ResNet18
+from torchvision.ops import FeaturePyramidNetwork
 
 
 class Encoder(nn.Module):
-    def __init__(
-            self,
-            width: int,
-            height: int,
-            channels: List[int] = (32, 32, 32, 32),
-            kernels: List[int] = (5, 5, 5, 5),
-            strides: List[int] = (1, 1, 1, 1),
-            paddings: List[int] = (2, 2, 2, 2),
-            input_channels: int = 3,
-            batchnorms: List[bool] = tuple([False] * 4),
-    ):
+    def __init__(self, fpn_channel=256, img_size=44):
         super().__init__()
-        assert len(kernels) == len(strides) == len(paddings) == len(channels)
-        self.conv_bone = make_sequential_from_config(
-            input_channels,
-            channels,
-            kernels,
-            batchnorms,
-            False,
-            paddings,
-            strides,
-            "relu",
-            try_inplace_activation=True,
-        )
-        output_channels = channels[-1]
-        output_width, output_height = get_conv_output_shape(
-            width, height, kernels, paddings, strides
-        )
+        self.backbone = ResNet18(input_channel=3, norm_type="group", small_inputs=True)
+        self.fpn = FeaturePyramidNetwork([128, 256, 512, 1024], fpn_channel)
+
         self.pos_embedding = PositionalEmbedding(
-            output_width, output_height, output_channels
+            img_size, img_size, fpn_channel
         )
-        self.lnorm = nn.GroupNorm(1, output_channels, affine=True, eps=0.001)
+        self.lnorm = nn.GroupNorm(1, fpn_channel, affine=True, eps=0.001)
         self.conv_1x1 = [
-            nn.Conv1d(output_channels, output_channels, kernel_size=1),
+            nn.Conv1d(fpn_channel, fpn_channel, kernel_size=1),
             nn.ReLU(inplace=True),
-            nn.Conv1d(output_channels, output_channels, kernel_size=1),
+            nn.Conv1d(fpn_channel, fpn_channel, kernel_size=1),
         ]
         self.conv_1x1 = nn.Sequential(*self.conv_1x1)
 
     def forward(self, x: Tensor) -> Tensor:
-        conv_output = self.conv_bone(x)
-        conv_output = self.pos_embedding(conv_output)
+        res_stages = self.backbone(x)
+        fpn_res = self.fpn(res_stages)
+        conv_output = self.pos_embedding(fpn_res['C0'])
         conv_output = conv_output.flatten(2, 3)  # bs x c x (w * h)
         conv_output = self.lnorm(conv_output)
         return self.conv_1x1(conv_output)
+
+
+class FPNTranConv(nn.Module):
+    def __init__(self):
+        super(FPNTranConv, self).__init__()
+        self.addcoord = AddCoords(rank=2, w=256, h=256, with_r=False, skiptile=True)
+        self.tile16 = AddCoords(rank=2, w=16, h=16, with_r=False, skiptile=False)
+        self.convT1 = nn.ConvTranspose2d(1024, 128, kernel_size=4, stride=2, padding=1)
+        self.convT2 = nn.ConvTranspose2d(512 + 128, 128, kernel_size=4, stride=2, padding=1)
+        self.convT3 = nn.ConvTranspose2d(256 + 128, 64, kernel_size=4, stride=2, padding=1)
+        self.convT4 = nn.ConvTranspose2d(64 + 128, 4, kernel_size=1, stride=1)
+        self.act = nn.ReLU(inplace=True)
+
+    def forward(self, feature):
+        # add coord for every feature
+        d1 = self.act(self.convT1(feature["C3"]))
+        d1 = torch.cat([d1, feature["C2"]], dim=1)
+        d2 = self.act(self.convT2(d1))
+        d2 = torch.cat([d2, feature["C1"]], dim=1)
+        d3 = self.act(self.convT3(d2))
+        d3 = torch.cat([d3, feature["C0"]], dim=1)
+        output = self.convT4(d3)
+        return output
 
 
 class Decoder(nn.Module):
@@ -85,40 +68,21 @@ class Decoder(nn.Module):
             input_channels: int,
             width: int,
             height: int,
-            channels: List[int] = (32, 32, 32, 4),
-            kernels: List[int] = (5, 5, 5, 3),
-            strides: List[int] = (1, 1, 1, 1),
-            paddings: List[int] = (2, 2, 2, 1),
-            output_paddings: List[int] = (0, 0, 0, 0),
-            conv_transposes: List[bool] = tuple([False] * 4),
-            activations: List[str] = tuple(["relu"] * 4),
+
     ):
         super().__init__()
-        self.conv_bone = []
-        assert len(channels) == len(kernels) == len(strides) == len(paddings)
-        if conv_transposes:
-            assert len(channels) == len(output_paddings)
         self.pos_embedding = PositionalEmbedding(width, height, input_channels)
+        self.backbone = ResNet18(input_channel=input_channels, norm_type="group", small_inputs=True)
+
+        self.tran_conv_fpn = FPNTranConv()
+
         self.width = width
         self.height = height
 
-        self.conv_bone = make_sequential_from_config(
-            input_channels,
-            channels,
-            kernels,
-            False,
-            False,
-            paddings,
-            strides,
-            activations,
-            output_paddings,
-            conv_transposes,
-            try_inplace_activation=True,
-        )
-
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         x = self.pos_embedding(x)
-        output = self.conv_bone(x)
+        res_out = self.backbone(x)
+        output = self.tran_conv_fpn(res_out)
         img, mask = output[:, :3], output[:, -1:]
         return img, mask
 
@@ -222,13 +186,11 @@ class SlotAttentionAE(BaseModel):
             self.w_broadcast = self.width
         if self.h_broadcast == "dataset":
             self.h_broadcast = self.height
-        self.encoder_params.update(
-            width=self.width, height=self.height, input_channels=self.input_channels
-        )
+
         self.encoder = Encoder(**self.encoder_params)
         self.slot_attention = SlotAttentionModule(
             self.num_slots,
-            self.encoder_params["channels"][-1],
+            self.encoder_params["fpn_channel"],
             self.latent_size,
             self.attention_iters,
             self.eps,
@@ -265,7 +227,7 @@ class SlotAttentionAE(BaseModel):
 
         # Compute similarity matrix
         sim_matrix = torch.bmm(selected_slots, selected_slots.transpose(1, 2)) * (
-                    1 / np.sqrt(slots.size(2)))  # [batch, n, n]
+                1 / np.sqrt(slots.size(2)))  # [batch, n, n]
 
         # Create mask to remove diagonal elements (self-similarity)
         mask = torch.eye(self.num_slots).to(slots.device).repeat(batch_size, 1, 1)  # [1, n, n]

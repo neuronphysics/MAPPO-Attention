@@ -3,7 +3,7 @@ import glob
 import torch
 import random
 from PIL import Image, ImageFile
-from torchvision import transforms
+from torchvision.transforms import Pad
 from torch.utils.data import Dataset
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -19,6 +19,10 @@ class GlobDataset(Dataset):
         self.input_channels = 3
         self.crop_size = crop_size
         self.crop_repeat = crop_repeat
+        self.total_pad_size = (16 - crop_size % 16) % 16
+        self.left_pad = self.total_pad_size // 2
+        self.right_pad = self.total_pad_size - self.left_pad
+        self.pad = Pad([self.left_pad, self.left_pad, self.right_pad, self.right_pad])
 
         train_split_percent = 0.75
         self.episodes = []
@@ -73,7 +77,7 @@ class GlobDataset(Dataset):
         y = random.randint(0, max_y)
 
         crop_img = img[:, y:y + self.crop_size, x:x + self.crop_size]
-        return crop_img
+        return self.pad(crop_img)
 
     def __len__(self):
         return len(self.episodes)
@@ -81,3 +85,4 @@ class GlobDataset(Dataset):
     def __getitem__(self, idx):
         # (batch, channel, height, width)
         return {"image": self.episodes[idx]}
+
