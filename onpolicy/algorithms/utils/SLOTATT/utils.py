@@ -23,6 +23,7 @@ import sys
 from ignite.contrib.handlers import ProgressBar
 from sklearn.metrics import adjusted_rand_score
 from itertools import chain
+from .CoordConv import CoordConv2d, CoordConvTranspose2d
 
 MANDATORY_FIELDS = [
     "loss",  # training loss
@@ -362,12 +363,13 @@ def make_sequential_from_config(
     ) in layer_infos:
         if conv_transpose:
             layers.append(
-                nn.ConvTranspose2d(
+                CoordConvTranspose2d(
                     input_channels, channel, kernel, stride, padding, o_padding
                 )
             )
         else:
-            layers.append(nn.Conv2d(input_channels, channel, kernel, stride, padding))
+
+            layers.append(CoordConv2d(input_channels, channel, kernel, stride, padding))
 
         if bn:
             layers.append(nn.BatchNorm2d(channel, affine=bn_affine))
@@ -481,7 +483,7 @@ def build_residual_stack(
 
                     in_channels = channel_size_per_layer[layer - 1]
                     out_channels = channel_size_per_layer[layer]
-                    layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=1))
+                    layers.append(CoordConv2d(in_channels, out_channels, kernel_size=1))
 
         # after the residual blocks, check if down-sampling (or up-sampling) is required
         if encoder:
@@ -638,7 +640,7 @@ class ResidualBlock(nn.Module):
             layers.extend(
                 [
                     nn.LeakyReLU(1e-2),
-                    nn.Conv2d(
+                    CoordConv2d(
                         ch,
                         ch,
                         kernel_size=kernel_size,
