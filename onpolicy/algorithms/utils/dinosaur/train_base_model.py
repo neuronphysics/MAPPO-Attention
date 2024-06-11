@@ -149,7 +149,7 @@ def get_optimizer(args, model):
 
 def train_dino(args):
     train_dataset = GlobDataset(root=args.slot_att_work_path + "world_data/*", phase='train', img_glob="*.pt",
-                                crop_repeat=args.slot_att_crop_repeat)
+                                crop_repeat=args.slot_att_crop_repeat, crop_size=args.slot_att_crop_size)
     # val_dataset = GlobDataset(root=args.slot_att_work_path + "world_data/*", phase='val', img_glob="*.pt",
     #                           seq_len=args.seq_len)
 

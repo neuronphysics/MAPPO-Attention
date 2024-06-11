@@ -12,12 +12,11 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class GlobDataset(Dataset):
-    def __init__(self, root, phase, crop_repeat=3, img_glob='*.pt'):
+    def __init__(self, root, phase, crop_repeat=3, crop_size=88, img_glob='*.pt'):
         self.root = root
         self.total_dirs = sorted(glob.glob(root))
-        self.num_background_objects = 1
         self.input_channels = 3
-        self.crop_size = 44
+        self.crop_size = crop_size
         self.crop_repeat = crop_repeat
 
         self.resize = Resize((140, 140), interpolation=InterpolationMode.BILINEAR)
