@@ -20,6 +20,8 @@ import torchvision.utils as vutils
 from onpolicy.algorithms.utils.dinosaur.ocl.losses import ReconstructionLoss
 from onpolicy.algorithms.utils.dinosaur.ocl.scheduling import exponential_decay_after_optional_warmup
 from onpolicy.algorithms.utils.dinosaur.data_loader import GlobDataset
+import numpy as np
+import torch.nn.functional as F
 
 
 class BaseModel(nn.Module):
@@ -57,7 +59,7 @@ def generate_model(args):
     slot_dim = args.hidden_size // num_slot
 
     feature_extractor_conf = {
-        "model_name": "vit_base_patch16_224.dino",
+        "model_name": "vit_base_patch14_dinov2.lvd142m",
         "pretrained": False,
         "freeze": True,
         "feature_level": 12,
@@ -114,7 +116,7 @@ def generate_model(args):
     decoder_conf = {
         "object_dim": slot_dim,
         "output_dim": input_feature_dim,
-        "num_patches": 196,
+        "num_patches": 100,
         "decoder_cond_dim": input_feature_dim,
         "use_input_transform": True,
         "use_decoder_masks": True,
@@ -175,7 +177,7 @@ def train_dino(args):
             # batch, channel, height, width
             out, per_out = model(batch_data.to(args.device))
 
-            loss = loss_fn(out.reconstruction, out.target)
+            loss = loss_fn(out.reconstruction, out.target) + slot_similarity_loss(per_out.objects)
 
             optimizer.zero_grad()
             loss.backward()
@@ -192,6 +194,36 @@ def train_dino(args):
 
         if ep % args.slot_save_fre == 0:
             save_slot_att_model(model, args)
+
+
+def slot_similarity_loss(slots):
+    """
+    Calculate the similarity loss for slots with shape (batch, num_slot, hidden_size).
+    """
+    batch_size, num_slots, slot_dim = slots.shape
+    # Normalize slot features
+    slots = F.normalize(slots, dim=-1)  # Normalize along the hidden_size dimension
+
+    # Randomly permute the slots
+    perm = torch.randperm(slots.size(1)).to(slots.device)  # Permute along the num_slot dimension
+
+    # Select a subset of n slots
+    selected_slots = slots[:, perm[:num_slots], :]  # [batch, n, hidden_size]
+
+    # Compute similarity matrix
+    sim_matrix = torch.bmm(selected_slots, selected_slots.transpose(1, 2)) * (
+            1 / np.sqrt(slots.size(2)))  # [batch, n, n]
+
+    # Create mask to remove diagonal elements (self-similarity)
+    mask = torch.eye(num_slots).to(slots.device).repeat(batch_size, 1, 1)  # [1, n, n]
+
+    # Mask out the diagonal elements
+    sim_matrix = sim_matrix - mask * sim_matrix
+
+    # Compute similarity loss
+    sim_loss = sim_matrix.sum(dim=(1, 2)) / (num_slots * (num_slots - 1))
+
+    return sim_loss.mean()  # Return the mean similarity loss over the batch
 
 
 def visualize_img(out, original):

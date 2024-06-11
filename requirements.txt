@@ -156,5 +156,5 @@ pytorch-ignite==0.5.0.post2
 omegaconf==2.0.6
 scikit_learn==1.3.0
 pytorch-lightning
-timm==0.8.0.dev0
+timm==0.9.16
 torchtyping

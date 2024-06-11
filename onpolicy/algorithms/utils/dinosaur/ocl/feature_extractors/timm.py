@@ -211,7 +211,7 @@ class TimmFeatureExtractor(ImageFeatureExtractor):
         self.aux_features = feature_level_to_list(aux_features)
 
         if self.is_vit:
-            model = timm.create_model(model_name, pretrained=pretrained)
+            model = timm.create_model(model_name, pretrained=pretrained, img_size=(140, 140), dynamic_img_size=True)
             # Delete unused parameters from classification head
             if hasattr(model, "head"):
                 del model.head
@@ -335,7 +335,6 @@ class TimmFeatureExtractor(ImageFeatureExtractor):
         return features, positions, aux_features
 
 
-@timm.models.registry.register_model
 def resnet34_savi(pretrained=False, **kwargs):
     """ResNet34 as used in SAVi and SAVi++.
 
@@ -366,7 +365,6 @@ def resnet34_savi(pretrained=False, **kwargs):
     return model
 
 
-@timm.models.registry.register_model
 def resnet50_dino(pretrained=False, **kwargs):
     kwargs["pretrained_cfg"] = resnet._cfg(
         url=(
@@ -440,7 +438,6 @@ def _create_moco_vit(variant, pretrained=False, **kwargs):
     return model
 
 
-@timm.models.registry.register_model
 def vit_small_patch16_224_mocov3(pretrained=False, **kwargs):
     kwargs["pretrained_cfg"] = vision_transformer._cfg(
         url="https://dl.fbaipublicfiles.com/moco-v3/vit-s-300ep/vit-s-300ep.pth.tar"
@@ -460,7 +457,6 @@ def vit_small_patch16_224_mocov3(pretrained=False, **kwargs):
     return model
 
 
-@timm.models.registry.register_model
 def vit_base_patch16_224_mocov3(pretrained=False, **kwargs):
     kwargs["pretrained_cfg"] = vision_transformer._cfg(
         url="https://dl.fbaipublicfiles.com/moco-v3/vit-b-300ep/vit-b-300ep.pth.tar"
@@ -480,7 +476,6 @@ def vit_base_patch16_224_mocov3(pretrained=False, **kwargs):
     return model
 
 
-@timm.models.registry.register_model
 def resnet50_mocov3(pretrained=False, **kwargs):
     kwargs["pretrained_cfg"] = resnet._cfg(
         url="https://dl.fbaipublicfiles.com/moco-v3/r-50-1000ep/r-50-1000ep.pth.tar"
@@ -527,7 +522,6 @@ def _create_msn_vit(variant, pretrained=False, **kwargs):
     return model
 
 
-@timm.models.registry.register_model
 def vit_small_patch16_224_msn(pretrained=False, **kwargs):
     kwargs["pretrained_cfg"] = vision_transformer._cfg(
         url="https://dl.fbaipublicfiles.com/msn/vits16_800ep.pth.tar"
@@ -547,7 +541,6 @@ def vit_small_patch16_224_msn(pretrained=False, **kwargs):
     return model
 
 
-@timm.models.registry.register_model
 def vit_base_patch16_224_msn(pretrained=False, **kwargs):
     kwargs["pretrained_cfg"] = vision_transformer._cfg(
         url="https://dl.fbaipublicfiles.com/msn/vitb16_600ep.pth.tar"
@@ -567,7 +560,6 @@ def vit_base_patch16_224_msn(pretrained=False, **kwargs):
     return model
 
 
-@timm.models.registry.register_model
 def vit_base_patch16_224_mae(pretrained=False, **kwargs):
     kwargs["pretrained_cfg"] = vision_transformer._cfg(
         url="https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_vit_base.pth"

@@ -20,7 +20,7 @@ class GlobDataset(Dataset):
         self.crop_size = 44
         self.crop_repeat = crop_repeat
 
-        self.resize = Resize((224, 224), interpolation=InterpolationMode.BILINEAR)
+        self.resize = Resize((140, 140), interpolation=InterpolationMode.BILINEAR)
 
         train_split = int(len(self.total_dirs) * 0.8)
         val_split = int(len(self.total_dirs) * 0.95)
