@@ -504,8 +504,8 @@ class MeltingpotRunner(Runner):
             imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
 
     def train_slot_att(self):
-        from onpolicy.algorithms.utils.SLOTATT.train_slot_att import start_train_slot_att, load_slot_att_model
-        start_train_slot_att(self.all_args)
+        from onpolicy.algorithms.utils.QSA.train_qsa import train_qsa, load_slot_att_model
+        train_qsa(self.all_args)
 
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()

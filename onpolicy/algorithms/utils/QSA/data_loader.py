@@ -80,4 +80,4 @@ class GlobDataset(Dataset):
 
     def __getitem__(self, idx):
         # (batch, channel, height, width)
-        return {"image": self.episodes[idx]}
+        return self.episodes[idx]

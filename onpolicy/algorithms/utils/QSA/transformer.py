@@ -1,4 +1,4 @@
-from methods.utils import *
+from .utils import *
 
 
 class MultiHeadAttention(nn.Module):

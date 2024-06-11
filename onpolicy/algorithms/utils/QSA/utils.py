@@ -9,8 +9,6 @@ from copy import deepcopy
 import torch.nn as nn
 import torch.nn.functional as F
 
-import wandb
-
 Tensor = TypeVar("Tensor")
 T = TypeVar("T")
 TK = TypeVar("TK")

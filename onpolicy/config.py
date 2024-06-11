@@ -362,22 +362,17 @@ def get_config():
 
     parser.add_argument("--pretrain_slot_att", type=str2bool, default=False, )
     parser.add_argument("--crop_size", type=int, default=44, )
-    parser.add_argument("--slot_train_step", type=int, default=1000000, )
+    parser.add_argument("--slot_train_ep", type=int, default=2000, )
     parser.add_argument('--slot_att_crop_repeat', type=int, default=5)
     parser.add_argument("--slot_clip_grade_norm", type=float, default=1.0)
-    parser.add_argument("--slot_save_fre", type=int, default=10000, )
-    parser.add_argument("--slot_log_fre", type=int, default=1000, )
+    parser.add_argument("--slot_save_fre", type=int, default=5, )
+    parser.add_argument("--slot_log_fre", type=int, default=3, )
+    parser.add_argument("--slot_att_similarity_factor", type=float, default=100.0)
+
     parser.add_argument("--slot_att_work_path", type=str,
                         default="/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/slot_att/", )
-    parser.add_argument("--slot_att_use_exp_decay", type=str2bool, default=True, )
-    parser.add_argument("--slot_att_exp_decay_rate", type=float, default=0.5, )
-    parser.add_argument("--slot_att_exp_decay_step", type=int, default=100000, )
-    parser.add_argument("--slot_att_use_warmup", type=str2bool, default=True, )
-    parser.add_argument("--slot_att_warmup_step", type=int, default=10000, )
     parser.add_argument("--slot_pretrain_batch_size", type=int, default=2, )
 
-    parser.add_argument("--slot_att_lr", type=float, default=0.00005, )
-    parser.add_argument("--slot_use_lr_scheduler", type=str2bool, default=True, )
     parser.add_argument("--slot_att_load_model", type=str2bool, default=False, )
     parser.add_argument("--use_slot_att", type=str2bool, default=True, )
     parser.add_argument("--collect_data_ep_num", type=int, default=10, )
@@ -385,5 +380,46 @@ def get_config():
     parser.add_argument("--collect_agent", type=str2bool, default=False, )
     parser.add_argument("--collect_world", type=str2bool, default=False, )
     parser.add_argument("--no_train", type=str2bool, default=False, )
+
+    parser.add_argument('--grad_clip', type=float, default=1.0)
+
+    parser.add_argument('--drop_path', type=float, default=0.2)
+    parser.add_argument('--dvae_kernel_size', type=int, default=3)
+    parser.add_argument('--truncate', type=str, default='bi-level', help='bi-level or fixed-point or none')
+
+    parser.add_argument('--warmup_steps', type=int, default=10000)
+    parser.add_argument('--decay_steps', type=int, default=50000)
+
+    parser.add_argument('--num_dec_blocks', type=int, default=4)
+    parser.add_argument('--vocab_size', type=int, default=1024)
+    parser.add_argument('--d_model', type=int, default=256)
+    parser.add_argument('--num_heads', type=int, default=4)
+    parser.add_argument('--dropout', type=float, default=0.5)
+
+    parser.add_argument('--num_iter', type=int, default=3)
+    parser.add_argument('--init_size', type=int, default=256)
+    parser.add_argument('--mlp_size', type=int, default=256)
+
+    parser.add_argument('--feature_size', type=int, default=128)
+    parser.add_argument('--encoder_channels', type=int, nargs='+', default=[128, 128, 128, 128])
+    parser.add_argument('--encoder_strides', type=int, nargs='+', default=[1, 1, 1, 1])
+    parser.add_argument('--encoder_kernel_size', type=int, default=5)
+    parser.add_argument('--img_channels', type=int, default=3)
+
+    parser.add_argument('--init_method', default='embedding', help='embedding or shared_gaussian')
+
+    parser.add_argument('--tau_steps', type=int, default=30000)
+    parser.add_argument('--tau_final', type=float, default=0.1)
+    parser.add_argument('--tau_start', type=float, default=1)
+
+    parser.add_argument('--sigma_steps', type=int, default=30000)
+    parser.add_argument('--sigma_final', type=float, default=0)
+    parser.add_argument('--sigma_start', type=float, default=1)
+
+    parser.add_argument('--use_post_cluster', default=False, action='store_true')
+    parser.add_argument('--use_kmeans', default=False, action='store_true')
+    parser.add_argument('--lambda_c', type=float, default=0.1)
+    parser.add_argument('--lr_main', type=float, default=1e-4)
+    parser.add_argument('--lr_dvae', type=float, default=3e-4)
 
     return parser

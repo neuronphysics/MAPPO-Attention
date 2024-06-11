@@ -1,12 +1,5 @@
 import os
 import sys
-
-root_path = os.path.abspath(__file__)
-root_path = '/'.join(root_path.split('/')[:-2])
-sys.path.append(root_path)
-
-import torch.nn.functional as F
-
 from .utils import *
 from .dvae import dVAE
 from .slot_attn import SlotAttentionEncoder
@@ -18,23 +11,28 @@ from sklearn.cluster import KMeans
 class SLATE(nn.Module):
     def __init__(self, args):
         super().__init__()
+        if args.attention_module == 'RIM':
+            num_slot = args.rim_num_units
+        else:
+            num_slot = args.scoff_num_units
+        slot_dim = args.hidden_size // num_slot
 
         self.vocab_size = args.vocab_size
         self.d_model = args.d_model
 
         self.dvae = dVAE(args.vocab_size, args.img_channels, args.dvae_kernel_size)
-        N_tokens = (args.resolution[0] // 4) * (args.resolution[1] // 4)
+        N_tokens = (args.crop_size // 4) * (args.crop_size // 4)
 
         self.positional_encoder = PositionalEncoding(1 + N_tokens, args.d_model, args.dropout)
 
         self.slot_attn = SlotAttentionEncoder(
-            args.num_iter, args.num_slots, args.feature_size,
-            args.slot_size, args.mlp_size,
-            args.resolution, args.truncate,
+            args.num_iter, num_slot, args.feature_size,
+            slot_dim, args.mlp_size,
+            (args.crop_size, args.crop_size), args.truncate,
             args.init_method, args.drop_path)
 
         self.dictionary = OneHotDictionary(args.vocab_size + 1, args.d_model)
-        self.slot_proj = linear(args.slot_size, args.d_model, bias=False)
+        self.slot_proj = linear(slot_dim, args.d_model, bias=False)
 
         self.tf_dec = TransformerDecoder(
             args.num_dec_blocks, N_tokens, args.d_model, args.num_heads, args.dropout)
@@ -45,12 +43,12 @@ class SLATE(nn.Module):
 
         self.use_post_cluster = args.use_post_cluster
         self.lambda_c = args.lambda_c
-        self.num_slots = args.num_slots
-        self.slot_size = args.slot_size
+        self.num_slots = num_slot
+        self.slot_size = slot_dim
         if self.use_post_cluster:
-            self.register_buffer('post_cluster', torch.zeros(1, args.num_slots, args.slot_size))
+            self.register_buffer('post_cluster', torch.zeros(1, num_slot, slot_dim))
             nn.init.xavier_normal_(self.post_cluster)
-        self.kmeans = KMeans(n_clusters=args.num_slots, random_state=args.seed) if args.use_kmeans else None
+        self.kmeans = KMeans(n_clusters=num_slot, random_state=args.seed) if args.use_kmeans else None
 
     def forward(self, image, visualize=False, tau=0.1, sigma=0, is_Train=False):
         """
@@ -116,6 +114,7 @@ class SLATE(nn.Module):
                 pred_image = self.dvae.decoder(pred_z)
                 out["pred_image"] = pred_image.clamp(0, 1)
 
+        out['slots'] = slots
         out['attns'] = attns
         out['loss'] = loss
         return out

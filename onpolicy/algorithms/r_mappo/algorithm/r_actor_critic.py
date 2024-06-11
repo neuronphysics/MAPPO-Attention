@@ -10,7 +10,7 @@ from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 from onpolicy.algorithms.utils.rim_cell import RIM
 from absl import logging
-from onpolicy.algorithms.utils.SLOTATT.train_slot_att import generate_model
+from onpolicy.algorithms.utils.QSA.train_qsa import generate_model
 
 
 class R_Actor(nn.Module):

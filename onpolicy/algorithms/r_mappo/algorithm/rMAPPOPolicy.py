@@ -2,8 +2,6 @@ import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
 from torch.optim.lr_scheduler import LambdaLR
-from onpolicy.algorithms.utils.SLOTATT.utils import linear_warmup_exp_decay
-
 
 class R_MAPPOPolicy:
     """
@@ -49,11 +47,6 @@ class R_MAPPOPolicy:
                                                        lr=args.slot_att_lr,
                                                        eps=self.opti_eps,
                                                        weight_decay=self.weight_decay)
-            self.slot_att_lr_scheduler = LambdaLR(
-                self.slot_att_optimizer,
-                lr_lambda=linear_warmup_exp_decay(
-                    args.slot_att_warmup_step, args.slot_att_exp_decay_rate, args.slot_att_exp_decay_step),
-            )
 
     def lr_decay(self, episode, episodes):
         """
