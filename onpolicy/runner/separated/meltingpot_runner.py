@@ -8,7 +8,7 @@ import cv2
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
-import matplotlib.image
+from onpolicy.algorithms.utils.util import global_step_counter
 
 
 def _t2n(x):
@@ -46,6 +46,7 @@ class MeltingpotRunner(Runner):
         if self.all_args.no_train:
             return
 
+        self.all_args.ep_counter = global_step_counter()
         start = time.time()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
         print('num episodes to run (separated):', episodes)
@@ -127,6 +128,7 @@ class MeltingpotRunner(Runner):
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
+            self.all_args.ep_counter.increment()
 
     def warmup(self):
         # reset env

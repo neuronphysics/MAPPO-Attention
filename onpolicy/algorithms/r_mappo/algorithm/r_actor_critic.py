@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 from onpolicy.algorithms.utils.util import init, check, calculate_conv_params
@@ -10,7 +12,7 @@ from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 from onpolicy.algorithms.utils.rim_cell import RIM
 from absl import logging
-from onpolicy.algorithms.utils.QSA.train_qsa import generate_model
+from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal, slot_similarity_loss
 
 
 class R_Actor(nn.Module):
@@ -27,6 +29,7 @@ class R_Actor(nn.Module):
         super(R_Actor, self).__init__()
 
         # new parameters
+        self.args = args
         self.drop_out = args.drop_out
         self.rnn_attention_module = args.rnn_attention_module
         self.use_bidirectional = args.use_bidirectional
@@ -48,12 +51,15 @@ class R_Actor(nn.Module):
         self.use_slot_att = args.use_slot_att
 
         self._obs_shape = obs_shape
+        self.global_step = 0
 
         base = CNNBase if len(obs_shape) == 3 else MLPBase
         self.base = base(args, obs_shape)
 
         if self.use_slot_att:
             self.slot_att = generate_model(args)
+            self.tau = args.tau_start
+            self.sigma = args.sigma_start
             args.use_input_att = False
             args.use_x_reshape = True
 
@@ -98,8 +104,9 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
             batch, _, _, _ = obs.shape
-            out = self.slot_att(obs.permute(0, 3, 1, 2))
-            actor_features = out['representation'].reshape(batch, -1)
+            out = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
+                                visualize=False)
+            actor_features = out['slots'].reshape(batch, -1)
         else:
             actor_features = self.base(obs)
         output = self.rnn(actor_features, rnn_states, masks=masks)
@@ -115,7 +122,8 @@ class R_Actor(nn.Module):
 
         return actions, action_log_probs, rnn_states
 
-    def evaluate_actions(self, obs, rnn_states, action, masks, available_actions=None, active_masks=None):
+    def evaluate_actions(self, cur_ppo_idx, obs, rnn_states, action, masks, available_actions=None, active_masks=None,
+                         train=False):
         """
         Compute log probability and entropy of given actions.
         :param obs: (torch.Tensor) observation inputs into network.
@@ -142,17 +150,28 @@ class R_Actor(nn.Module):
 
         slot_att_total_loss = 0
         if self.use_slot_att:
+            self.global_step = self.args.ep_counter.get_cur_ep() * self.args.ppo_epoch + cur_ppo_idx
+            if train:
+                self.tau = cosine_anneal(self.global_step, self.args.tau_steps, start_value=self.args.tau_start,
+                                         final_value=self.args.tau_final)
+                self.sigma = cosine_anneal(self.global_step, self.args.sigma_steps, start_value=self.args.sigma_start,
+                                           final_value=self.args.sigma_final)
             # slot att model takes (batch, 3, H, W) and returns a dict
             batch, _, _, _ = obs.shape
-            mini_batch_size = 5
-            num_batch = batch // mini_batch_size
+            mini_batch_size = self.args.slot_pretrain_batch_size
+            num_batch = math.ceil(batch / mini_batch_size)
             res = []
             for idx in range(num_batch):
                 start_idx = idx * mini_batch_size
-                end_idx = start_idx + mini_batch_size
-                out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2))
-                res.append(out_tmp['representation'])
-                slot_att_total_loss = slot_att_total_loss + out_tmp["loss"]
+                end_idx = min(start_idx + mini_batch_size, batch)
+                out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
+                                        is_Train=train, visualize=False)
+                res.append(out_tmp['slots'])
+
+                mse_loss = out_tmp['loss']['mse']
+                similarity_loss = slot_similarity_loss(out_tmp['slots']) * self.args.slot_att_similarity_factor
+                cross_entropy = out_tmp['loss']['cross_entropy']
+                slot_att_total_loss = slot_att_total_loss + mse_loss + similarity_loss + cross_entropy
 
             actor_features = torch.cat(res, 0)
             actor_features = actor_features.reshape(batch, -1)

@@ -1,7 +1,8 @@
 import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
-from torch.optim.lr_scheduler import LambdaLR
+from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
+
 
 class R_MAPPOPolicy:
     """
@@ -43,10 +44,7 @@ class R_MAPPOPolicy:
                                                  weight_decay=self.weight_decay)
 
         if args.use_slot_att:
-            self.slot_att_optimizer = torch.optim.Adam(self.actor.slot_att.parameters(),
-                                                       lr=args.slot_att_lr,
-                                                       eps=self.opti_eps,
-                                                       weight_decay=self.weight_decay)
+            self.slot_att_optimizer, self.slot_att_scheduler = configure_optimizers(self.actor.slot_att, args)
 
     def lr_decay(self, episode, episodes):
         """
@@ -125,7 +123,7 @@ class R_MAPPOPolicy:
         values, _ = self.critic(cent_obs, rnn_states_critic, masks)
         return values
 
-    def evaluate_actions(self, cent_obs, obs, rnn_states_actor, rnn_states_critic, action, masks,
+    def evaluate_actions(self, idx, cent_obs, obs, rnn_states_actor, rnn_states_critic, action, masks,
                          available_actions=None, active_masks=None):
         """
         Get action logprobs / entropy and value function predictions for actor update.
@@ -143,12 +141,14 @@ class R_MAPPOPolicy:
         :return action_log_probs: (torch.Tensor) log probabilities of the input actions.
         :return dist_entropy: (torch.Tensor) action distribution entropy for the given inputs.
         """
-        action_log_probs, dist_entropy, slot_att_loss = self.actor.evaluate_actions(obs,
+        action_log_probs, dist_entropy, slot_att_loss = self.actor.evaluate_actions(idx,
+                                                                                    obs,
                                                                                     rnn_states_actor,
                                                                                     action,
                                                                                     masks,
                                                                                     available_actions,
-                                                                                    active_masks)
+                                                                                    active_masks,
+                                                                                    train=True)
 
         values, _ = self.critic(cent_obs, rnn_states_critic, masks)
         return values, action_log_probs, dist_entropy, slot_att_loss

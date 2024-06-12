@@ -119,3 +119,14 @@ def calculate_conv_params(input_size):
     padding = (kernel_size - 1) // 2
 
     return kernel_size, stride, padding
+
+
+class global_step_counter:
+    def __init__(self):
+        self.current_ep = 0
+
+    def increment(self):
+        self.current_ep += 1
+
+    def get_cur_ep(self):
+        return self.current_ep

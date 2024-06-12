@@ -96,9 +96,10 @@ class SLATE(nn.Module):
         attns = slot_attn_out['attn']
         attns = attns.reshape(B, -1, 1, H, W)
 
+        out['slots'] = slots
         # apply transformer
-        slots = self.slot_proj(slots)
-        decoder_output = self.tf_dec(emb_input[:, :-1], slots)
+        slots_t = self.slot_proj(slots)
+        decoder_output = self.tf_dec(emb_input[:, :-1], slots_t)
         pred = self.out(decoder_output)
 
         cross_entropy = -(target * torch.log_softmax(pred, dim=-1)).sum() / B
@@ -114,7 +115,7 @@ class SLATE(nn.Module):
                 pred_image = self.dvae.decoder(pred_z)
                 out["pred_image"] = pred_image.clamp(0, 1)
 
-        out['slots'] = slots
+
         out['attns'] = attns
         out['loss'] = loss
         return out

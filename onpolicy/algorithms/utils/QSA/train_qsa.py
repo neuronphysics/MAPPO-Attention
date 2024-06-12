@@ -16,6 +16,10 @@ import math
 def generate_model(args):
     model = SLATE(args)
     model.to(args.device)
+    if args.slot_att_load_model:
+        tau, sigma = load_slot_att_model(model, args)
+        args.tau_start = tau
+        args.sigma_start = sigma
     return model
 
 
@@ -107,7 +111,7 @@ def train_qsa(args):
             writer.add_image("atten masks", combined_mask, global_step=ep)
 
         if ep % args.slot_save_fre == 0:
-            save_slot_att_model(model, args)
+            save_slot_att_model(model, tau, sigma, args)
 
 
 def slot_similarity_loss(slots):
@@ -164,18 +168,20 @@ def load_slot_att_model(model, args):
         num_slots = args.scoff_num_units
     latent_size = args.hidden_size // num_slots
     model_name = "ns_" + str(num_slots) + "_ls_" + str(latent_size) + "_model.pt"
-    model_state_dict = torch.load(args.slot_att_work_path + model_name)
-    model.load_state_dict(model_state_dict)
+    data_pack = torch.load(args.slot_att_work_path + model_name)
+    model.load_state_dict(data_pack['model'])
+    return data_pack['tau'], data_pack['sigma']
 
 
-def save_slot_att_model(model, args):
+def save_slot_att_model(model, tau, sigma, args):
     if args.attention_module == "RIM":
         num_slots = args.rim_num_units
     else:
         num_slots = args.scoff_num_units
     latent_size = args.hidden_size // num_slots
     model_name = "ns_" + str(num_slots) + "_ls_" + str(latent_size) + "_model.pt"
-    torch.save(model.state_dict(), args.slot_att_work_path + model_name)
+    data_pack = {"model": model.state_dict(), "tau":tau, "sigma": sigma}
+    torch.save(data_pack, args.slot_att_work_path + model_name)
 
 
 def cosine_anneal(step, final_step, start_step=0, start_value=1.0, final_value=0.1):

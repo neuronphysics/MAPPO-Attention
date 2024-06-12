@@ -171,57 +171,39 @@ class Runner(object):
         factor = np.ones((self.episode_length, self.n_rollout_threads, 1), dtype=np.float32)
 
         for agent_id in torch.randperm(self.num_agents):
+            tmp_buf = self.buffer[agent_id]
             self.trainer[agent_id].prep_training()
-            self.buffer[agent_id].update_factor(factor)
-            available_actions = None if self.buffer[agent_id].available_actions is None \
-                else self.buffer[agent_id].available_actions[:-1].reshape(-1, *self.buffer[
-                                                                                   agent_id].available_actions.shape[
-                                                                               2:])
+            tmp_buf.update_factor(factor)
+            available_actions = None if tmp_buf.available_actions is None \
+                else tmp_buf.available_actions[:-1].reshape(-1, *tmp_buf.available_actions.shape[2:])
 
-            if self.all_args.algorithm_name == "hatrpo":
-                old_actions_logprob, _, _, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
-                    self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
-                    self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
-                    self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
-                    self.buffer[agent_id].masks[:-1].reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
-                    available_actions,
-                    self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
-            else:
-                input_rnn_states = self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[
-                                                                                          agent_id].rnn_states.shape[
-                                                                                      2:])
+            obs = tmp_buf.obs[:-1].reshape(-1, *tmp_buf.obs.shape[2:])
+            rnn_states = tmp_buf.rnn_states[0:1].reshape(-1, *tmp_buf.rnn_states.shape[2:])
+            actions = tmp_buf.actions.reshape(-1, *tmp_buf.actions.shape[2:])
+            masks = tmp_buf.masks[:-1].reshape(-1, *tmp_buf.masks.shape[2:])
+            active_masks = tmp_buf.active_masks[:-1].reshape(-1, *tmp_buf.active_masks.shape[2:])
 
-                old_actions_logprob, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
-                    self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
-                    input_rnn_states,
-                    self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
-                    self.buffer[agent_id].masks[:-1].reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
-                    available_actions,
-                    self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
+            old_actions_logprob, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
+                0,
+                obs,
+                rnn_states,
+                actions,
+                masks,
+                available_actions,
+                active_masks,
+                train=False)
 
-            train_info = self.trainer[agent_id].train(self.buffer[agent_id])
+            train_info = self.trainer[agent_id].train(tmp_buf)
 
-            if self.all_args.algorithm_name == "hatrpo":
-                new_actions_logprob, _, _, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
-                    self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
-                    self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
-                    self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
-                    self.buffer[agent_id].masks[:-1].reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
-                    available_actions,
-                    self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
-            else:
-
-                input_rnn_states = self.buffer[agent_id].rnn_states[0:1].reshape(-1, *self.buffer[
-                                                                                          agent_id].rnn_states.shape[
-                                                                                      2:])
-
-                new_actions_logprob, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
-                    self.buffer[agent_id].obs[:-1].reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
-                    input_rnn_states,
-                    self.buffer[agent_id].actions.reshape(-1, *self.buffer[agent_id].actions.shape[2:]),
-                    self.buffer[agent_id].masks[:-1].reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
-                    available_actions,
-                    self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]))
+            new_actions_logprob, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
+                0,
+                obs,
+                rnn_states,
+                actions,
+                masks,
+                available_actions,
+                active_masks,
+                train=False)
 
             factor = factor * _t2n(
                 torch.prod(torch.exp(new_actions_logprob - old_actions_logprob), dim=-1).reshape(self.episode_length,

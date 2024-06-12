@@ -19,6 +19,7 @@ class R_MAPPO():
                  policy,
                  device=torch.device("cpu")):
 
+        self.args = args
         self.device = device
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.policy = policy
@@ -98,7 +99,7 @@ class R_MAPPO():
 
         return value_loss
 
-    def ppo_update(self, sample, update_actor=True):
+    def ppo_update(self, idx, sample, update_actor=True):
         """
         Update actor and critic networks.
         :param sample: (Tuple) contains data batch with which to update networks.
@@ -122,7 +123,8 @@ class R_MAPPO():
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
 
         # Reshape to do in a single forward pass for all steps
-        values, action_log_probs, dist_entropy, slot_att_loss = self.policy.evaluate_actions(share_obs_batch,
+        values, action_log_probs, dist_entropy, slot_att_loss = self.policy.evaluate_actions(idx,
+                                                                                             share_obs_batch,
                                                                                              obs_batch,
                                                                                              rnn_states_batch,
                                                                                              rnn_states_critic_batch,
@@ -150,7 +152,7 @@ class R_MAPPO():
 
         if update_actor:
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
-            total_loss.backward(retain_graph=True)
+            total_loss.backward(retain_graph=self.use_slot_att)
 
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
@@ -163,7 +165,7 @@ class R_MAPPO():
             self.policy.slot_att_optimizer.zero_grad()
             slot_att_loss.backward()
             self.policy.slot_att_optimizer.step()
-            self.policy.slot_att_lr_scheduler.step()
+            self.policy.slot_att_scheduler.step(self.policy.actor.global_step)
             self.policy.slot_att_optimizer.zero_grad()
         self.policy.actor_optimizer.zero_grad()
 
@@ -213,7 +215,7 @@ class R_MAPPO():
         train_info['critic_grad_norm'] = 0
         train_info['ratio'] = 0
 
-        for _ in range(self.ppo_epoch):
+        for idx in range(self.ppo_epoch):
             if self._use_recurrent_policy or self.use_attention:
                 data_generator = buffer.recurrent_generator(advantages, self.num_mini_batch, self.data_chunk_length)
             elif self._use_naive_recurrent:
@@ -223,7 +225,7 @@ class R_MAPPO():
 
             for sample in data_generator:
                 value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
-                    = self.ppo_update(sample, update_actor)
+                    = self.ppo_update(idx, sample, update_actor)
 
                 train_info['value_loss'] += value_loss.item()
                 train_info['policy_loss'] += policy_loss.item()
