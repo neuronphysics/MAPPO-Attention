@@ -1,4 +1,5 @@
 import argparse
+import os.path
 
 import torch
 from torch.utils.data import DataLoader
@@ -70,7 +71,10 @@ def train_qsa(args):
     train_loader = DataLoader(train_dataset, sampler=None, **loader_kwargs)
     # val_loader = DataLoader(val_dataset, sampler=None, **loader_kwargs)
 
-    writer = SummaryWriter(args.slot_att_work_path + "tensorboard/")
+    if not os.path.exists(args.slot_att_work_path + args.substrate_name + "/"):
+        os.makedirs(args.slot_att_work_path + args.substrate_name + "/")
+
+    writer = SummaryWriter(args.slot_att_work_path + args.substrate_name + "/" + "tensorboard/")
 
     model: nn.Module = generate_model(args)
     optimizer, scheduler = configure_optimizers(model, args)
@@ -168,7 +172,7 @@ def load_slot_att_model(model, args):
         num_slots = args.scoff_num_units
     latent_size = args.hidden_size // num_slots
     model_name = "ns_" + str(num_slots) + "_ls_" + str(latent_size) + "_model.pt"
-    data_pack = torch.load(args.slot_att_work_path + model_name)
+    data_pack = torch.load(args.slot_att_work_path + args.substrate_name + "/" + model_name)
     model.load_state_dict(data_pack['model'])
     return data_pack['tau'], data_pack['sigma']
 
@@ -180,8 +184,8 @@ def save_slot_att_model(model, tau, sigma, args):
         num_slots = args.scoff_num_units
     latent_size = args.hidden_size // num_slots
     model_name = "ns_" + str(num_slots) + "_ls_" + str(latent_size) + "_model.pt"
-    data_pack = {"model": model.state_dict(), "tau":tau, "sigma": sigma}
-    torch.save(data_pack, args.slot_att_work_path + model_name)
+    data_pack = {"model": model.state_dict(), "tau": tau, "sigma": sigma}
+    torch.save(data_pack, args.slot_att_work_path + args.substrate_name + "/" + model_name)
 
 
 def cosine_anneal(step, final_step, start_step=0, start_value=1.0, final_value=0.1):

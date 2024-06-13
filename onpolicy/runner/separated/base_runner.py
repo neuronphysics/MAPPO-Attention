@@ -183,27 +183,21 @@ class Runner(object):
             masks = tmp_buf.masks[:-1].reshape(-1, *tmp_buf.masks.shape[2:])
             active_masks = tmp_buf.active_masks[:-1].reshape(-1, *tmp_buf.active_masks.shape[2:])
 
-            old_actions_logprob, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
-                0,
-                obs,
-                rnn_states,
-                actions,
-                masks,
-                available_actions,
-                active_masks,
-                train=False)
+            old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
+                                                                                          rnn_states,
+                                                                                          actions,
+                                                                                          masks,
+                                                                                          available_actions,
+                                                                                          active_masks)
 
             train_info = self.trainer[agent_id].train(tmp_buf)
 
-            new_actions_logprob, _, _ = self.trainer[agent_id].policy.actor.evaluate_actions(
-                0,
-                obs,
-                rnn_states,
-                actions,
-                masks,
-                available_actions,
-                active_masks,
-                train=False)
+            new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
+                                                                                          rnn_states,
+                                                                                          actions,
+                                                                                          masks,
+                                                                                          available_actions,
+                                                                                          active_masks)
 
             factor = factor * _t2n(
                 torch.prod(torch.exp(new_actions_logprob - old_actions_logprob), dim=-1).reshape(self.episode_length,

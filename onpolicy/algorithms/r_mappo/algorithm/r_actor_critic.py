@@ -122,8 +122,7 @@ class R_Actor(nn.Module):
 
         return actions, action_log_probs, rnn_states
 
-    def evaluate_actions(self, cur_ppo_idx, obs, rnn_states, action, masks, available_actions=None, active_masks=None,
-                         train=False):
+    def evaluate_actions(self, obs, rnn_states, action, masks, available_actions=None, active_masks=None):
         """
         Compute log probability and entropy of given actions.
         :param obs: (torch.Tensor) observation inputs into network.
@@ -148,33 +147,22 @@ class R_Actor(nn.Module):
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
 
-        slot_att_total_loss = 0
         if self.use_slot_att:
-            self.global_step = self.args.ep_counter.get_cur_ep() * self.args.ppo_epoch + cur_ppo_idx
-            if train:
-                self.tau = cosine_anneal(self.global_step, self.args.tau_steps, start_value=self.args.tau_start,
-                                         final_value=self.args.tau_final)
-                self.sigma = cosine_anneal(self.global_step, self.args.sigma_steps, start_value=self.args.sigma_start,
-                                           final_value=self.args.sigma_final)
-            # slot att model takes (batch, 3, H, W) and returns a dict
-            batch, _, _, _ = obs.shape
-            mini_batch_size = self.args.slot_pretrain_batch_size
-            num_batch = math.ceil(batch / mini_batch_size)
-            res = []
-            for idx in range(num_batch):
-                start_idx = idx * mini_batch_size
-                end_idx = min(start_idx + mini_batch_size, batch)
-                out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
-                                        is_Train=train, visualize=False)
-                res.append(out_tmp['slots'])
+            with torch.no_grad():
+                # slot att model takes (batch, 3, H, W) and returns a dict
+                batch, _, _, _ = obs.shape
+                mini_batch_size = self.args.slot_pretrain_batch_size
+                num_batch = math.ceil(batch / mini_batch_size)
+                res = []
+                for idx in range(num_batch):
+                    start_idx = idx * mini_batch_size
+                    end_idx = min(start_idx + mini_batch_size, batch)
+                    out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
+                                            is_Train=False, visualize=False)
+                    res.append(out_tmp['slots'])
 
-                mse_loss = out_tmp['loss']['mse']
-                similarity_loss = slot_similarity_loss(out_tmp['slots']) * self.args.slot_att_similarity_factor
-                cross_entropy = out_tmp['loss']['cross_entropy']
-                slot_att_total_loss = slot_att_total_loss + mse_loss + similarity_loss + cross_entropy
-
-            actor_features = torch.cat(res, 0)
-            actor_features = actor_features.reshape(batch, -1)
+                actor_features = torch.cat(res, 0)
+                actor_features = actor_features.reshape(batch, -1)
         else:
             actor_features = self.base(obs)
 
@@ -200,7 +188,36 @@ class R_Actor(nn.Module):
                                                                        active_masks if self._use_policy_active_masks
                                                                        else None)
 
-        return action_log_probs, dist_entropy, slot_att_total_loss
+        return action_log_probs, dist_entropy
+
+    def train_slot_att(self, obs, cur_ppo_idx):
+        obs = check(obs).to(**self.tpdv)
+
+        self.global_step = self.args.ep_counter.get_cur_ep() * self.args.ppo_epoch + cur_ppo_idx
+
+        self.tau = cosine_anneal(self.global_step, self.args.tau_steps, start_value=self.args.tau_start,
+                                 final_value=self.args.tau_final)
+        self.sigma = cosine_anneal(self.global_step, self.args.sigma_steps, start_value=self.args.sigma_start,
+                                   final_value=self.args.sigma_final)
+        # slot att model takes (batch, 3, H, W) and returns a dict
+        batch, _, _, _ = obs.shape
+        mini_batch_size = self.args.slot_pretrain_batch_size
+        num_batch = math.ceil(batch / mini_batch_size)
+        res = []
+
+        slot_att_total_loss = 0
+        for idx in range(num_batch):
+            start_idx = idx * mini_batch_size
+            end_idx = min(start_idx + mini_batch_size, batch)
+            out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
+                                    is_Train=True, visualize=False)
+            res.append(out_tmp['slots'])
+
+            mse_loss = out_tmp['loss']['mse']
+            similarity_loss = slot_similarity_loss(out_tmp['slots']) * self.args.slot_att_similarity_factor
+            cross_entropy = out_tmp['loss']['cross_entropy']
+            slot_att_total_loss = slot_att_total_loss + mse_loss + similarity_loss + cross_entropy
+        return slot_att_total_loss
 
 
 class R_Critic(nn.Module):
