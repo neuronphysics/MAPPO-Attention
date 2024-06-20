@@ -159,7 +159,6 @@ class R_MAPPO():
             actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
 
         self.policy.actor_optimizer.step()
-        self.policy.actor_optimizer.zero_grad()
 
         # critic update
         torch.cuda.empty_cache()
@@ -176,7 +175,6 @@ class R_MAPPO():
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
 
         self.policy.critic_optimizer.step()
-        self.policy.critic_optimizer.zero_grad()
 
         if self.use_slot_att:
             slot_att_loss = self.policy.actor.train_slot_att(obs_batch, idx)
@@ -184,7 +182,6 @@ class R_MAPPO():
             slot_att_loss.backward()
             self.policy.slot_att_optimizer.step()
             self.policy.slot_att_scheduler.step(self.policy.actor.global_step)
-            self.policy.slot_att_optimizer.zero_grad()
 
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
