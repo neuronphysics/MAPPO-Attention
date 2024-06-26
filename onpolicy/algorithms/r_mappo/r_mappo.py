@@ -4,6 +4,7 @@ import torch.nn as nn
 from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
 from onpolicy.algorithms.utils.util import check
+from torch.utils.checkpoint import checkpoint
 
 
 class R_MAPPO():
@@ -177,13 +178,21 @@ class R_MAPPO():
         self.policy.critic_optimizer.step()
 
         if self.use_slot_att:
-            slot_att_loss = self.policy.actor.train_slot_att(obs_batch, idx)
+            slot_att_loss = checkpoint(self.ckpt_wrapper(self.policy.actor.train_slot_att), obs_batch, idx,
+                                       use_reentrant=False)
             self.policy.slot_att_optimizer.zero_grad()
             slot_att_loss.backward()
             self.policy.slot_att_optimizer.step()
             self.policy.slot_att_scheduler.step(self.policy.actor.global_step)
 
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
+
+    def ckpt_wrapper(self, module):
+        def ckpt_forward(*inputs):
+            outputs = module(*inputs)
+            return outputs
+
+        return ckpt_forward
 
     def train(self, buffer, update_actor=True):
         """

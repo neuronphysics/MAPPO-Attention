@@ -92,11 +92,11 @@ def train_qsa(args):
                         visualize=ep % args.slot_log_fre == 0)
 
             mse_loss = out['loss']['mse']
-            similarity_loss = slot_similarity_loss(out['slots']) * args.slot_att_similarity_factor
-            cross_entropy = out['loss']['cross_entropy'] + similarity_loss
+            similarity_loss = out['sim_loss']
+            cross_entropy = out['loss']['cross_entropy']
 
             optimizer.zero_grad()
-            loss = mse_loss + cross_entropy
+            loss = mse_loss + cross_entropy + similarity_loss
             loss.backward()
 
             nn.utils.clip_grad_norm_(model.parameters(), args.slot_clip_grade_norm)
@@ -116,37 +116,6 @@ def train_qsa(args):
 
         if ep % args.slot_save_fre == 0:
             save_slot_att_model(model, tau, sigma, args)
-
-
-def slot_similarity_loss(slots):
-    """
-    Calculate the similarity loss for slots with shape (batch, num_slot, hidden_size).
-    """
-    batch_size, num_slots, slot_dim = slots.shape
-    # Normalize slot features
-    slots = F.normalize(slots, dim=-1)  # Normalize along the hidden_size dimension
-
-    # Randomly permute the slots
-    perm = torch.randperm(slots.size(1)).to(slots.device)  # Permute along the num_slot dimension
-
-    # Select a subset of n slots
-    selected_slots = slots[:, perm[:num_slots], :]  # [batch, n, hidden_size]
-
-    # Compute similarity matrix
-    sim_matrix = torch.bmm(selected_slots, selected_slots.transpose(1, 2)) * (
-            1 / np.sqrt(slots.size(2)))  # [batch, n, n]
-
-    # Create mask to remove diagonal elements (self-similarity)
-    mask = torch.eye(num_slots).to(slots.device).repeat(batch_size, 1, 1)  # [1, n, n]
-
-    # Mask out the diagonal elements
-    sim_matrix = sim_matrix - mask * sim_matrix
-
-    # Compute similarity loss
-    sim_loss = sim_matrix.sum(dim=(1, 2)) / (num_slots * (num_slots - 1))
-
-    return sim_loss.mean()  # Return the mean similarity loss over the batch
-
 
 def visualize_img(out, original):
     B, C, H, W = original.shape

@@ -41,6 +41,8 @@ class SLATE(nn.Module):
 
         self.backbone = Encoder(args.encoder_channels, args.encoder_strides, args.encoder_kernel_size)
 
+        self.ortho_loss_fn = PerpetualOrthogonalProjectionLoss(num_classes=num_slot, feat_dim=slot_dim)
+
         self.use_post_cluster = args.use_post_cluster
         self.lambda_c = args.lambda_c
         self.num_slots = num_slot
@@ -97,6 +99,9 @@ class SLATE(nn.Module):
         attns = attns.reshape(B, -1, 1, H, W)
 
         out['slots'] = slots
+        labels = torch.arange(self.num_slots).unsqueeze(0).repeat(B, 1).reshape(-1).to(slots.device)
+        out['sim_loss'] = self.ortho_loss_fn(slots.reshape(-1, self.slot_size), labels)
+
         # apply transformer
         slots_t = self.slot_proj(slots)
         decoder_output = self.tf_dec(emb_input[:, :-1], slots_t)
@@ -114,7 +119,6 @@ class SLATE(nn.Module):
                                                                                                          H // 4, W // 4)
                 pred_image = self.dvae.decoder(pred_z)
                 out["pred_image"] = pred_image.clamp(0, 1)
-
 
         out['attns'] = attns
         out['loss'] = loss
@@ -137,3 +141,40 @@ class OneHotDictionary(nn.Module):
 
     def get_embedding(self):
         return self.dictionary.weight
+
+
+class PerpetualOrthogonalProjectionLoss(nn.Module):
+    def __init__(self, num_classes=10, feat_dim=2048, no_norm=False, use_attention=True):
+        super(PerpetualOrthogonalProjectionLoss, self).__init__()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        self.num_classes = num_classes
+        self.feat_dim = feat_dim
+        self.no_norm = no_norm
+        self.use_attention = use_attention
+
+        self.class_centres = nn.Parameter(torch.randn(self.num_classes, self.feat_dim).to(self.device))
+
+    def forward(self, features, labels=None):
+
+        if self.use_attention:
+            features_weights = torch.matmul(features, features.T)
+            features_weights = F.softmax(features_weights, dim=1)
+            features = torch.matmul(features_weights, features)
+
+        #  features are normalized
+        if not self.no_norm:
+            features = F.normalize(features, p=2, dim=1)
+        normalized_class_centres = F.normalize(self.class_centres, p=2, dim=1)
+
+        labels = labels[:, None]  # extend dim
+        class_range = torch.arange(self.num_classes, device=self.device).long()
+        class_range = class_range[:, None]  # extend dim
+        label_mask = torch.eq(labels, class_range.t()).float().to(self.device)
+        feature_centre_variance = torch.matmul(features, normalized_class_centres.t())
+        same_class_loss = (label_mask * feature_centre_variance).sum() / (label_mask.sum() + 1e-6)
+        diff_class_loss = ((1 - label_mask) * feature_centre_variance).sum() / ((1 - label_mask).sum() + 1e-6)
+
+        loss = 0.5 * (1.0 - same_class_loss) + torch.abs(diff_class_loss)
+
+        return loss

@@ -367,7 +367,6 @@ def get_config():
     parser.add_argument("--slot_clip_grade_norm", type=float, default=1.0)
     parser.add_argument("--slot_save_fre", type=int, default=5, )
     parser.add_argument("--slot_log_fre", type=int, default=3, )
-    parser.add_argument("--slot_att_similarity_factor", type=float, default=100.0)
 
     parser.add_argument("--slot_att_work_path", type=str,
                         default="/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/slot_att/", )

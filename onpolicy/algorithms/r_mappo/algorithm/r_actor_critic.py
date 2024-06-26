@@ -12,7 +12,7 @@ from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 from onpolicy.algorithms.utils.rim_cell import RIM
 from absl import logging
-from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal, slot_similarity_loss
+from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal
 
 
 class R_Actor(nn.Module):
@@ -203,7 +203,6 @@ class R_Actor(nn.Module):
         batch, _, _, _ = obs.shape
         mini_batch_size = self.args.slot_pretrain_batch_size
         num_batch = math.ceil(batch / mini_batch_size)
-        res = []
 
         slot_att_total_loss = 0
         for idx in range(num_batch):
@@ -211,12 +210,9 @@ class R_Actor(nn.Module):
             end_idx = min(start_idx + mini_batch_size, batch)
             out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
                                     is_Train=True, visualize=False)
-            res.append(out_tmp['slots'])
 
-            mse_loss = out_tmp['loss']['mse']
-            similarity_loss = slot_similarity_loss(out_tmp['slots']) * self.args.slot_att_similarity_factor
-            cross_entropy = out_tmp['loss']['cross_entropy']
-            slot_att_total_loss = slot_att_total_loss + mse_loss + similarity_loss + cross_entropy
+            slot_att_total_loss = slot_att_total_loss + out_tmp['loss']['mse'] + out_tmp[
+                'sim_loss'] + out_tmp['loss']['cross_entropy']
         return slot_att_total_loss
 
 
