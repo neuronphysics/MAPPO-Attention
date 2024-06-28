@@ -2,7 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
-from onpolicy.algorithms.utils.util import init, check, calculate_conv_params
+from onpolicy.algorithms.utils.util import init, check, print_cuda_memory_usage
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
 from onpolicy.algorithms.utils.modularity import SCOFF
 from onpolicy.algorithms.utils.mlp import MLPBase
@@ -13,7 +13,7 @@ from onpolicy.utils.util import get_shape_from_obs_space
 from onpolicy.algorithms.utils.rim_cell import RIM
 from absl import logging
 from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal
-
+import torch.autograd.profiler as profiler
 
 class R_Actor(nn.Module):
     """
@@ -203,16 +203,19 @@ class R_Actor(nn.Module):
         batch, _, _, _ = obs.shape
         mini_batch_size = self.args.slot_pretrain_batch_size
         num_batch = math.ceil(batch / mini_batch_size)
-
+        print_cuda_memory_usage()  # Check memory before training
         slot_att_total_loss = 0
-        for idx in range(num_batch):
-            start_idx = idx * mini_batch_size
-            end_idx = min(start_idx + mini_batch_size, batch)
-            out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
+        with profiler.profile(record_shapes=True, profile_memory=True) as prof:
+             with profiler.record_function("training"):
+        
+                 for idx in range(num_batch):
+                     start_idx = idx * mini_batch_size
+                     end_idx = min(start_idx + mini_batch_size, batch)
+                     out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
                                     is_Train=True, visualize=False)
 
-            slot_att_total_loss = slot_att_total_loss + out_tmp['loss']['mse'] + out_tmp[
-                'sim_loss'] + out_tmp['loss']['cross_entropy']
+                     slot_att_total_loss = slot_att_total_loss + out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
+        print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=10))
         return slot_att_total_loss
 
 
@@ -260,7 +263,10 @@ class R_Critic(nn.Module):
         self.scoff_memory_head_size = args.scoff_memory_head_size
         self.scoff_num_memory_heads = args.scoff_num_memory_heads
         self.scoff_num_memory_topk = args.scoff_memory_topk
-
+        
+        if args.use_slot_att and not args.use_input_att:
+            args.use_input_att = True
+            
         self._obs_shape = cent_obs_shape
 
         base = CNNBase if len(self._obs_shape) == 3 else MLPBase

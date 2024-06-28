@@ -6,6 +6,7 @@
 *.pyc
 __pycache__/
 **/results/Meltingpot
+**/results/slot_att
 # Ignore .DS_Store (macOS folder metadata)
 .DS_Store
 core.*

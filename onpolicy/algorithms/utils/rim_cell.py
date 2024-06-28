@@ -166,6 +166,8 @@ class RIMCell(nn.Module):
             self.input_linear = nn.Linear(self.hidden_size, self.input_value_size)
         else:
             self.input_linear = nn.Linear(self.num_units * self.hidden_size, self.input_value_size)
+
+        self.input_layer_norm  = nn.LayerNorm(self.num_units *self.hidden_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
@@ -181,6 +183,7 @@ class RIMCell(nn.Module):
         Output: inputs (list of size num_units with each element of shape (batch_size, input_value_size))
                 mask_ binary array of shape (batch_size, num_units) where 1 indicates active and 0 indicates inactive
         """
+        x = self.input_layer_norm(x)
         key_layer = self.key(x)
         value_layer = self.value(x)
         query_layer = self.query(h)
@@ -238,8 +241,8 @@ class RIMCell(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.num_comm_heads * self.comm_value_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
         context_layer = self.comm_attention_output(context_layer)
-        context_layer = context_layer + h
-
+        context_layer = self.output_layer_norm(context_layer + h)
+        
         return context_layer
 
     def forward(self, x, hs, cs=None, h_masks=None):
@@ -293,7 +296,7 @@ class RIMCell(nn.Module):
         # Compute communication attention
         if self.use_com_att:
             h_new = self.communication_attention(h_new, mask.squeeze(2))
-        h_new = self.output_layer_norm(h_new)
+        
 
         # h_new = Identity.apply(h_new)
         hs = (mask * h_new + (1 - mask) * h_old)
