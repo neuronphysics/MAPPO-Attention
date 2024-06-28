@@ -146,16 +146,16 @@ class OneHotDictionary(nn.Module):
 class PerpetualOrthogonalProjectionLoss(nn.Module):
     def __init__(self, num_classes=10, feat_dim=2048, no_norm=False, use_attention=True):
         super(PerpetualOrthogonalProjectionLoss, self).__init__()
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.num_classes = num_classes
         self.feat_dim = feat_dim
         self.no_norm = no_norm
         self.use_attention = use_attention
 
-        self.class_centres = nn.Parameter(torch.randn(self.num_classes, self.feat_dim).to(self.device))
+        self.class_centres = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
 
     def forward(self, features, labels=None):
+        device = features.device
 
         if self.use_attention:
             features_weights = torch.matmul(features, features.T)
@@ -168,9 +168,9 @@ class PerpetualOrthogonalProjectionLoss(nn.Module):
         normalized_class_centres = F.normalize(self.class_centres, p=2, dim=1)
 
         labels = labels[:, None]  # extend dim
-        class_range = torch.arange(self.num_classes, device=self.device).long()
+        class_range = torch.arange(self.num_classes, device=device).long()
         class_range = class_range[:, None]  # extend dim
-        label_mask = torch.eq(labels, class_range.t()).float().to(self.device)
+        label_mask = torch.eq(labels, class_range.t()).float().to(device)
         feature_centre_variance = torch.matmul(features, normalized_class_centres.t())
         same_class_loss = (label_mask * feature_centre_variance).sum() / (label_mask.sum() + 1e-6)
         diff_class_loss = ((1 - label_mask) * feature_centre_variance).sum() / ((1 - label_mask).sum() + 1e-6)

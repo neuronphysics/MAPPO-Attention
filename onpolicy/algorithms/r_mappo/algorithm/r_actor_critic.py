@@ -15,6 +15,7 @@ from absl import logging
 from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal
 import torch.autograd.profiler as profiler
 
+
 class R_Actor(nn.Module):
     """
     Actor network class for MAPPO. Outputs actions given observations.
@@ -191,31 +192,20 @@ class R_Actor(nn.Module):
         return action_log_probs, dist_entropy
 
     def train_slot_att(self, obs, cur_ppo_idx):
-        obs = check(obs).to(**self.tpdv)
-
+        obs = check(obs)
         self.global_step = self.args.ep_counter.get_cur_ep() * self.args.ppo_epoch + cur_ppo_idx
 
         self.tau = cosine_anneal(self.global_step, self.args.tau_steps, start_value=self.args.tau_start,
                                  final_value=self.args.tau_final)
         self.sigma = cosine_anneal(self.global_step, self.args.sigma_steps, start_value=self.args.sigma_start,
                                    final_value=self.args.sigma_final)
-        # slot att model takes (batch, 3, H, W) and returns a dict
-        batch, _, _, _ = obs.shape
-        mini_batch_size = self.args.slot_pretrain_batch_size
-        num_batch = math.ceil(batch / mini_batch_size)
-        print_cuda_memory_usage()  # Check memory before training
-        slot_att_total_loss = 0
-        with profiler.profile(record_shapes=True, profile_memory=True) as prof:
-             with profiler.record_function("training"):
-        
-                 for idx in range(num_batch):
-                     start_idx = idx * mini_batch_size
-                     end_idx = min(start_idx + mini_batch_size, batch)
-                     out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
-                                    is_Train=True, visualize=False)
 
-                     slot_att_total_loss = slot_att_total_loss + out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
-        print(prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=10))
+        # slot att model takes (batch, 3, H, W) and returns a dict
+        self.slot_att.to("cpu")
+        out_tmp = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
+                                is_Train=True, visualize=False)
+        slot_att_total_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
+
         return slot_att_total_loss
 
 
@@ -263,10 +253,10 @@ class R_Critic(nn.Module):
         self.scoff_memory_head_size = args.scoff_memory_head_size
         self.scoff_num_memory_heads = args.scoff_num_memory_heads
         self.scoff_num_memory_topk = args.scoff_memory_topk
-        
+
         if args.use_slot_att and not args.use_input_att:
             args.use_input_att = True
-            
+
         self._obs_shape = cent_obs_shape
 
         base = CNNBase if len(self._obs_shape) == 3 else MLPBase
