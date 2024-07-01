@@ -381,7 +381,7 @@ def get_config():
     parser.add_argument("--no_train", type=str2bool, default=False, )
 
     parser.add_argument('--grad_clip', type=float, default=1.0)
-
+ 
     parser.add_argument('--drop_path', type=float, default=0.2)
     parser.add_argument('--dvae_kernel_size', type=int, default=3)
     parser.add_argument('--truncate', type=str, default='bi-level', help='bi-level or fixed-point or none')
@@ -420,5 +420,6 @@ def get_config():
     parser.add_argument('--lambda_c', type=float, default=0.1)
     parser.add_argument('--lr_main', type=float, default=1e-4)
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
+    
 
     return parser

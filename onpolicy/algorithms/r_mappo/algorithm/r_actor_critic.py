@@ -13,8 +13,7 @@ from onpolicy.utils.util import get_shape_from_obs_space
 from onpolicy.algorithms.utils.rim_cell import RIM
 from absl import logging
 from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal
-import torch.autograd.profiler as profiler
-
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 class R_Actor(nn.Module):
     """
@@ -152,17 +151,11 @@ class R_Actor(nn.Module):
             with torch.no_grad():
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
-                mini_batch_size = self.args.slot_pretrain_batch_size
-                num_batch = math.ceil(batch / mini_batch_size)
-                res = []
-                for idx in range(num_batch):
-                    start_idx = idx * mini_batch_size
-                    end_idx = min(start_idx + mini_batch_size, batch)
-                    out_tmp = self.slot_att(obs[start_idx:end_idx].permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
+                out_tmp = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
                                             is_Train=False, visualize=False)
-                    res.append(out_tmp['slots'])
+                
 
-                actor_features = torch.cat(res, 0)
+                actor_features = out_tmp['slots']
                 actor_features = actor_features.reshape(batch, -1)
         else:
             actor_features = self.base(obs)
@@ -191,7 +184,7 @@ class R_Actor(nn.Module):
 
         return action_log_probs, dist_entropy
 
-    def train_slot_att(self, obs, cur_ppo_idx):
+    def train_slot_att(self, local_rank, world_size, obs, cur_ppo_idx ):
         obs = check(obs)
         self.global_step = self.args.ep_counter.get_cur_ep() * self.args.ppo_epoch + cur_ppo_idx
 
@@ -201,8 +194,11 @@ class R_Actor(nn.Module):
                                    final_value=self.args.sigma_final)
 
         # slot att model takes (batch, 3, H, W) and returns a dict
-        self.slot_att.to("cpu")
-        out_tmp = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
+        
+        self.slot_att.to(local_rank)
+        ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
+        logging.debug("Starting training  slot attention from checkpoits.")
+        out_tmp = ddp_model(obs.permute(0, 3, 1, 2).to(local_rank), tau=self.tau, sigma=self.sigma,
                                 is_Train=True, visualize=False)
         slot_att_total_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
 

@@ -10,6 +10,8 @@ import numpy as np
 import torch.nn.functional as F
 from torch import optim
 from onpolicy.algorithms.utils.QSA.data_loader import GlobDataset
+
+
 from .model_trans_dec import SLATE
 import math
 

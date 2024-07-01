@@ -4,7 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import math
-
+import os
+from datetime import timedelta
 from torch.optim.lr_scheduler import _LRScheduler
 
 def print_cuda_memory_usage():
@@ -137,6 +138,43 @@ class global_step_counter:
     def get_cur_ep(self):
         return self.current_ep
     
+def distributed_setup():
+    assert torch.distributed.is_available()
+    print("PyTorch Distributed available.")
+    print("  Backends:")
+    print(f"    Gloo: {torch.distributed.is_gloo_available()}")
+    print(f"    NCCL: {torch.distributed.is_nccl_available()}")
+    print(f"    MPI:  {torch.distributed.is_mpi_available()}")
+
+    # NOTE: the env:// init method uses FileLocks, which sometimes causes deadlocks due to the
+    # distributed filesystem configuration on the Mila cluster.
+    # For multi-node jobs, use the TCP init method instead.
+    master_addr = os.environ["MASTER_ADDR"]
+    master_port = os.environ["MASTER_PORT"]
+
+    # Default timeout is 30 minutes. Reducing the timeout here, so the job fails quicker if there's
+    # a communication problem between nodes.
+    #timeout = timedelta(seconds=60)
+
+    # DDP Job is being run via `srun` on a slurm cluster.
+    rank = int(os.environ["SLURM_PROCID"])
+    local_rank = int(os.environ["SLURM_LOCALID"])
+    world_size = int(os.environ["SLURM_NTASKS"])
+
+    # SLURM var -> torch.distributed vars in case needed
+    # NOTE: Setting these values isn't exactly necessary, but some code might assume it's
+    # being run via torchrun or torch.distributed.launch, so setting these can be a good idea.
+    os.environ["RANK"] = str(rank)
+    os.environ["LOCAL_RANK"] = str(local_rank)
+    os.environ["WORLD_SIZE"] = str(world_size)
+
+    torch.distributed.init_process_group(
+        backend="nccl",
+        init_method=f"tcp://{master_addr}:{master_port}",
+        world_size=world_size,
+        rank=rank,
+    )
+    return rank, world_size, local_rank
 
 
 class CosineAnnealingWarmupRestarts(_LRScheduler):

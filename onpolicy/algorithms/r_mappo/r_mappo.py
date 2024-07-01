@@ -5,8 +5,10 @@ from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
 from onpolicy.algorithms.utils.util import check
 from torch.utils.checkpoint import checkpoint
-
-
+from onpolicy.algorithms.utils.util import distributed_setup
+import torch.multiprocessing as mp
+from torch.distributed.optim import ZeroRedundancyOptimizer
+import torch.distributed as dist
 class R_MAPPO():
     """
     Trainer class for MAPPO to update policies.
@@ -178,21 +180,29 @@ class R_MAPPO():
         self.policy.critic_optimizer.step()
 
         if self.use_slot_att:
-            slot_att_loss = self.policy.actor.train_slot_att(obs_batch, idx)
-            self.policy.slot_att_optimizer.zero_grad()
-            slot_att_loss.backward()
-            self.policy.slot_att_optimizer.step()
-            self.policy.slot_att_scheduler.step(self.policy.actor.global_step)
-            self.policy.actor.slot_att.to(self.args.device)
+           rank, world_size, local_rank= distributed_setup()
+           mp.spawn(self.train_slot_att_parallel,
+                    args=(obs_batch, idx),
+                    nprocs=world_size,
+                    join=True)
+            
 
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
-    def ckpt_wrapper(self, module):
-        def ckpt_forward(*inputs):
-            outputs = module(*inputs)
-            return outputs
+    def train_slot_att_parallel(self, local_rank, data, idx):
+        
 
-        return ckpt_forward
+        device = torch.device("cuda", local_rank % torch.cuda.device_count())
+       
+        self.policy.actor.slot_att.to(device)
+        slot_att_loss = self.policy.actor.train_slot_att(data, idx)
+        self.policy.slot_att_optimizer = ZeroRedundancyOptimizer(self.module.policy.actor.slot_att.parameters(), optimizer_class=torch.optim.Adam)
+        #self.policy.slot_att_optimizer.zero_grad()
+        slot_att_loss.backward()
+        self.policy.slot_att_optimizer.step()
+        self.policy.slot_att_scheduler.step(self.policy.actor.global_step)
+        # Synchronize processes
+        dist.barrier()
 
     def train(self, buffer, update_actor=True):
         """
