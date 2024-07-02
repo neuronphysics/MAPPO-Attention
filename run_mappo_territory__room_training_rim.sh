@@ -3,7 +3,7 @@
 #SBATCH --cpus-per-task=8                                # Ask for 2 CPUs
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=2
-#SBATCH --gres=gpu:a100l:1                                     # Ask for 1 GPU
+#SBATCH --gres=gpu:a100l:2                                     # Ask for 1 GPU
 #SBATCH --constraint="dgx&ampere"
 #SBATCH --mem=120G                                        # Ask for 10 GB of RAM
 #SBATCH --time=1-00:59:59                                   # The job will run for 3 hours
@@ -38,8 +38,8 @@ CUDA_VISIBLE_DEVICES=0 python -c "import torch; print(torch.cuda.get_device_capa
 cd $CURRENT_PATH/onpolicy/scripts/train
 # for QSA
 echo "PPO with slot attention QSA and RIM"
-
-CUDA_VISIBLE_DEVICES=0 python3 train_meltingpot.py --use_valuenorm False --use_popart True --env_name "Meltingpot" --algorithm_name "mappo" \
+export CUDA_VISIBLE_DEVICES=0,1
+srun python3 train_meltingpot.py --use_valuenorm False --use_popart True --env_name "Meltingpot" --algorithm_name "mappo" \
 	--experiment_name "train_slot_qsa_rim" --substrate_name "territory__rooms" --num_agents 9 --seed 123 --lr 0.00002 --critic_lr 0.00002 \
 	--n_rollout_threads 1 --max_grad_norm 0.01 --use_wandb True --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy False \
 	--use_centralized_V False --use_attention True --entropy_coef 0.004 --attention_module "RIM" --rim_num_units 6 --rim_topk 4 --hidden_size 300 \
