@@ -103,6 +103,7 @@ class R_Actor(nn.Module):
 
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
+            
             batch, _, _, _ = obs.shape
             out = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
                                 visualize=False)
@@ -146,16 +147,23 @@ class R_Actor(nn.Module):
 
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
+        model_device = torch.device("cuda", obs.device.index+1)
 
+        self.slot_att.to(model_device)
         if self.use_slot_att:
             with torch.no_grad():
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
-                out_tmp = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma,
-                                            is_Train=False, visualize=False)
+                torch.cuda.empty_cache()  # Free up GPU memory
                 
-
-                actor_features = out_tmp['slots']
+                features = torch.cat([self.slot_att(obs_minibatch.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma)["slots"] 
+                                      for obs_minibatch in obs.to(model_device).split(self.args.slot_pretrain_batch_size)
+                ])
+                #flatten
+                #"features" shape: [1000, 6, 50]
+                
+                actor_features = features.flatten(start_dim=1).to(obs.device)
+                #"actor_features" shape [1000, 300]
                 actor_features = actor_features.reshape(batch, -1)
         else:
             actor_features = self.base(obs)
@@ -197,8 +205,8 @@ class R_Actor(nn.Module):
         
         self.slot_att.to(local_rank)
         ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
-        logging.debug("Starting training  slot attention from checkpoits.")
-        out_tmp = ddp_model(obs.permute(0, 3, 1, 2).to(local_rank), tau=self.tau, sigma=self.sigma,
+        logging.debug("Starting training slot attention module from checkpoits.")
+        out_tmp = ddp_model(obs.permute(0, 3, 1, 2).to(f'cuda:{local_rank+1}'), tau=self.tau, sigma=self.sigma,
                                 is_Train=True, visualize=False)
         slot_att_total_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
 
