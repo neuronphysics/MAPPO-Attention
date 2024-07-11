@@ -5,9 +5,7 @@ from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
 from onpolicy.algorithms.utils.util import check
 from torch.utils.checkpoint import checkpoint
-from onpolicy.algorithms.utils.util import distributed_setup
-import torch.multiprocessing as mp
-from torch.distributed.optim import ZeroRedundancyOptimizer
+from onpolicy.algorithms.utils.util import distributed_setup, print_peak_memory
 import torch.distributed as dist
 class R_MAPPO():
     """
@@ -124,7 +122,8 @@ class R_MAPPO():
         value_preds_batch = check(value_preds_batch).to(**self.tpdv)
         return_batch = check(return_batch).to(**self.tpdv)
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
-
+        obs_batch = check(obs_batch).to(**self.tpdv)
+        
         # Reshape to do in a single forward pass for all steps
         values, action_log_probs, dist_entropy = self.policy.evaluate_actions(share_obs_batch,
                                                                               obs_batch,
@@ -155,11 +154,15 @@ class R_MAPPO():
         if update_actor:
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
             total_loss.backward()
+        if self.use_attention:
+            actor_parameters = [param for name, param in self.policy.actor.named_parameters() if 'slot_att' not in name]
+        else:
+            actor_parameters =  self.policy.actor.parameters() 
 
         if self._use_max_grad_norm:
-            actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
+            actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
         else:
-            actor_grad_norm = get_gard_norm(self.policy.actor.parameters())
+            actor_grad_norm = get_gard_norm(actor_parameters)
 
         self.policy.actor_optimizer.step()
 
@@ -180,29 +183,12 @@ class R_MAPPO():
         self.policy.critic_optimizer.step()
 
         if self.use_slot_att:
-           rank, world_size, local_rank= distributed_setup()
-           mp.spawn(self.train_slot_att_parallel,
-                    args=(obs_batch, idx),
-                    nprocs=world_size,
-                    join=True)
-            
-
-        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
-
-    def train_slot_att_parallel(self, local_rank, data, idx):
+           
+           slot_att_loss = self.policy.actor.train_slot_att( obs_batch, idx, optimizer=self.policy.slot_att_optimizer, scheduler=self.policy.slot_att_scheduler)
+           
+        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss
         
-
-        device = torch.device("cuda", local_rank % torch.cuda.device_count())
-       
-        self.policy.actor.slot_att.to(device)
-        slot_att_loss = self.policy.actor.train_slot_att(data, idx)
-        self.policy.slot_att_optimizer = ZeroRedundancyOptimizer(self.module.policy.actor.slot_att.parameters(), optimizer_class=torch.optim.Adam)
-        #self.policy.slot_att_optimizer.zero_grad()
-        slot_att_loss.backward()
-        self.policy.slot_att_optimizer.step()
-        self.policy.slot_att_scheduler.step(self.policy.actor.global_step)
-        # Synchronize processes
-        dist.barrier()
+        
 
     def train(self, buffer, update_actor=True):
         """
@@ -230,6 +216,8 @@ class R_MAPPO():
         train_info['actor_grad_norm'] = 0
         train_info['critic_grad_norm'] = 0
         train_info['ratio'] = 0
+        if self.use_slot_att:
+           train_info['slot_att_loss']= 0
 
         for idx in range(self.ppo_epoch):
             if self._use_recurrent_policy or self.use_attention:
@@ -240,8 +228,13 @@ class R_MAPPO():
                 data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
 
             for sample in data_generator:
-                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
-                    = self.ppo_update(idx, sample, update_actor)
+                if self.use_slot_att:
+                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss \
+                        = self.ppo_update(idx, sample, update_actor)
+                    train_info['slot_att_loss'] += slot_att_loss
+                else:
+                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
+                       = self.ppo_update(idx, sample, update_actor)
 
                 train_info['value_loss'] += value_loss.item()
                 train_info['policy_loss'] += policy_loss.item()

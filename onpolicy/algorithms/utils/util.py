@@ -7,6 +7,8 @@ import math
 import os
 from datetime import timedelta
 from torch.optim.lr_scheduler import _LRScheduler
+from torch.utils.data import Dataset
+import torch.distributed as dist
 
 def print_cuda_memory_usage():
     print(f"Allocated: {torch.cuda.memory_allocated() / 1024 ** 3:.2f} GB")
@@ -139,6 +141,9 @@ class global_step_counter:
         return self.current_ep
     
 def distributed_setup():
+    if dist.is_initialized():
+        return dist.get_rank(), dist.get_world_size(), dist.get_local_rank(), torch.device(f"cuda:{dist.get_local_rank()}")
+
     assert torch.distributed.is_available()
     print("PyTorch Distributed available.")
     print("  Backends:")
@@ -173,10 +178,30 @@ def distributed_setup():
         init_method=f"tcp://{master_addr}:{master_port}",
         world_size=world_size,
         rank=rank,
+        timeout=timedelta(seconds=60)
     )
-    return rank, world_size, local_rank
+    torch.cuda.set_device(local_rank)
+    device = torch.device(f"cuda:{local_rank}")
+    return rank, world_size, local_rank, device
 
 
+def cleanup_nccl():
+    torch.distributed.destroy_process_group()
+
+def print_peak_memory(prefix, device):
+    if device == 0:
+        print(f"{prefix}: {torch.cuda.max_memory_allocated(device) // 1e6}MB ")
+
+class ObsDataset(Dataset):
+    def __init__(self, data):
+        self.data = data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+    
 class CosineAnnealingWarmupRestarts(_LRScheduler):
     """
         optimizer (Optimizer): Wrapped optimizer.

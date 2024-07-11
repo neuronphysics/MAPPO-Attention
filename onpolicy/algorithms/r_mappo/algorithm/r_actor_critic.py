@@ -2,7 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
-from onpolicy.algorithms.utils.util import init, check, print_cuda_memory_usage
+from onpolicy.algorithms.utils.util import init, check, ObsDataset, distributed_setup
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
 from onpolicy.algorithms.utils.modularity import SCOFF
 from onpolicy.algorithms.utils.mlp import MLPBase
@@ -14,6 +14,7 @@ from onpolicy.algorithms.utils.rim_cell import RIM
 from absl import logging
 from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal
 from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
 
 class R_Actor(nn.Module):
     """
@@ -103,7 +104,7 @@ class R_Actor(nn.Module):
 
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
-            
+            self.slot_att.to(**self.tpdv)
             batch, _, _, _ = obs.shape
             out = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
                                 visualize=False)
@@ -192,24 +193,53 @@ class R_Actor(nn.Module):
 
         return action_log_probs, dist_entropy
 
-    def train_slot_att(self, local_rank, world_size, obs, cur_ppo_idx ):
-        obs = check(obs)
+    def train_slot_att(self, obs, cur_ppo_idx, optimizer, scheduler ):
+        """
+        if not dist.is_initialized():
+           rank, world_size, local_rank, distributed_device = distributed_setup()
+        else:
+              rank, world_size, local_rank, distributed_device = dist.get_rank(), dist.get_world_size(), dist.get_local_rank(), torch.device(f"cuda:{local_rank}")
+        """
         self.global_step = self.args.ep_counter.get_cur_ep() * self.args.ppo_epoch + cur_ppo_idx
 
         self.tau = cosine_anneal(self.global_step, self.args.tau_steps, start_value=self.args.tau_start,
-                                 final_value=self.args.tau_final)
+                     final_value=self.args.tau_final)
         self.sigma = cosine_anneal(self.global_step, self.args.sigma_steps, start_value=self.args.sigma_start,
-                                   final_value=self.args.sigma_final)
+                       final_value=self.args.sigma_final)
 
         # slot att model takes (batch, 3, H, W) and returns a dict
+        # TODO: we shouldnt move the slot attention module, just for now, lets keep it on GPU 1 (second gpu)
+        slot_attn_device = torch.device("cuda", obs.device.index+1)
+        self.slot_att.to(slot_attn_device)
+        # ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
+        logging.debug("Starting training slot attention module from checkpoints and on multiple gpus.")
         
-        self.slot_att.to(local_rank)
-        ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
-        logging.debug("Starting training slot attention module from checkpoits.")
-        out_tmp = ddp_model(obs.permute(0, 3, 1, 2).to(f'cuda:{local_rank+1}'), tau=self.tau, sigma=self.sigma,
-                                is_Train=True, visualize=False)
-        slot_att_total_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
+        # Create a DistributedSampler with shuffle=False
+        obs_dataset=ObsDataset(obs)
+        # sampler = torch.utils.data.distributed.DistributedSampler(obs_dataset,num_replicas=world_size, rank=rank, shuffle=False)
+        
+        # Create a DataLoader with the DistributedSampler
+        dataloader = torch.utils.data.DataLoader(obs_dataset, batch_size=self.args.slot_pretrain_batch_size//2)
+        
+        slot_att_total_loss = 0
+        
+        # Iterate over the dataloader
+        for obs_minibatch in dataloader:
+            # Move the minibatch to the GPU
+            obs_minibatch = obs_minibatch.permute(0, 3, 1, 2).to(slot_attn_device)
+            optimizer.zero_grad()
+            # Forward pass through the slot attention model
+            out_tmp = self.slot_att(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
+            
+            # Compute the loss
+            minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
+            minibatch_loss.backward()
 
+            optimizer.step()
+            scheduler.step(self.global_step)
+            # Accumulate the loss
+            slot_att_total_loss += minibatch_loss.detach().item()
+        obs = obs.to(**self.tpdv)
         return slot_att_total_loss
 
 

@@ -103,13 +103,13 @@ class MultiHeadAttention(nn.Module):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
         if share_inp:
-            assert (n_templates != 0, "provide number of paramters for sharing")
+            assert n_templates != 0, "provide number of paramters for sharing"
             self.GLN_qs = SharedGroupLinearLayer(d_model_read, n_head * d_k, n_templates)
             self.GLN_ks = GroupLinearLayer(d_model_write, n_head * d_k, num_blocks_write, device=self.device)
             self.GLN_vs = GroupLinearLayer(d_model_write, n_head * d_v, num_blocks_write, device=self.device)
         elif share_comm:
             # share Q,K,V for commuication
-            assert (n_templates != 0, "provide number of paramters for sharing")
+            assert n_templates != 0, "provide number of paramters for sharing"
             self.GLN_qs = SharedGroupLinearLayer(d_model_read, n_head * d_k, n_templates)
             self.GLN_ks = SharedGroupLinearLayer(d_model_write, n_head * d_k, n_templates)
             self.GLN_vs = SharedGroupLinearLayer(d_model_write, n_head * d_v, n_templates)
