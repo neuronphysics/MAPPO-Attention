@@ -50,6 +50,8 @@ class Runner(object):
 
         # dir
         self.model_dir = self.all_args.model_dir
+        # Automatically determine job ID and set save directories
+        self.job_id = os.environ.get('SLURM_JOB_ID', 'default')
 
         if self.use_render:
             import imageio
@@ -58,7 +60,7 @@ class Runner(object):
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir)
             self.writter = SummaryWriter(self.log_dir)
-            self.save_dir = str(self.run_dir / 'models')
+            self.save_dir = str(self.run_dir / 'models' / self.job_id)
             if not os.path.exists(self.save_dir):
                 os.makedirs(self.save_dir)
             self.gif_dir = str(self.run_dir / 'gifs')
@@ -66,14 +68,14 @@ class Runner(object):
                 os.makedirs(self.gif_dir)
         else:
             if self.use_wandb:
-                self.save_dir = str(wandb.run.dir)
+                self.save_dir = os.path.join(wandb.run.dir, f"Model_ID_{self.job_id}")
             else:
                 self.run_dir = config["run_dir"]
                 self.log_dir = str(self.run_dir / 'logs')
                 if not os.path.exists(self.log_dir):
                     os.makedirs(self.log_dir)
                 self.writter = SummaryWriter(self.log_dir)
-                self.save_dir = str(self.run_dir / 'models')
+                self.save_dir = str(self.run_dir / 'models' / self.job_id)
                 if not os.path.exists(self.save_dir):
                     os.makedirs(self.save_dir)
 
@@ -115,8 +117,10 @@ class Runner(object):
 
             self.policy.append(po)
 
-        if self.model_dir is not None and self.all_args.load_model:
-            self.restore()
+        if self.model_dir is None:
+            self.model_dir = self._find_model_dir(self.job_id)
+            if self.model_dir is not None and self.all_args.load_model:
+                self.restore()
 
         self.trainer = []
         self.buffer = []
@@ -143,6 +147,13 @@ class Runner(object):
             self.buffer.append(bu)
             self.trainer.append(tr)
 
+    def _find_model_dir(self, slurm_job_id):
+        if self.all_args.use_wandb:
+            # Check wandb directory for saved models with the same job ID
+            for root, dirs, files in os.walk(wandb.run.dir):
+                if f"Model_ID_{slurm_job_id}" in dirs:
+                    return os.path.join(root, f"Model_ID_{slurm_job_id}")
+        return None
     def run(self):
         raise NotImplementedError
 
@@ -211,23 +222,25 @@ class Runner(object):
         return train_infos
 
     def save(self):
+        if not os.path.exists(self.save_dir):
+            os.makedirs(self.save_dir)
         for agent_id in range(self.num_agents):
             policy_actor = self.trainer[agent_id].policy.actor
-            torch.save(policy_actor.state_dict(), str(self.save_dir) + "/actor_agent" + str(agent_id) + ".pt")
+            torch.save(policy_actor.state_dict(),  os.path.join(self.save_dir, f"actor_agent_{agent_id}.pt"))
             policy_critic = self.trainer[agent_id].policy.critic
-            torch.save(policy_critic.state_dict(), str(self.save_dir) + "/critic_agent" + str(agent_id) + ".pt")
+            torch.save(policy_critic.state_dict(),  os.path.join(self.save_dir, f"critic_agent_{agent_id}.pt"))
             if self.trainer[agent_id]._use_valuenorm:
                 policy_vnrom = self.trainer[agent_id].value_normalizer
-                torch.save(policy_vnrom.state_dict(), str(self.save_dir) + "/vnrom_agent" + str(agent_id) + ".pt")
+                torch.save(policy_vnrom.state_dict(), os.path.join(self.save_dir, f"vnrom_agent_{agent_id}.pt"))
 
     def restore(self):
         for agent_id in range(self.num_agents):
-            policy_actor_state_dict = torch.load(str(self.model_dir) + '/actor_agent' + str(agent_id) + '.pt')
+            policy_actor_state_dict = torch.load(os.path.join(self.model_dir, f'actor_agent_{agent_id}.pt'))
             self.policy[agent_id].actor.load_state_dict(policy_actor_state_dict)
-            policy_critic_state_dict = torch.load(str(self.model_dir) + '/critic_agent' + str(agent_id) + '.pt')
+            policy_critic_state_dict = torch.load(os.path.join(self.model_dir, f'critic_agent_{agent_id}.pt'))
             self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
             if self.trainer[agent_id]._use_valuenorm:
-                policy_vnrom_state_dict = torch.load(str(self.model_dir) + '/vnrom_agent' + str(agent_id) + '.pt')
+                policy_vnrom_state_dict = torch.load(os.path.join(self.model_dir, f'vnrom_agent_{agent_id}.pt'))
                 self.trainer[agent_id].value_normalizer.load_state_dict(policy_vnrom_state_dict)
 
     def log_train(self, train_infos, total_num_steps):

@@ -219,7 +219,7 @@ class R_Actor(nn.Module):
         # sampler = torch.utils.data.distributed.DistributedSampler(obs_dataset,num_replicas=world_size, rank=rank, shuffle=False)
         
         # Create a DataLoader with the DistributedSampler
-        dataloader = torch.utils.data.DataLoader(obs_dataset, batch_size=self.args.slot_pretrain_batch_size//2)
+        dataloader = torch.utils.data.DataLoader(obs_dataset, batch_size=self.args.slot_pretrain_batch_size//4)
         
         slot_att_total_loss = 0
         
