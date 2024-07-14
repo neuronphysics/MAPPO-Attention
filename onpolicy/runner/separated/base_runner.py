@@ -69,6 +69,7 @@ class Runner(object):
         else:
             if self.use_wandb:
                 self.save_dir = os.path.join(wandb.run.dir, f"Model_ID_{self.job_id}")
+                self.run_dir = os.path.join(wandb.run.dir, f"Model_ID_{self.job_id}")
             else:
                 self.run_dir = config["run_dir"]
                 self.log_dir = str(self.run_dir / 'logs')
@@ -154,25 +155,39 @@ class Runner(object):
                 if f"Model_ID_{slurm_job_id}" in dirs:
                     return os.path.join(root, f"Model_ID_{slurm_job_id}")
         return None
+    
     def run(self):
+        """Collect training data, perform training updates, and evaluate policy."""
         raise NotImplementedError
 
     def warmup(self):
+        """Collect warmup pre-training data."""
         raise NotImplementedError
 
     def collect(self, step):
+        """Collect rollouts for training."""
         raise NotImplementedError
 
     def insert(self, data):
+        """
+        Insert data into buffer.
+        :param data: (Tuple) data to insert into training buffer.
+        """
         raise NotImplementedError
 
     @torch.no_grad()
     def compute(self):
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
-            next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
-                                                                  self.buffer[agent_id].rnn_states_critic[-1],
-                                                                  self.buffer[agent_id].masks[-1])
+            if self.all_args.rnn_attention_module == "LSTM":
+                 next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
+                                                                       self.buffer[agent_id].rnn_states_critic[-1],
+                                                                       self.buffer[agent_id].rnn_cell_critic[-1],
+                                                                       self.buffer[agent_id].masks[-1])
+            else:
+                next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
+                                                                       self.buffer[agent_id].rnn_states_critic[-1],
+                                                                       self.buffer[agent_id].masks[-1])            
             next_value = _t2n(next_value)
             self.buffer[agent_id].compute_returns(next_value, self.trainer[agent_id].value_normalizer)
 
@@ -190,25 +205,45 @@ class Runner(object):
 
             obs = tmp_buf.obs[:-1].reshape(-1, *tmp_buf.obs.shape[2:])
             rnn_states = tmp_buf.rnn_states[0:1].reshape(-1, *tmp_buf.rnn_states.shape[2:])
+            
             actions = tmp_buf.actions.reshape(-1, *tmp_buf.actions.shape[2:])
             masks = tmp_buf.masks[:-1].reshape(-1, *tmp_buf.masks.shape[2:])
             active_masks = tmp_buf.active_masks[:-1].reshape(-1, *tmp_buf.active_masks.shape[2:])
+            if self.all_args.rnn_attention_module == "LSTM":
+                
+                rnn_cells = tmp_buf.rnn_cells[0:1].reshape(-1, *tmp_buf.rnn_cells.shape[2:])
+                old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
+                                                                                              rnn_states,
+                                                                                              rnn_cells,
+                                                                                              actions,
+                                                                                              masks,
+                                                                                              available_actions,
+                                                                                              active_masks)
+                train_info = self.trainer[agent_id].train(tmp_buf)
+                new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
+                                                                                              rnn_states,
+                                                                                              rnn_cells,
+                                                                                              actions,
+                                                                                              masks,
+                                                                                              available_actions,
+                                                                                              active_masks)
+            else:
+                old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
+                                                                                             rnn_states,
+                                                                                             actions,
+                                                                                             masks,
+                                                                                             available_actions,
+                                                                                             active_masks)
+            
 
-            old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
-                                                                                          rnn_states,
-                                                                                          actions,
-                                                                                          masks,
-                                                                                          available_actions,
-                                                                                          active_masks)
+                train_info = self.trainer[agent_id].train(tmp_buf)
 
-            train_info = self.trainer[agent_id].train(tmp_buf)
-
-            new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
-                                                                                          rnn_states,
-                                                                                          actions,
-                                                                                          masks,
-                                                                                          available_actions,
-                                                                                          active_masks)
+                new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
+                                                                                              rnn_states,
+                                                                                              actions,
+                                                                                              masks,
+                                                                                              available_actions,
+                                                                                              active_masks)
 
             factor = factor * _t2n(
                 torch.prod(torch.exp(new_actions_logprob - old_actions_logprob), dim=-1).reshape(self.episode_length,

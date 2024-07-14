@@ -15,7 +15,6 @@ from ml_collections import config_dict
 import numpy as np
 from ray.rllib.env import multi_agent_env
 import tree
-from onpolicy.runner.separated.meltingpot_runner import flatten_lists
 from gym.vector import VectorEnv
 from ray import cloudpickle
 from ray.util.iter import ParallelIteratorWorker

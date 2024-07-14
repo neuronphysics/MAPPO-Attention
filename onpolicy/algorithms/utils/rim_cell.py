@@ -6,8 +6,8 @@ import numpy as np
 import torch.multiprocessing as mp
 
 from onpolicy.algorithms.utils.rnn import RNNLayer
+from onpolicy.algorithms.utils.lstm import LSTMLayer
 from util import weight_init
-from utilities.LayerNormGRUCell import LayerNormGRUCell
 from positional_encoder import SinusoidalPosition
 
 
@@ -127,6 +127,7 @@ class RIMCell(nn.Module):
         self.device = device
         self.hidden_size = hidden_size
         self.num_units = num_units
+        self.rnn_cell = args.rnn_attention_module
         self.input_key_size = 64
         self.key_size = self.input_key_size
         self.k = k
@@ -150,8 +151,11 @@ class RIMCell(nn.Module):
         self.use_input_att = args.use_input_att
         self.use_com_att = args.use_com_att
         self.use_x_reshape = args.use_x_reshape
+        if self.rnn_cell == 'LSTM':
 
-        self.rnn = nn.ModuleList([RNNLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
+            self.rnn = nn.ModuleList([LSTMLayer(self.input_value_size, hidden_size, 1) for _ in range(num_units)])
+        else:
+            self.rnn = nn.ModuleList([RNNLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
         self.query = GroupLinearLayer(hidden_size, self.input_key_size * self.num_input_heads, self.num_units)
 
         self.query_ = GroupLinearLayer(hidden_size, self.comm_query_size * self.num_comm_heads, self.num_units)
@@ -282,9 +286,10 @@ class RIMCell(nn.Module):
         for i in range(self.num_units):
             if cs is None:
                 y_t, hs[i] = self.rnn[i](inputs[i].squeeze(1), hs[i], h_masks.reshape(-1, 1))
-                x_out.append(y_t)
+                
             else:
-                hs[i], cs[i] = self.rnn[i](inputs[i].squeeze(1), (hs[i].squeeze(1), cs[i].squeeze(1)))
+                y_t, (hs[i], cs[i]) = self.rnn[i](inputs[i].squeeze(1), (hs[i].squeeze(1), cs[i].squeeze(1)))
+            x_out.append(y_t)
         hs = torch.cat(hs, dim=1)
         x_final = torch.cat(x_out, dim=1).unsqueeze(1)
         if cs is not None:
@@ -381,12 +386,23 @@ class RIM(nn.Module):
             torch.randn(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(
                 self.device), 1, 0)
         hs = list(hs)
+        if self.rnn_cell == 'LSTM':
+            c = c.transpose(0, 1)
+            cs = torch.split(c, 1, 0) if c is not None else torch.split(
+                torch.randn(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(
+                    self.device), 1, 0)
+            cs = list(cs)
 
         for idx in range(self.n_layers):
-            x, hs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=None, mask=masks)
-
-        hs = torch.stack(hs, dim=0)
+            if cs is not None:
+                x, hs[idx], cs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=cs[idx], mask=masks)
+            else:
+                x, hs[idx] = self.layer(self.rimcell[idx], x, hs[idx], c=None, mask=masks)
 
         x = x.transpose(0, 1).reshape(ep_len * batch_num, self.num_units * self.hidden_size)
+        hs = torch.stack(hs, dim=0)
+        if cs is not None:
+            cs =torch.stack(cs, dim=0)
+            return x, hs, cs
 
         return x, hs

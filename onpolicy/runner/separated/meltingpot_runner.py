@@ -15,25 +15,6 @@ def _t2n(x):
     return x.detach().cpu().numpy()
 
 
-def flatten_lists(input_list):
-    # Check if input is a list
-    if not isinstance(input_list, list):
-        raise ValueError("Input is not a list")
-
-    # Check if each element of the list is also a list
-    for inner_list in input_list:
-        if not isinstance(inner_list, list):
-
-            # Check if each element of the inner list is a numpy array
-            for item in inner_list:
-                if not isinstance(item, np.ndarray):
-                    raise ValueError("Inner list does not contain only numpy arrays")
-
-    # Convert to a list of concatenated numpy arrays
-    concatenated_arrays = [np.concatenate(inner_list) for inner_list in input_list]
-    return concatenated_arrays
-
-
 class MeltingpotRunner(Runner):
     def __init__(self, config):
         super(MeltingpotRunner, self).__init__(config)
@@ -62,14 +43,14 @@ class MeltingpotRunner(Runner):
             step_time = time.time()
             for step in range(self.episode_length):
                 # Sample actions
-                values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
+                values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions_env = self.collect(step)
 
                 actions = actions.transpose(2, 1, 0)
                 obs, rewards, dones, infos = self.envs.step(actions)
                 if not isinstance(obs[0], dict):
                     obs = obs[:, 0]
 
-                data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic
+                data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic
 
                 # insert data into buffer
                 self.insert(data)
@@ -167,15 +148,19 @@ class MeltingpotRunner(Runner):
         temp_actions_env = []
         action_log_probs = []
         rnn_states = []
+        rnn_cells = []
         rnn_states_critic = []
+        rnn_cells_critic = []
 
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
-            value, action, action_log_prob, rnn_state, rnn_state_critic \
+            value, action, action_log_prob, rnn_state, rnn_cell, rnn_state_critic, rnn_cell_critic \
                 = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
                                                             self.buffer[agent_id].obs[step],
                                                             self.buffer[agent_id].rnn_states[step],
+                                                            self.buffer[agent_id].rnn_cells[step],
                                                             self.buffer[agent_id].rnn_states_critic[step],
+                                                            self.buffer[agent_id].rnn_cells_critic[step],
                                                             self.buffer[agent_id].masks[step])
             values.append(_t2n(value))
             action = _t2n(action)
@@ -200,9 +185,10 @@ class MeltingpotRunner(Runner):
             actions.append(action)
             temp_actions_env.append(action_env)
             action_log_probs.append(_t2n(action_log_prob))
-            rnn_states.append(_t2n(rnn_state[0]))
-            rnn_states_critic.append(_t2n(rnn_state_critic[0]))
-
+            rnn_states.append(_t2n(rnn_state))
+            rnn_cells.append(_t2n(rnn_cell))
+            rnn_states_critic.append(_t2n(rnn_state_critic))
+            rnn_cells_critic.append(_t2n(rnn_cell_critic))
         # [envs, agents, dim]
         actions_env = []
         for i in range(self.n_rollout_threads):
@@ -215,7 +201,9 @@ class MeltingpotRunner(Runner):
         actions = np.array(actions) if isinstance(actions, list) else actions
         action_log_probs = np.array(action_log_probs) if isinstance(action_log_probs, list) else action_log_probs
         rnn_states = np.array(rnn_states) if isinstance(rnn_states, list) else rnn_states
+        rnn_cells = np.array(rnn_cells) if isinstance(rnn_cells, list) else rnn_cells
         rnn_states_critic = np.array(rnn_states_critic) if isinstance(rnn_states_critic, list) else rnn_states_critic
+        rnn_cells_critic = np.array(rnn_cells_critic) if isinstance(rnn_cells_critic, list) else rnn_cells_critic
 
         values = values.squeeze(-1).transpose(1, 0, 2)
         if actions.ndim == 3:
@@ -227,12 +215,16 @@ class MeltingpotRunner(Runner):
         action_log_probs = action_log_probs.transpose(1, 0, 2)
         if rnn_states.ndim == 3:
             rnn_states = rnn_states[:, np.newaxis, :, :]
+            rnn_cells = rnn_cells[:, np.newaxis, :, :]
         rnn_states = rnn_states.transpose(1, 0, 2, 3)
+        rnn_cells = rnn_cells.transpose(1, 0, 2, 3)
         if rnn_states_critic.ndim == 3:
             rnn_states_critic = rnn_states_critic[:, np.newaxis, :, :]
+            rnn_cells_critic = rnn_cells_critic[:, np.newaxis, :, :]
         rnn_states_critic = rnn_states_critic.transpose(1, 0, 2, 3)
-
-        return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
+        rnn_cells_critic = rnn_cells_critic.transpose(1, 0, 2, 3)
+        
+        return values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions_env
 
     def process_obs(self, obs):
         """
@@ -291,14 +283,16 @@ class MeltingpotRunner(Runner):
         return share_obs, agent_obs
 
     def insert(self, data):
-        obs, rewards, done, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
-
-        done_new = self.extract_data(done, np.bool_)
+        
+        obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic = data
+        done_new = self.extract_data(dones, np.bool_)
         rewards = self.extract_data(rewards, np.float32)
 
         # Create a boolean mask with the same shape as rnn_states
         rnn_states[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
+        rnn_cells[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
         rnn_states_critic[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
+        rnn_cells_critic[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
 
         masks = np.ones((1, self.num_agents, self.n_rollout_threads, 1), dtype=np.float32)
         masks[done_new == True] = np.zeros(((done_new == True).sum(), 1), dtype=np.float32)
@@ -309,7 +303,9 @@ class MeltingpotRunner(Runner):
             self.buffer[agent_id].insert(share_obs[:, agent_id],
                                          agent_obs[:, agent_id],
                                          rnn_states[:, agent_id].swapaxes(1, 0),
+                                         rnn_cells[:, agent_id].swapaxes(1, 0),
                                          rnn_states_critic[:, agent_id].swapaxes(1, 0),
+                                         rnn_cells_critic[:, agent_id].swapaxes(1, 0),
                                          actions[:, agent_id],
                                          action_log_probs[:, agent_id].swapaxes(1, 0),
                                          values[:, agent_id].swapaxes(1, 0),
@@ -336,6 +332,8 @@ class MeltingpotRunner(Runner):
 
         eval_rnn_states = np.zeros((self.n_eval_rollout_threads, self.num_agents, self.recurrent_N, self.hidden_size),
                                    dtype=np.float32)
+        eval_rnn_cells = np.zeros((self.n_eval_rollout_threads, self.num_agents, self.recurrent_N, self.hidden_size),
+                                   dtype=np.float32)
         eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
 
         for eval_step in range(self.episode_length):
@@ -344,6 +342,7 @@ class MeltingpotRunner(Runner):
                 self.trainer[agent_id].prep_rollout()
                 eval_action, eval_rnn_state = self.trainer[agent_id].policy.act(np.array(list(eval_obs[:, agent_id])),
                                                                                 eval_rnn_states[:, agent_id],
+                                                                                eval_rnn_cells[:, agent_id],
                                                                                 eval_masks[:, agent_id],
                                                                                 deterministic=True)
 
@@ -365,6 +364,7 @@ class MeltingpotRunner(Runner):
 
                 eval_temp_actions_env.append(eval_action_env)
                 eval_rnn_states[:, agent_id] = _t2n(eval_rnn_state)
+                eval_rnn_cells[:, agent_id] = _t2n(eval_rnn_cell)
 
             # [envs, agents, dim]
             eval_actions_env = []
@@ -379,6 +379,9 @@ class MeltingpotRunner(Runner):
             eval_episode_rewards.append(eval_rewards)
 
             eval_rnn_states[eval_dones == True] = np.zeros(
+                ((eval_dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+            
+            eval_rnn_cells[eval_dones == True] = np.zeros(
                 ((eval_dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
             eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
             eval_masks[eval_dones == True] = np.zeros(((eval_dones == True).sum(), 1), dtype=np.float32)
@@ -405,6 +408,8 @@ class MeltingpotRunner(Runner):
 
             rnn_states = np.zeros((self.n_rollout_threads, self.num_agents, self.recurrent_N, self.hidden_size),
                                   dtype=np.float32)
+            rnn_cells = np.zeros((self.n_rollout_threads, self.num_agents, self.recurrent_N, self.hidden_size),
+                                  dtype=np.float32)
             masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
 
             for step in range(self.episode_length):
@@ -418,6 +423,7 @@ class MeltingpotRunner(Runner):
                     action, rnn_state = self.trainer[agent_id].policy.act(
                         np.array(list(np.expand_dims(rgb_data, axis=0))),
                         rnn_states[:, agent_id],
+                        rnn_cells[:, agent_id],
                         masks[:, agent_id],
                         deterministic=True)
                     action = action.detach().cpu().numpy()
@@ -439,7 +445,7 @@ class MeltingpotRunner(Runner):
                         rnn_states[:, agent_id] = _t2n(rnn_state[0])
                     else:
                         rnn_states[:, agent_id] = _t2n(rnn_state)
-
+                    rnn_cells[:, agent_id] = _t2n(rnn_cell)
                 # [envs, agents, dim]
                 actions_env = []
                 for i in range(self.n_rollout_threads):
@@ -464,6 +470,9 @@ class MeltingpotRunner(Runner):
 
                 rnn_states[dones == True] = np.zeros(
                     ((dones == True).sum(), self.num_agents, self.recurrent_N, self.hidden_size), dtype=np.float32)
+                rnn_cells[dones == True] = np.zeros(
+                    ((dones == True).sum(), self.num_agents, self.recurrent_N, self.hidden_size), dtype=np.float32)
+
                 masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
                 # rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
                 # masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
