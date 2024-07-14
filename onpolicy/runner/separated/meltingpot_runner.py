@@ -15,23 +15,7 @@ def _t2n(x):
     return x.detach().cpu().numpy()
 
 
-def flatten_lists(input_list):
-    # Check if input is a list
-    if not isinstance(input_list, list):
-        raise ValueError("Input is not a list")
 
-    # Check if each element of the list is also a list
-    for inner_list in input_list:
-        if not isinstance(inner_list, list):
-
-            # Check if each element of the inner list is a numpy array
-            for item in inner_list:
-                if not isinstance(item, np.ndarray):
-                    raise ValueError("Inner list does not contain only numpy arrays")
-
-    # Convert to a list of concatenated numpy arrays
-    concatenated_arrays = [np.concatenate(inner_list) for inner_list in input_list]
-    return concatenated_arrays
 
 
 class MeltingpotRunner(Runner):
@@ -200,8 +184,8 @@ class MeltingpotRunner(Runner):
             actions.append(action)
             temp_actions_env.append(action_env)
             action_log_probs.append(_t2n(action_log_prob))
-            rnn_states.append(_t2n(rnn_state[0]))
-            rnn_states_critic.append(_t2n(rnn_state_critic[0]))
+            rnn_states.append(_t2n(rnn_state))
+            rnn_states_critic.append(_t2n(rnn_state_critic))
 
         # [envs, agents, dim]
         actions_env = []

@@ -148,21 +148,22 @@ class R_Actor(nn.Module):
 
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
-        model_device = torch.device("cuda", obs.device.index+1)
 
-        self.slot_att.to(model_device)
         if self.use_slot_att:
+            model_device = torch.device("cuda", obs.device.index+1)
+
+            self.slot_att.to(model_device)
             with torch.no_grad():
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
                 torch.cuda.empty_cache()  # Free up GPU memory
-                
-                features = torch.cat([self.slot_att(obs_minibatch.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma)["slots"] 
+
+                features = torch.cat([self.slot_att(obs_minibatch.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma)["slots"]
                                       for obs_minibatch in obs.to(model_device).split(self.args.slot_pretrain_batch_size)
                 ])
                 #flatten
                 #"features" shape: [1000, 6, 50]
-                
+
                 actor_features = features.flatten(start_dim=1).to(obs.device)
                 #"actor_features" shape [1000, 300]
                 actor_features = actor_features.reshape(batch, -1)
@@ -213,16 +214,16 @@ class R_Actor(nn.Module):
         self.slot_att.to(slot_attn_device)
         # ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
         logging.debug("Starting training slot attention module from checkpoints and on multiple gpus.")
-        
+
         # Create a DistributedSampler with shuffle=False
         obs_dataset=ObsDataset(obs)
         # sampler = torch.utils.data.distributed.DistributedSampler(obs_dataset,num_replicas=world_size, rank=rank, shuffle=False)
-        
+
         # Create a DataLoader with the DistributedSampler
         dataloader = torch.utils.data.DataLoader(obs_dataset, batch_size=self.args.slot_pretrain_batch_size//4)
-        
+
         slot_att_total_loss = 0
-        
+
         # Iterate over the dataloader
         for obs_minibatch in dataloader:
             # Move the minibatch to the GPU
@@ -230,7 +231,7 @@ class R_Actor(nn.Module):
             optimizer.zero_grad()
             # Forward pass through the slot attention model
             out_tmp = self.slot_att(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
-            
+
             # Compute the loss
             minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
             minibatch_loss.backward()
