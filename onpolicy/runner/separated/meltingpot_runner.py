@@ -166,7 +166,7 @@ class MeltingpotRunner(Runner):
             action = _t2n(action)
             # rearrange action
             player = f"player_{agent_id}"
-
+            print(f"RNN Cell (1):{rnn_cell.shape}")
             if self.envs.action_space[player].__class__.__name__ == 'MultiDiscrete':
                 for i in range(self.envs.action_space[player].shape):
                     uc_action_env = np.eye(self.envs.action_space[player].high[i] + 1)[action[:, i]]
@@ -190,6 +190,7 @@ class MeltingpotRunner(Runner):
             rnn_states_critic.append(_t2n(rnn_state_critic))
             rnn_cells_critic.append(_t2n(rnn_cell_critic))
         # [envs, agents, dim]
+
         actions_env = []
         for i in range(self.n_rollout_threads):
             one_hot_action_env = []
@@ -204,7 +205,7 @@ class MeltingpotRunner(Runner):
         rnn_cells = np.array(rnn_cells) if isinstance(rnn_cells, list) else rnn_cells
         rnn_states_critic = np.array(rnn_states_critic) if isinstance(rnn_states_critic, list) else rnn_states_critic
         rnn_cells_critic = np.array(rnn_cells_critic) if isinstance(rnn_cells_critic, list) else rnn_cells_critic
-
+        print(f"RNN Cell (2):{rnn_cells.shape}, rnn_states {rnn_states.shape}")
         values = values.squeeze(-1).transpose(1, 0, 2)
         if actions.ndim == 3:
             actions = actions.transpose(2, 0, 1)
@@ -223,7 +224,7 @@ class MeltingpotRunner(Runner):
             rnn_cells_critic = rnn_cells_critic[:, np.newaxis, :, :]
         rnn_states_critic = rnn_states_critic.transpose(1, 0, 2, 3)
         rnn_cells_critic = rnn_cells_critic.transpose(1, 0, 2, 3)
-        
+
         return values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions_env
 
     def process_obs(self, obs):
@@ -283,7 +284,7 @@ class MeltingpotRunner(Runner):
         return share_obs, agent_obs
 
     def insert(self, data):
-        
+
         obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic = data
         done_new = self.extract_data(dones, np.bool_)
         rewards = self.extract_data(rewards, np.float32)
@@ -380,7 +381,7 @@ class MeltingpotRunner(Runner):
 
             eval_rnn_states[eval_dones == True] = np.zeros(
                 ((eval_dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-            
+
             eval_rnn_cells[eval_dones == True] = np.zeros(
                 ((eval_dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
             eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)

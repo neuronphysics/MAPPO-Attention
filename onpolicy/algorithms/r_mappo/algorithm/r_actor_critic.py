@@ -81,7 +81,7 @@ class R_Actor(nn.Module):
         self.to(device)
         self.algo = args.algorithm_name
 
-    def forward(self, obs, rnn_states, masks, available_actions=None, deterministic=False):
+    def forward(self, obs, rnn_states, rnn_cells, masks, available_actions=None, deterministic=False):
         """
         Compute actions from the given inputs.
         :param obs: (np.ndarray / torch.Tensor) observation inputs into network.
@@ -98,6 +98,7 @@ class R_Actor(nn.Module):
         obs = check(obs).to(**self.tpdv)
 
         rnn_states = check(rnn_states).to(**self.tpdv)
+        rnn_cells  = check(rnn_cells).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
@@ -111,20 +112,21 @@ class R_Actor(nn.Module):
             actor_features = out['slots'].reshape(batch, -1)
         else:
             actor_features = self.base(obs)
-        output = self.rnn(actor_features, rnn_states, masks=masks)
+        output = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
         # expect actor_feature (batch, input_size) rnn_state (1, batch, hidden_size)
         actor_features, rnn_states = output[:2]
         if self.rnn_attention_module == "LSTM":
-            c = output[-1]
+            rnn_cells = output[-1]
 
         if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
             rnn_states = rnn_states.permute(1, 0, 2)
+            rnn_cells  = rnn_cells.permute(1, 0, 2)
 
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
-        return actions, action_log_probs, rnn_states
+        return actions, action_log_probs, rnn_states, rnn_cells
 
-    def evaluate_actions(self, obs, rnn_states, action, masks, available_actions=None, active_masks=None):
+    def evaluate_actions(self, obs, rnn_states, rnn_cells, action, masks, available_actions=None, active_masks=None):
         """
         Compute log probability and entropy of given actions.
         :param obs: (torch.Tensor) observation inputs into network.
@@ -141,6 +143,7 @@ class R_Actor(nn.Module):
 
         obs = check(obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
+        rnn_cells  = check(rnn_cells).to(**self.tpdv)
         action = check(action).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
         if available_actions is not None:
@@ -156,13 +159,13 @@ class R_Actor(nn.Module):
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
                 torch.cuda.empty_cache()  # Free up GPU memory
-                
-                features = torch.cat([self.slot_att(obs_minibatch.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma)["slots"] 
+
+                features = torch.cat([self.slot_att(obs_minibatch.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma)["slots"]
                                       for obs_minibatch in obs.to(model_device).split(self.args.slot_pretrain_batch_size)
                 ])
                 #flatten
                 #"features" shape: [1000, 6, 50]
-                
+
                 actor_features = features.flatten(start_dim=1).to(obs.device)
                 #"actor_features" shape [1000, 300]
                 actor_features = actor_features.reshape(batch, -1)
@@ -170,10 +173,10 @@ class R_Actor(nn.Module):
             actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy or self.use_attention:
-            output = self.rnn(actor_features, rnn_states, masks=masks)
+            output = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
             actor_features, rnn_states = output[:2]
             if self.rnn_attention_module == "LSTM":
-                c = output[-1]
+                rnn_cells = output[-1]
 
         if self.algo == "hatrpo":
             action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(
@@ -213,16 +216,16 @@ class R_Actor(nn.Module):
         self.slot_att.to(slot_attn_device)
         # ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
         logging.debug("Starting training slot attention module from checkpoints and on multiple gpus.")
-        
+
         # Create a DistributedSampler with shuffle=False
         obs_dataset=ObsDataset(obs)
         # sampler = torch.utils.data.distributed.DistributedSampler(obs_dataset,num_replicas=world_size, rank=rank, shuffle=False)
-        
+
         # Create a DataLoader with the DistributedSampler
         dataloader = torch.utils.data.DataLoader(obs_dataset, batch_size=self.args.slot_pretrain_batch_size//4)
-        
+
         slot_att_total_loss = 0
-        
+
         # Iterate over the dataloader
         for obs_minibatch in dataloader:
             # Move the minibatch to the GPU
@@ -230,7 +233,7 @@ class R_Actor(nn.Module):
             optimizer.zero_grad()
             # Forward pass through the slot attention model
             out_tmp = self.slot_att(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
-            
+
             # Compute the loss
             minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
             minibatch_loss.backward()
@@ -319,7 +322,7 @@ class R_Critic(nn.Module):
 
         self.to(device)
 
-    def forward(self, cent_obs, rnn_states, masks):
+    def forward(self, cent_obs, rnn_states, rnn_cells, masks):
         """
         Compute actions from the given inputs.
         :param cent_obs: (np.ndarray / torch.Tensor) observation inputs into network.
@@ -331,18 +334,20 @@ class R_Critic(nn.Module):
         """
         cent_obs = check(cent_obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
+        rnn_cells = check(rnn_cells).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
 
         critic_features = self.base(cent_obs)
-        output = self.rnn(critic_features, rnn_states, masks=masks)
+        output = self.rnn(critic_features, rnn_states,rnn_cells, masks=masks)
         critic_features, rnn_states = output[:2]
         if self.rnn_attention_module == "LSTM":
-            c = output[-1]
+            rnn_cells = output[-1]
 
         if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
             rnn_states = rnn_states.permute(1, 0, 2)
+            rnn_cells = rnn_cells.permute(1, 0, 2)
 
         critic_features = critic_features.unsqueeze(0)
         values = self.v_out(critic_features)
 
-        return values, rnn_states
+        return values, rnn_states, rnn_cells

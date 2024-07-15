@@ -153,7 +153,7 @@ class RIMCell(nn.Module):
         self.use_x_reshape = args.use_x_reshape
         if self.rnn_cell == 'LSTM':
 
-            self.rnn = nn.ModuleList([LSTMLayer(self.input_value_size, hidden_size, 1) for _ in range(num_units)])
+            self.rnn = nn.ModuleList([LSTMLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
         else:
             self.rnn = nn.ModuleList([RNNLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
         self.query = GroupLinearLayer(hidden_size, self.input_key_size * self.num_input_heads, self.num_units)
@@ -246,7 +246,7 @@ class RIMCell(nn.Module):
         context_layer = context_layer.view(*new_context_layer_shape)
         context_layer = self.comm_attention_output(context_layer)
         context_layer = self.output_layer_norm(context_layer + h)
-        
+
         return context_layer
 
     def forward(self, x, hs, cs=None, h_masks=None):
@@ -286,9 +286,9 @@ class RIMCell(nn.Module):
         for i in range(self.num_units):
             if cs is None:
                 y_t, hs[i] = self.rnn[i](inputs[i].squeeze(1), hs[i], h_masks.reshape(-1, 1))
-                
+
             else:
-                y_t, (hs[i], cs[i]) = self.rnn[i](inputs[i].squeeze(1), (hs[i].squeeze(1), cs[i].squeeze(1)))
+                y_t, (hs[i], cs[i]) = self.rnn[i](inputs[i].squeeze(1), hs[i].squeeze(1), cs[i].squeeze(1), h_masks.reshape(-1, 1))
             x_out.append(y_t)
         hs = torch.cat(hs, dim=1)
         x_final = torch.cat(x_out, dim=1).unsqueeze(1)
@@ -301,7 +301,7 @@ class RIMCell(nn.Module):
         # Compute communication attention
         if self.use_com_att:
             h_new = self.communication_attention(h_new, mask.squeeze(2))
-        
+
 
         # h_new = Identity.apply(h_new)
         hs = (mask * h_new + (1 - mask) * h_old)
@@ -403,6 +403,7 @@ class RIM(nn.Module):
         hs = torch.stack(hs, dim=0)
         if cs is not None:
             cs =torch.stack(cs, dim=0)
+            print(f"cs:{cs.shape}, hs :{hs.shape}")
             return x, hs, cs
 
         return x, hs

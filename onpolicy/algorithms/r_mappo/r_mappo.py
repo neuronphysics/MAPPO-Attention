@@ -113,7 +113,7 @@ class R_MAPPO():
         :return actor_grad_norm: (torch.Tensor) gradient norm from actor update.
         :return imp_weights: (torch.Tensor) importance sampling weights.
         """
-        share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, \
+        share_obs_batch, obs_batch, rnn_states_batch, rnn_cells_batch, rnn_states_critic_batch, rnn_cells_critic_batch, actions_batch, \
         value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, \
         adv_targ, available_actions_batch = sample
 
@@ -123,12 +123,14 @@ class R_MAPPO():
         return_batch = check(return_batch).to(**self.tpdv)
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
         obs_batch = check(obs_batch).to(**self.tpdv)
-        
+
         # Reshape to do in a single forward pass for all steps
         values, action_log_probs, dist_entropy = self.policy.evaluate_actions(share_obs_batch,
                                                                               obs_batch,
                                                                               rnn_states_batch,
+                                                                              rnn_cells_batch,
                                                                               rnn_states_critic_batch,
+                                                                              rnn_cells_critic_batch,
                                                                               actions_batch,
                                                                               masks_batch,
                                                                               available_actions_batch,
@@ -157,7 +159,7 @@ class R_MAPPO():
         if self.use_attention:
             actor_parameters = [param for name, param in self.policy.actor.named_parameters() if 'slot_att' not in name]
         else:
-            actor_parameters =  self.policy.actor.parameters() 
+            actor_parameters =  self.policy.actor.parameters()
 
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
@@ -183,12 +185,12 @@ class R_MAPPO():
         self.policy.critic_optimizer.step()
 
         if self.use_slot_att:
-           
+
            slot_att_loss = self.policy.actor.train_slot_att( obs_batch, idx, optimizer=self.policy.slot_att_optimizer, scheduler=self.policy.slot_att_scheduler)
-           
+
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss
-        
-        
+
+
 
     def train(self, buffer, update_actor=True):
         """
