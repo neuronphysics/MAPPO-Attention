@@ -166,7 +166,6 @@ class MeltingpotRunner(Runner):
             action = _t2n(action)
             # rearrange action
             player = f"player_{agent_id}"
-            print(f"RNN Cell (1):{rnn_cell.shape}")
             if self.envs.action_space[player].__class__.__name__ == 'MultiDiscrete':
                 for i in range(self.envs.action_space[player].shape):
                     uc_action_env = np.eye(self.envs.action_space[player].high[i] + 1)[action[:, i]]

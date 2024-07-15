@@ -48,7 +48,7 @@ class MeltingpotRunner(Runner):
         start = time.time()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
 
-        print('num episodes to run (shared):', episodes) 
+        print('num episodes to run (shared):', episodes)
 
         for episode in range(episodes):
             if self.use_linear_lr_decay:

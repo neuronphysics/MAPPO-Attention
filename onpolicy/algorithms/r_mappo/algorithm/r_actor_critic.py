@@ -16,6 +16,7 @@ from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_annea
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
+
 class R_Actor(nn.Module):
     """
     Actor network class for MAPPO. Outputs actions given observations.
@@ -98,7 +99,7 @@ class R_Actor(nn.Module):
         obs = check(obs).to(**self.tpdv)
 
         rnn_states = check(rnn_states).to(**self.tpdv)
-        rnn_cells  = check(rnn_cells).to(**self.tpdv)
+        rnn_cells = check(rnn_cells).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
@@ -120,7 +121,7 @@ class R_Actor(nn.Module):
 
         if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
             rnn_states = rnn_states.permute(1, 0, 2)
-            rnn_cells  = rnn_cells.permute(1, 0, 2)
+            rnn_cells = rnn_cells.permute(1, 0, 2)
 
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
@@ -143,7 +144,7 @@ class R_Actor(nn.Module):
 
         obs = check(obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
-        rnn_cells  = check(rnn_cells).to(**self.tpdv)
+        rnn_cells = check(rnn_cells).to(**self.tpdv)
         action = check(action).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
         if available_actions is not None:
@@ -151,23 +152,24 @@ class R_Actor(nn.Module):
 
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
-        model_device = torch.device("cuda", obs.device.index+1)
 
-        self.slot_att.to(model_device)
         if self.use_slot_att:
+            model_device = torch.device("cuda", obs.device.index + 1)
+            self.slot_att.to(model_device)
             with torch.no_grad():
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
                 torch.cuda.empty_cache()  # Free up GPU memory
 
-                features = torch.cat([self.slot_att(obs_minibatch.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma)["slots"]
-                                      for obs_minibatch in obs.to(model_device).split(self.args.slot_pretrain_batch_size)
-                ])
-                #flatten
-                #"features" shape: [1000, 6, 50]
+                features = torch.cat(
+                    [self.slot_att(obs_minibatch.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma)["slots"]
+                     for obs_minibatch in obs.to(model_device).split(self.args.slot_pretrain_batch_size)
+                     ])
+                # flatten
+                # "features" shape: [1000, 6, 50]
 
                 actor_features = features.flatten(start_dim=1).to(obs.device)
-                #"actor_features" shape [1000, 300]
+                # "actor_features" shape [1000, 300]
                 actor_features = actor_features.reshape(batch, -1)
         else:
             actor_features = self.base(obs)
@@ -179,11 +181,12 @@ class R_Actor(nn.Module):
                 rnn_cells = output[-1]
 
         if self.algo == "hatrpo":
-            action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(actor_features,
-                                                                                                              action, available_actions,
-                                                                                                              active_masks=
-                                                                                                              active_masks if self._use_policy_active_masks
-                                                                                                              else None)
+            action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(
+                actor_features,
+                action, available_actions,
+                active_masks=
+                active_masks if self._use_policy_active_masks
+                else None)
 
             return action_log_probs, dist_entropy, action_mu, action_std, all_probs
         else:
@@ -195,7 +198,7 @@ class R_Actor(nn.Module):
 
         return action_log_probs, dist_entropy
 
-    def train_slot_att(self, obs, cur_ppo_idx, optimizer, scheduler ):
+    def train_slot_att(self, obs, cur_ppo_idx, optimizer, scheduler):
         """
         if not dist.is_initialized():
            rank, world_size, local_rank, distributed_device = distributed_setup()
@@ -205,23 +208,23 @@ class R_Actor(nn.Module):
         self.global_step = self.args.ep_counter.get_cur_ep() * self.args.ppo_epoch + cur_ppo_idx
 
         self.tau = cosine_anneal(self.global_step, self.args.tau_steps, start_value=self.args.tau_start,
-                     final_value=self.args.tau_final)
+                                 final_value=self.args.tau_final)
         self.sigma = cosine_anneal(self.global_step, self.args.sigma_steps, start_value=self.args.sigma_start,
-                       final_value=self.args.sigma_final)
+                                   final_value=self.args.sigma_final)
 
         # slot att model takes (batch, 3, H, W) and returns a dict
         # TODO: we shouldnt move the slot attention module, just for now, lets keep it on GPU 1 (second gpu)
-        slot_attn_device = torch.device("cuda", obs.device.index+1)
+        slot_attn_device = torch.device("cuda", obs.device.index + 1)
         self.slot_att.to(slot_attn_device)
         # ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
         logging.debug("Starting training slot attention module from checkpoints and on multiple gpus.")
 
         # Create a DistributedSampler with shuffle=False
-        obs_dataset=ObsDataset(obs)
+        obs_dataset = ObsDataset(obs)
         # sampler = torch.utils.data.distributed.DistributedSampler(obs_dataset,num_replicas=world_size, rank=rank, shuffle=False)
 
         # Create a DataLoader with the DistributedSampler
-        dataloader = torch.utils.data.DataLoader(obs_dataset, batch_size=self.args.slot_pretrain_batch_size//4)
+        dataloader = torch.utils.data.DataLoader(obs_dataset, batch_size=self.args.slot_pretrain_batch_size // 4)
 
         slot_att_total_loss = 0
 
@@ -337,7 +340,7 @@ class R_Critic(nn.Module):
         masks = check(masks).to(**self.tpdv)
 
         critic_features = self.base(cent_obs)
-        output = self.rnn(critic_features, rnn_states,rnn_cells, masks=masks)
+        output = self.rnn(critic_features, rnn_states, rnn_cells, masks=masks)
         critic_features, rnn_states = output[:2]
         if self.rnn_attention_module == "LSTM":
             rnn_cells = output[-1]

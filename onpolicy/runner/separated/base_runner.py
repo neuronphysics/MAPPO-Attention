@@ -182,7 +182,7 @@ class Runner(object):
             if self.all_args.rnn_attention_module == "LSTM":
                  next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
                                                                        self.buffer[agent_id].rnn_states_critic[-1],
-                                                                       self.buffer[agent_id].rnn_cell_critic[-1],
+                                                                       self.buffer[agent_id].rnn_cells_critic[-1],
                                                                        self.buffer[agent_id].masks[-1])
             else:
                 next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],

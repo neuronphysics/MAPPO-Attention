@@ -323,7 +323,7 @@ class SubprocVecEnv(ShareVecEnv):
             )
             p.start()
             print(f"Process {p.pid} started SubprocVecEnv.")
-        print("Processes started.")    
+        print("Processes started.")
         for remote in self.work_remotes:
             remote.close()
 
@@ -340,7 +340,7 @@ class SubprocVecEnv(ShareVecEnv):
     def step_async(self, actions):
         for remote, action in zip(self.remotes, actions):
             remote.send(('step', action))
-        print("Step commands sent in SubprocVecEnv.")    
+        print("Step commands sent in SubprocVecEnv.")
         self.waiting = True
 
     def step_wait(self):

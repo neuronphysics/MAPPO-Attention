@@ -153,7 +153,8 @@ class RIMCell(nn.Module):
         self.use_x_reshape = args.use_x_reshape
         if self.rnn_cell == 'LSTM':
 
-            self.rnn = nn.ModuleList([LSTMLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
+            self.rnn = nn.ModuleList(
+                [LSTMLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
         else:
             self.rnn = nn.ModuleList([RNNLayer(self.input_value_size, hidden_size, 1, False) for _ in range(num_units)])
         self.query = GroupLinearLayer(hidden_size, self.input_key_size * self.num_input_heads, self.num_units)
@@ -171,7 +172,7 @@ class RIMCell(nn.Module):
         else:
             self.input_linear = nn.Linear(self.num_units * self.hidden_size, self.input_value_size)
 
-        #self.input_layer_norm  = nn.LayerNorm(self.num_units *self.hidden_size)
+        # self.input_layer_norm  = nn.LayerNorm(self.num_units *self.hidden_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
@@ -187,7 +188,7 @@ class RIMCell(nn.Module):
         Output: inputs (list of size num_units with each element of shape (batch_size, input_value_size))
                 mask_ binary array of shape (batch_size, num_units) where 1 indicates active and 0 indicates inactive
         """
-        #x = self.input_layer_norm(x)
+        # x = self.input_layer_norm(x)
         key_layer = self.key(x)
         value_layer = self.value(x)
         query_layer = self.query(h)
@@ -288,12 +289,13 @@ class RIMCell(nn.Module):
                 y_t, hs[i] = self.rnn[i](inputs[i].squeeze(1), hs[i], h_masks.reshape(-1, 1))
 
             else:
-                y_t, (hs[i], cs[i]) = self.rnn[i](inputs[i].squeeze(1), hs[i].squeeze(1), cs[i].squeeze(1), h_masks.reshape(-1, 1))
+                y_t, (hs[i], cs[i]) = self.rnn[i](inputs[i].squeeze(1), hs[i], cs[i],
+                                                  h_masks.reshape(-1, 1))
             x_out.append(y_t)
         hs = torch.cat(hs, dim=1)
         x_final = torch.cat(x_out, dim=1).unsqueeze(1)
         if cs is not None:
-            cs = torch.stack(cs, dim=1)
+            cs = torch.cat(cs, dim=1)
 
         # Block gradient through inactive units
         h_new = blocked_grad.apply(hs, mask)
@@ -301,7 +303,6 @@ class RIMCell(nn.Module):
         # Compute communication attention
         if self.use_com_att:
             h_new = self.communication_attention(h_new, mask.squeeze(2))
-
 
         # h_new = Identity.apply(h_new)
         hs = (mask * h_new + (1 - mask) * h_old)
@@ -402,8 +403,7 @@ class RIM(nn.Module):
         x = x.transpose(0, 1).reshape(ep_len * batch_num, self.num_units * self.hidden_size)
         hs = torch.stack(hs, dim=0)
         if cs is not None:
-            cs =torch.stack(cs, dim=0)
-            print(f"cs:{cs.shape}, hs :{hs.shape}")
+            cs = torch.stack(cs, dim=0)
             return x, hs, cs
 
         return x, hs
