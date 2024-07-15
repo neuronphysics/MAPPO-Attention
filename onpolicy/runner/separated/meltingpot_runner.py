@@ -205,7 +205,7 @@ class MeltingpotRunner(Runner):
         rnn_cells = np.array(rnn_cells) if isinstance(rnn_cells, list) else rnn_cells
         rnn_states_critic = np.array(rnn_states_critic) if isinstance(rnn_states_critic, list) else rnn_states_critic
         rnn_cells_critic = np.array(rnn_cells_critic) if isinstance(rnn_cells_critic, list) else rnn_cells_critic
-        print(f"RNN Cell (2):{rnn_cells.shape}, rnn_states {rnn_states.shape}")
+
         values = values.squeeze(-1).transpose(1, 0, 2)
         if actions.ndim == 3:
             actions = actions.transpose(2, 0, 1)
@@ -421,12 +421,12 @@ class MeltingpotRunner(Runner):
                     player = f"player_{agent_id}"
                     self.trainer[agent_id].prep_rollout()
                     rgb_data = obs[0][player]['RGB'] if isinstance(obs, np.ndarray) else obs[player]['RGB']
-                    action, rnn_state = self.trainer[agent_id].policy.act(
-                        np.array(list(np.expand_dims(rgb_data, axis=0))),
-                        rnn_states[:, agent_id],
-                        rnn_cells[:, agent_id],
-                        masks[:, agent_id],
-                        deterministic=True)
+                    action, rnn_state, rnn_cell = self.trainer[agent_id].policy.act(
+                                                                                   np.array(list(np.expand_dims(rgb_data, axis=0))),
+                                                                                   rnn_states[:, agent_id],
+                                                                                   rnn_cells[:, agent_id],
+                                                                                   masks[:, agent_id],
+                                                                                   deterministic=True)
                     action = action.detach().cpu().numpy()
                     # rearrange action
                     if self.envs.action_space[player].__class__.__name__ == 'MultiDiscrete':

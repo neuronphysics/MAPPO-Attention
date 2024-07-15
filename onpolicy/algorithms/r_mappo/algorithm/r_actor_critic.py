@@ -179,12 +179,11 @@ class R_Actor(nn.Module):
                 rnn_cells = output[-1]
 
         if self.algo == "hatrpo":
-            action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(
-                actor_features,
-                action, available_actions,
-                active_masks=
-                active_masks if self._use_policy_active_masks
-                else None)
+            action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(actor_features,
+                                                                                                              action, available_actions,
+                                                                                                              active_masks=
+                                                                                                              active_masks if self._use_policy_active_masks
+                                                                                                              else None)
 
             return action_log_probs, dist_entropy, action_mu, action_std, all_probs
         else:

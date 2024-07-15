@@ -171,7 +171,7 @@ class RIMCell(nn.Module):
         else:
             self.input_linear = nn.Linear(self.num_units * self.hidden_size, self.input_value_size)
 
-        self.input_layer_norm  = nn.LayerNorm(self.num_units *self.hidden_size)
+        #self.input_layer_norm  = nn.LayerNorm(self.num_units *self.hidden_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
         self.apply(weight_init)
 
@@ -187,7 +187,7 @@ class RIMCell(nn.Module):
         Output: inputs (list of size num_units with each element of shape (batch_size, input_value_size))
                 mask_ binary array of shape (batch_size, num_units) where 1 indicates active and 0 indicates inactive
         """
-        x = self.input_layer_norm(x)
+        #x = self.input_layer_norm(x)
         key_layer = self.key(x)
         value_layer = self.value(x)
         query_layer = self.query(h)
