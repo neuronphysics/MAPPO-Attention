@@ -117,7 +117,9 @@ class Runner(object):
                 # policy network
 
             self.policy.append(po)
-
+        
+        ##count total number of parameters
+        print(f"total number of parameters of this model is {self.count_parameters()}")
         if self.model_dir is None:
             self.model_dir = self._find_model_dir(self.job_id)
             if self.model_dir is not None and self.all_args.load_model:

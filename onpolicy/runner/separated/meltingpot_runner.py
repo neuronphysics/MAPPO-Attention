@@ -340,11 +340,11 @@ class MeltingpotRunner(Runner):
             eval_temp_actions_env = []
             for agent_id in range(self.num_agents):
                 self.trainer[agent_id].prep_rollout()
-                eval_action, eval_rnn_state = self.trainer[agent_id].policy.act(np.array(list(eval_obs[:, agent_id])),
-                                                                                eval_rnn_states[:, agent_id],
-                                                                                eval_rnn_cells[:, agent_id],
-                                                                                eval_masks[:, agent_id],
-                                                                                deterministic=True)
+                eval_action, eval_rnn_state, eval_rnn_cell = self.trainer[agent_id].policy.act(np.array(list(eval_obs[:, agent_id])),
+                                                                                               eval_rnn_states[:, agent_id],
+                                                                                               eval_rnn_cells[:, agent_id],
+                                                                                               eval_masks[:, agent_id],
+                                                                                               deterministic=True)
 
                 eval_action = eval_action.detach().cpu().numpy()
                 # rearrange action
