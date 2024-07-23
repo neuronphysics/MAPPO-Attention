@@ -111,17 +111,13 @@ wandb login a2a1bab96ebbc3869c65e3632485e02fcae9cc42
 echo "Start running the train_meltingpot.py script ..."
 
 cd $DIR/onpolicy/scripts/train
-#CUDA_VISIBLE_DEVICES=0,1 python train_mpe.py --use_valuenorm --use_popart --env_name "MPE" --algorithm_name "mappo" --experiment_name "check" \
-#    --scenario_name "simple_speaker_listener" --num_agents 2 --num_landmarks 3 --seed 1 --use_render \
-#    --n_training_threads 1 --n_rollout_threads 128 --num_mini_batch 1 --episode_length 25 --num_env_steps 2000000 \
-#    --ppo_epoch 15 --gain 0.01 --lr 7e-4 --critic_lr 7e-4 --use_wandb --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy
 
 CUDA_VISIBLE_DEVICES=0 python3 train_meltingpot.py --use_valuenorm False --use_popart True --env_name "Meltingpot" --algorithm_name "mappo" \
      --experiment_name "pretrain_qsa_rim" --substrate_name "territory__rooms" --num_agents 9 --seed 123 --lr 0.00002 \
      --critic_lr 0.00002 --n_rollout_threads 1 --max_grad_norm 0.01 --use_wandb False --user_name "zsheikhb" --wandb_name "zsheikhb" \
      --share_policy False --use_centralized_V False --use_attention True --entropy_coef 0.004 --attention_module "RIM" --rim_num_units 6 \
-     --rim_topk 4 --hidden_size 300 --num_env_steps 4000000 --log_interval 1 --episode_length 1000 --downsample True --img_scale_factor 1 \
-     --world_img_scale_factor 1 --pretrain_slot_att True --slot_train_ep 150 --slot_pretrain_batch_size 75 \
+     --rim_topk 4 --hidden_size 240 --num_env_steps 4000000 --log_interval 1 --episode_length 1000 --downsample True --img_scale_factor 1 \
+     --world_img_scale_factor 1 --pretrain_slot_att True --slot_train_ep 150 --slot_pretrain_batch_size 40 \
      --slot_att_work_path "/home/memole/projects/def-irina/memole/LSTM/onpolicy/scripts/results/slot_att/" \
      --slot_att_load_model False --use_slot_att False --use_pos_encoding False --use_input_att False --use_com_att True --use_x_reshape True \
      --slot_att_crop_repeat 9 --slot_log_fre 1 --collect_data True --collect_agent False --collect_world True --collect_data_ep_num 20 \
