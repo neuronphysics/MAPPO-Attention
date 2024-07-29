@@ -117,7 +117,7 @@ class Runner(object):
                 # policy network
 
             self.policy.append(po)
-        
+
         ##count total number of parameters
         print(f"total number of parameters of this model is {self.count_parameters()}")
         if self.model_dir is None:
@@ -157,7 +157,7 @@ class Runner(object):
                 if f"Model_ID_{slurm_job_id}" in dirs:
                     return os.path.join(root, f"Model_ID_{slurm_job_id}")
         return None
-    
+
     def run(self):
         """Collect training data, perform training updates, and evaluate policy."""
         raise NotImplementedError
@@ -182,14 +182,15 @@ class Runner(object):
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
             if self.all_args.rnn_attention_module == "LSTM":
-                 next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
-                                                                       self.buffer[agent_id].rnn_states_critic[-1],
-                                                                       self.buffer[agent_id].rnn_cells_critic[-1],
-                                                                       self.buffer[agent_id].masks[-1])
+                next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
+                                                                      self.buffer[agent_id].rnn_states_critic[-1],
+                                                                      self.buffer[agent_id].rnn_cells_critic[-1],
+                                                                      self.buffer[agent_id].masks[-1])
             else:
                 next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
-                                                                       self.buffer[agent_id].rnn_states_critic[-1],
-                                                                       self.buffer[agent_id].masks[-1])            
+                                                                      self.buffer[agent_id].rnn_states_critic[-1],
+                                                                      None,
+                                                                      self.buffer[agent_id].masks[-1])
             next_value = _t2n(next_value)
             self.buffer[agent_id].compute_returns(next_value, self.trainer[agent_id].value_normalizer)
 
@@ -207,12 +208,12 @@ class Runner(object):
 
             obs = tmp_buf.obs[:-1].reshape(-1, *tmp_buf.obs.shape[2:])
             rnn_states = tmp_buf.rnn_states[0:1].reshape(-1, *tmp_buf.rnn_states.shape[2:])
-            
+
             actions = tmp_buf.actions.reshape(-1, *tmp_buf.actions.shape[2:])
             masks = tmp_buf.masks[:-1].reshape(-1, *tmp_buf.masks.shape[2:])
             active_masks = tmp_buf.active_masks[:-1].reshape(-1, *tmp_buf.active_masks.shape[2:])
             if self.all_args.rnn_attention_module == "LSTM":
-                
+
                 rnn_cells = tmp_buf.rnn_cells[0:1].reshape(-1, *tmp_buf.rnn_cells.shape[2:])
                 old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
                                                                                               rnn_states,
@@ -231,17 +232,18 @@ class Runner(object):
                                                                                               active_masks)
             else:
                 old_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
-                                                                                             rnn_states,
-                                                                                             actions,
-                                                                                             masks,
-                                                                                             available_actions,
-                                                                                             active_masks)
-            
+                                                                                              rnn_states,
+                                                                                              None,
+                                                                                              actions,
+                                                                                              masks,
+                                                                                              available_actions,
+                                                                                              active_masks)
 
                 train_info = self.trainer[agent_id].train(tmp_buf)
 
                 new_actions_logprob, _ = self.trainer[agent_id].policy.actor.evaluate_actions(obs,
                                                                                               rnn_states,
+                                                                                              None,
                                                                                               actions,
                                                                                               masks,
                                                                                               available_actions,
@@ -263,9 +265,9 @@ class Runner(object):
             os.makedirs(self.save_dir)
         for agent_id in range(self.num_agents):
             policy_actor = self.trainer[agent_id].policy.actor
-            torch.save(policy_actor.state_dict(),  os.path.join(self.save_dir, f"actor_agent_{agent_id}.pt"))
+            torch.save(policy_actor.state_dict(), os.path.join(self.save_dir, f"actor_agent_{agent_id}.pt"))
             policy_critic = self.trainer[agent_id].policy.critic
-            torch.save(policy_critic.state_dict(),  os.path.join(self.save_dir, f"critic_agent_{agent_id}.pt"))
+            torch.save(policy_critic.state_dict(), os.path.join(self.save_dir, f"critic_agent_{agent_id}.pt"))
             if self.trainer[agent_id]._use_valuenorm:
                 policy_vnrom = self.trainer[agent_id].value_normalizer
                 torch.save(policy_vnrom.state_dict(), os.path.join(self.save_dir, f"vnrom_agent_{agent_id}.pt"))

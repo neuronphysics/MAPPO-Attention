@@ -393,6 +393,8 @@ class RIM(nn.Module):
                 torch.randn(self.n_layers * self.num_directions, x.size(1), self.hidden_size * self.num_units).to(
                     self.device), 1, 0)
             cs = list(cs)
+        else:
+            cs = None
 
         for idx in range(self.n_layers):
             if cs is not None:

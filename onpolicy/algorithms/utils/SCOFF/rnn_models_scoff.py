@@ -146,7 +146,7 @@ class RNNModel(nn.Module):
         else:
             return mu
 
-    def forward(self, input, hidden, masks=None):
+    def forward(self, input, hidden, cs, masks=None):
         extra_loss = 0.0
         timesteps, batch_size, _ = input.shape
 
@@ -156,6 +156,7 @@ class RNNModel(nn.Module):
             # for loop implementation with RNNCell
             layer_input = emb
             new_hidden = []
+            new_c = []
             for idx_layer in range(0, self.nlayers):
                 output = []
                 bmasklst = []
@@ -164,12 +165,16 @@ class RNNModel(nn.Module):
                 self.bc_lst[idx_layer].blockify_params()
 
                 hx = hidden[0]
+                if cs is not None:
+                    cx = cs[0]
+                else:
+                    cx = None
 
                 if self.do_rel:
                     self.bc_lst[idx_layer].reset_relational_memory(input.shape[1])
 
                 for idx_step in range(input.shape[0]):
-                    hx, mask, bmask, temp_attn = self.bc_lst[idx_layer](layer_input[idx_step], hx,
+                    hx, cx, mask, bmask, temp_attn = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx,
                                                                         h_masks=masks[idx_step])
                     hx = hx.unsqueeze(0)
 
@@ -184,15 +189,20 @@ class RNNModel(nn.Module):
 
                 layer_input = output
                 new_hidden.append(hx)
+                new_c.append(cx)
 
             new_hidden = torch.stack(new_hidden)
+            if cs is not None:
+                new_c = torch.stack(new_c)
+            else:
+                new_c = None
 
         block_mask = bmask.squeeze(0)
 
         output = self.drop(output)
         dec = output.view(output.size(0) * output.size(1), self.nhid)
         dec = self.decoder(dec)
-        return dec.view(output.size(0), output.size(1), dec.size(1)), new_hidden, extra_loss, block_mask, template_attn
+        return dec.view(output.size(0), output.size(1), dec.size(1)), new_hidden, new_c, extra_loss, block_mask, template_attn
 
     def init_hidden(self, bsz):
         weight = next(self.bc_lst[0].block_lstm.parameters())

@@ -67,10 +67,10 @@ class SCOFF(nn.Module):
                                         update_topk=k, dropout=self.drop_out,
                                         attention_out=self.attention_out,
                                         use_cudnn_version=False, use_adaptive_softmax=False, discrete_input=False,
-                                        use_gru=self.rnn_cell == 'GRU', version=self.version,
+                                        use_gru=self.rnn_cell=='GRU', version=self.version,
                                         do_rel=self.do_rel, args=args).to(self.device)
 
-    def forward(self, x, h, masks=None):
+    def forward(self, x, h, c=None, masks=None):
         """
         Input: x (seq_len, batch_size, feature_size
                hidden (num_layers * num_directions, batch_size, hidden_size * num_units)
@@ -79,12 +79,23 @@ class SCOFF(nn.Module):
         """
 
         batch_num = h.size(0)
+        if self.rnn_cell == "LSTM":
+            cs = torch.zeros(self.n_layers, batch_num, self.hidden_size * self.num_units).to(self.device) if c is None else c
+        else:
+            cs = None
+
         if x.size(0) == h.size(0):
             ep_len = 1
             x = x.unsqueeze(0)
+            hs = (h.transpose(0, 1) * masks.unsqueeze(0)).unsqueeze(0)
+            if cs is not None:
+                cs = (cs.transpose(0, 1) * masks.unsqueeze(0)).unsqueeze(0)
+
             # scoff cell take x (ep_len, batch, input_size) h take (num_layer, 1, batch, hidden_size)
-            x_fw, hs, _, _, _ = self.scoff_cell(x, (h.transpose(0, 1) * masks.unsqueeze(0)).unsqueeze(0), masks=masks)
+            x_fw, hs, cs, _, _, _ = self.scoff_cell(x, hs, cs, masks=masks)
             hs = hs.squeeze(0)
+            if cs is not None:
+                cs = cs.squeeze(0)
         else:
             # x is a (episode_len, batch_num, -1) tensor that has been flattened to (episode_len * batch_num, -1)
             ep_len = int(x.size(0) / batch_num)
@@ -110,6 +121,8 @@ class SCOFF(nn.Module):
             has_zeros = [0] + has_zeros + [ep_len]
 
             h = h.transpose(0, 1)
+            if cs is not None:
+                cs = cs.transpose(0, 1)
 
             outputs = []
             for i in range(len(has_zeros) - 1):
@@ -117,12 +130,18 @@ class SCOFF(nn.Module):
                 # This is much faster
                 start_idx = has_zeros[i]
                 end_idx = has_zeros[i + 1]
-                temp = (h * masks[start_idx].view(1, -1, 1)).contiguous()
+                temp = (h * masks[start_idx].view(1, -1, 1)).contiguous().unsqueeze(0)
+                if cs is not None:
+                    temp_c = (cs * masks[start_idx].view(1, -1, 1)).contiguous().unsqueeze(0)
+                else:
+                    temp_c = None
 
                 # scoff cell take x (ep_len, batch, input_size) h take (num_layer, 1, batch, hidden_size)
-                x_fw, h, _, _, _ = self.scoff_cell(x[start_idx:end_idx], temp.unsqueeze(0), masks=masks)
+                x_fw, h, cs, _, _, _ = self.scoff_cell(x[start_idx:end_idx], temp, temp_c, masks=masks)
                 # x_fw size (batch, input_size), hs (num_layer, 1, batch, hidden_size)
                 h = h.squeeze(0)
+                if cs is not None:
+                    cs = cs.squeeze(0)
 
                 outputs.append(x_fw)
             x_fw = torch.cat(outputs, dim=0)
@@ -130,4 +149,4 @@ class SCOFF(nn.Module):
 
         # x should be (seq, batch, input_dim)
         x_fw = x_fw.reshape(ep_len * batch_num, self.num_units * self.hidden_size)
-        return x_fw, hs
+        return x_fw, hs, cs

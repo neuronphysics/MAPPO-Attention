@@ -148,7 +148,7 @@ class BlocksCore(nn.Module):
     def blockify_params(self):
         self.block_lstm.blockify_params()
 
-    def forward(self, inp, hx, h_masks=None):
+    def forward(self, inp, hx, cx, h_masks=None):
         # inp (batch, input_size), masks (batch)
         batch_size = inp.shape[0]
 
@@ -168,7 +168,6 @@ class BlocksCore(nn.Module):
 
                 split_hx = [chunk.transpose(0, 1) for chunk in
                             torch.chunk(hx, chunks=self.num_units, dim=2)]
-
                 output = [self.inp_att(q=_hx, k=_inp, v=_inp) for
                           _hx, _inp in zip(split_hx, input_to_attention)]
 
@@ -215,10 +214,16 @@ class BlocksCore(nn.Module):
         mask = mask.detach()
         memory_inp_mask = memory_inp_mask.detach()
 
-        hx_new, temp_attention = self.block_lstm(inp_use, hx.transpose(0, 1), h_masks.unsqueeze(-1))
-        y, next_h = hx_new
+        if self.do_gru:
+            hx_new, temp_attention = self.block_lstm(inp_use, hx.transpose(0, 1), h_masks.unsqueeze(-1))
+            y, next_h = hx_new
+        else:
+            # Using LSTM
+            next_h, cx_new, temp_attention = self.block_lstm(inp_use, hx.transpose(0, 1), cx.transpose(0, 1))
 
         hx_old = hx * 1.0
+        if cx is not None:
+            cx_old = cx * 1.0
 
         if self.step_att:  # not self.use_rules:
             hx_new = next_h.reshape((batch_size, self.num_units, self.block_size_out))
@@ -232,6 +237,8 @@ class BlocksCore(nn.Module):
             hx_new = next_h
 
         hx = mask * hx_new + (1 - mask) * hx_old.squeeze(0)
+        if cx is not None:
+            cx = mask * cx_new + (1 - mask) * cx_old
 
         if self.do_rel:
             # memory_inp_mask = new_mask
@@ -255,7 +262,7 @@ class BlocksCore(nn.Module):
                 hx.shape[0], self.num_units * self.block_size_out
             )
 
-        return hx, mask, block_mask, temp_attention
+        return hx, cx, mask, block_mask, temp_attention
 
     def reset_relational_memory(self, batch_size: int):
         self.memory = self.relational_memory.initial_state(batch_size).to(self.device)

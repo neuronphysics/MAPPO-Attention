@@ -118,10 +118,11 @@ class R_Actor(nn.Module):
         actor_features, rnn_states = output[:2]
         if self.rnn_attention_module == "LSTM":
             rnn_cells = output[-1]
+        else:
+            rnn_cells = rnn_cells.permute(1, 0, 2)
 
         if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
             rnn_states = rnn_states.permute(1, 0, 2)
-            rnn_cells = rnn_cells.permute(1, 0, 2)
 
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
@@ -144,7 +145,8 @@ class R_Actor(nn.Module):
 
         obs = check(obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
-        rnn_cells = check(rnn_cells).to(**self.tpdv)
+        if rnn_cells is not None:
+            rnn_cells = check(rnn_cells).to(**self.tpdv)
         action = check(action).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
         if available_actions is not None:
@@ -336,7 +338,8 @@ class R_Critic(nn.Module):
         """
         cent_obs = check(cent_obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
-        rnn_cells = check(rnn_cells).to(**self.tpdv)
+        if rnn_cells is not None:
+            rnn_cells = check(rnn_cells).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
 
         critic_features = self.base(cent_obs)
@@ -344,10 +347,12 @@ class R_Critic(nn.Module):
         critic_features, rnn_states = output[:2]
         if self.rnn_attention_module == "LSTM":
             rnn_cells = output[-1]
+        else:
+            if rnn_cells is not None:
+                rnn_cells = rnn_cells.permute(1, 0, 2)
 
         if not self.use_attention and (self._use_naive_recurrent_policy or self._use_recurrent_policy):
             rnn_states = rnn_states.permute(1, 0, 2)
-            rnn_cells = rnn_cells.permute(1, 0, 2)
 
         critic_features = critic_features.unsqueeze(0)
         values = self.v_out(critic_features)
