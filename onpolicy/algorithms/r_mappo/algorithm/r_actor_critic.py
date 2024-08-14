@@ -241,7 +241,7 @@ class R_Actor(nn.Module):
             # Compute the loss
             minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
             minibatch_loss.backward()
-
+            nn.utils.clip_grad_norm_(self.slot_att.parameters(), self.args.slot_clip_grade_norm)
             optimizer.step()
             scheduler.step(self.global_step)
             # Accumulate the loss

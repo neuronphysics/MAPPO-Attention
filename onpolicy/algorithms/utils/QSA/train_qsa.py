@@ -20,7 +20,6 @@ def generate_model(args):
     model = SLATE(args)
     model.to(args.device)
     if args.slot_att_load_model:
-        args.slot_normalize = True
         tau, sigma = load_slot_att_model(model, args)
         args.tau_start = tau
         args.sigma_start = sigma
