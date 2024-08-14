@@ -361,6 +361,7 @@ def get_config():
     parser.add_argument("--scoff_num_schemas", type=int, default=3, help="number of schemas")
 
     parser.add_argument("--pretrain_slot_att", type=str2bool, default=False, )
+    
     parser.add_argument("--crop_size", type=int, default=44, )
     parser.add_argument("--slot_train_ep", type=int, default=2000, )
     parser.add_argument('--slot_att_crop_repeat', type=int, default=5)

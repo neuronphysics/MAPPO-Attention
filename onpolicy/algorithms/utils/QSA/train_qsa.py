@@ -20,6 +20,7 @@ def generate_model(args):
     model = SLATE(args)
     model.to(args.device)
     if args.slot_att_load_model:
+        args.slot_normalize = True
         tau, sigma = load_slot_att_model(model, args)
         args.tau_start = tau
         args.sigma_start = sigma
@@ -145,6 +146,7 @@ def load_slot_att_model(model, args):
     model_name = "ns_" + str(num_slots) + "_ls_" + str(latent_size) + "_model.pt"
     data_pack = torch.load(args.slot_att_work_path + args.substrate_name + "/" + model_name)
     model.load_state_dict(data_pack['model'])
+    model.dvae.decoder_normalize = True
     return data_pack['tau'], data_pack['sigma']
 
 

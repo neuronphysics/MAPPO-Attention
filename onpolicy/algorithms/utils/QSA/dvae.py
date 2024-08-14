@@ -4,8 +4,9 @@ from .utils import *
 
 
 class dVAE(nn.Module):
-    def __init__(self, vocab_size, img_channels, kernel_size):
+    def __init__(self, vocab_size, img_channels, kernel_size, normalize=False):
         super().__init__()
+        self.decoder_normalize = normalize
         self.encoder = nn.Sequential(
             Conv2dBlock(img_channels, 64, 4, 4),
             Conv2dBlock(64, 64, kernel_size, 1, kernel_size // 2),
@@ -16,7 +17,7 @@ class dVAE(nn.Module):
             Conv2dBlock(64, 64, kernel_size, 1, kernel_size // 2),
             conv2d(64, vocab_size, 1),
         )
-
+  
         self.decoder = nn.Sequential(
             Conv2dBlock(vocab_size, 64, 1),
             Conv2dBlock(64, 64, 3, 1, 1),
@@ -43,6 +44,8 @@ class dVAE(nn.Module):
         z = gumbel_softmax(z_logits, tau, False, dim=1)
         # dvae recon
         recon = self.decoder(z)
+        if self.decoder_normalize:
+            recon = torch.nn.Tanh(recon)
         mse = ((image - recon) ** 2).sum() / image.shape[0]
         if return_z:
             z_hard = gumbel_softmax(z_logits, tau, True, dim=1)

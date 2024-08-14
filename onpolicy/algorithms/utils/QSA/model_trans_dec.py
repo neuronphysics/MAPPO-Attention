@@ -19,7 +19,7 @@ class SLATE(nn.Module):
 
         self.vocab_size = args.vocab_size
         self.d_model = args.d_model
-
+        
         self.dvae = dVAE(args.vocab_size, args.img_channels, args.dvae_kernel_size)
         N_tokens = (args.crop_size // 4) * (args.crop_size // 4)
 
