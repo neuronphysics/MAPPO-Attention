@@ -158,6 +158,8 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             model_device = torch.device("cuda", obs.device.index + 1)
             self.slot_att.to(model_device)
+            for module in self.slot_att.modules():
+                module.to(model_device)
             with torch.no_grad():
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
@@ -218,6 +220,8 @@ class R_Actor(nn.Module):
         # TODO: we shouldnt move the slot attention module, just for now, lets keep it on GPU 1 (second gpu)
         slot_attn_device = torch.device("cuda", obs.device.index + 1)
         self.slot_att.to(slot_attn_device)
+        for module in self.slot_att.modules():
+            module.to(slot_attn_device)
         # ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
         logging.debug("Starting training slot attention module from checkpoints and on multiple gpus.")
 
