@@ -32,6 +32,7 @@ class dVAE(nn.Module):
             nn.PixelShuffle(2),
             conv2d(64, img_channels, 1),
         )
+        self.dec_norm = torch.nn.Tanh()
 
     def get_z(self, image):
         z_logits = F.log_softmax(self.encoder(image), dim=1)
@@ -45,7 +46,7 @@ class dVAE(nn.Module):
         # dvae recon
         recon = self.decoder(z)
         if self.decoder_normalize:
-            recon = torch.nn.Tanh(recon)
+            recon = self.dec_norm(recon)
         mse = ((image - recon) ** 2).sum() / image.shape[0]
         if return_z:
             z_hard = gumbel_softmax(z_logits, tau, True, dim=1)
