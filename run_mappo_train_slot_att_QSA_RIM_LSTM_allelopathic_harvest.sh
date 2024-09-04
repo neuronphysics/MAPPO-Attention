@@ -45,7 +45,7 @@ srun python3 train_meltingpot.py --use_valuenorm False --use_popart True --env_n
    --n_rollout_threads 1 --max_grad_norm 0.25 --use_wandb True --user_name "zsheikhb" --wandb_name "zsheikhb" --share_policy False \
    --use_centralized_V False --use_attention True --entropy_coef 0.004 --attention_module "RIM" --rim_num_units 6 --rim_topk 4 --hidden_size 150 \
    --num_env_steps 4000000 --log_interval 5 --load_model True --episode_length 1000 --downsample True --img_scale_factor 1 --rnn_attention_module "LSTM" \
-   --world_img_scale_factor 8 --pretrain_slot_att False --slot_train_ep 150 --slot_pretrain_batch_size 500 --slot_pretrain_batch_size 250 \
+   --world_img_scale_factor 8 --pretrain_slot_att False --slot_train_ep 150 --slot_pretrain_batch_size 1000 \
    --slot_att_work_path "/home/mila/z/zahra.sheikhbahaee/Projects/meltingpot/LSTM/onpolicy/scripts/results/slot_att/" --slot_att_load_model True \
    --use_slot_att True --use_pos_encoding False --use_input_att False --use_com_att True --use_x_reshape True --slot_att_crop_repeat 9 --slot_log_fre 20 \
    --collect_data False --collect_agent False --collect_world True --collect_data_ep_num 20 --no_train False --crop_size 88 --lr_main 0.00002 --lr_dvae 0.00005

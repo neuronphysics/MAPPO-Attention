@@ -3,6 +3,7 @@ import sys
 from .utils import *
 from timm.models.layers import DropPath
 from .utils import PositionEmbed
+from torch.utils.checkpoint import checkpoint
 
 
 class SlotAttention(nn.Module):
@@ -58,9 +59,17 @@ class SlotAttention(nn.Module):
             slots = self.norm_slots(slots)
             q = self.project_q(slots)
             # Attention
-            scale = D ** -0.5
-            attn_logits = torch.einsum('bid,bjd->bij', q, k) * scale
-            attn = F.softmax(attn_logits, dim=1)
+            #scale = D ** -0.5
+            #attn_logits = torch.einsum('bid,bjd->bij', q, k) * scale
+            #attn = F.softmax(attn_logits, dim=1)
+            # Use torch.baddbmm for efficient batched matrix multiplication
+            attn_logits = torch.baddbmm(
+                torch.empty(B, slots.size(1), N, device=q.device),
+                q,# [B, num_slots, D]
+                k.transpose(-2, -1),# [B, D, num_features]
+                beta=0, alpha=D**-0.5
+            )# Output: [B, num_slots, num_features]
+            attn = F.softmax(attn_logits, dim=-1)# Should match `N`
 
             # Weighted mean
             attn_sum = torch.sum(attn, dim=-1, keepdim=True) + self.epsilon
@@ -68,13 +77,21 @@ class SlotAttention(nn.Module):
             updates = torch.einsum('bij, bjd->bid', attn_wm, v)
 
             # Update slots
-            slots = self.gru(
-                updates.reshape(-1, D),
-                slots_prev.reshape(-1, D)
-            )
-            slots = slots.reshape(B, -1, D)
-            slots = slots + self.drop_path(self.mlp(self.norm_mlp(slots)))
+
+            # Update slots using checkpoint to save memory
+            slots = checkpoint(self._update_slots, updates, slots_prev)
+
         return slots, attn
+
+    def _update_slots(self, updates, slots_prev):
+        B, _, D = updates.shape
+        slots = self.gru(
+            updates.reshape(-1, D),
+            slots_prev.reshape(-1, D)
+        ).reshape(B, -1, D)
+        slots = slots + self.drop_path(self.mlp(self.norm_mlp(slots)))
+        return slots
+
 
 
 class SlotAttentionEncoder(nn.Module):
