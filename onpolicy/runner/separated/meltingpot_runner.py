@@ -289,7 +289,14 @@ class MeltingpotRunner(Runner):
         rewards = self.extract_data(rewards, np.float32)
 
         # Create a boolean mask with the same shape as rnn_states
-        rnn_states[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
+        try:
+            rnn_states[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
+        except IndexError as e:
+            print(f"IndexError: {e}")
+            print(f"Shape of rnn_states: {rnn_states.shape}")
+            print(f"Shape of boolean mask: {(done_new == True).shape}")
+            raise
+
         rnn_cells[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
         rnn_states_critic[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)
         rnn_cells_critic[done_new == True] = np.zeros(((done_new == True).sum(), self.hidden_size), dtype=np.float32)

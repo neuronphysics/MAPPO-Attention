@@ -247,8 +247,7 @@ class R_Actor(nn.Module):
         # Create a DataLoader with the DistributedSampler
         dataloader = torch.utils.data.DataLoader(obs_dataset, 
                                                  batch_size=self.args.slot_pretrain_batch_size // self.accumulation_steps,
-                                                 pin_memory=True,
-                                                 num_workers=4  # Adjust based on your system
+                                                 num_workers=0  # Adjust based on your system
                                                  )
         
 
