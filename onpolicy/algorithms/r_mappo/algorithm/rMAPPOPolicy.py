@@ -18,6 +18,8 @@ class R_MAPPOPolicy:
     def __init__(self, args, obs_space, cent_obs_space, act_space,
                  device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.device = device
+        self.dtype = args.dtype
+
         self.lr = args.lr
         self.critic_lr = args.critic_lr
         self.opti_eps = args.opti_eps
@@ -76,16 +78,16 @@ class R_MAPPOPolicy:
          :return rnn_states_critic: (torch.Tensor) updated critic network RNN states.
         """
         # Convert numpy arrays to PyTorch tensors and move them to the correct device
-        cent_obs = torch.tensor(cent_obs).to(self.device)
-        obs = torch.tensor(obs).to(self.device)
-        rnn_states_actor = torch.tensor(rnn_states_actor).to(self.device)
-        rnn_cells_actor = torch.tensor(rnn_cells_actor).to(self.device)
-        rnn_states_critic = torch.tensor(rnn_states_critic).to(self.device)
-        rnn_cells_critic = torch.tensor(rnn_cells_critic).to(self.device)
-        masks = torch.tensor(masks).to(self.device)
+        cent_obs = torch.tensor(cent_obs).to(self.device, self.dtype)
+        obs = torch.tensor(obs).to(self.device, self.dtype)
+        rnn_states_actor = torch.tensor(rnn_states_actor).to(self.device, self.dtype)
+        rnn_cells_actor = torch.tensor(rnn_cells_actor).to(self.device, self.dtype)
+        rnn_states_critic = torch.tensor(rnn_states_critic).to(self.device, self.dtype)
+        rnn_cells_critic = torch.tensor(rnn_cells_critic).to(self.device, self.dtype)
+        masks = torch.tensor(masks).to(self.device, self.dtype)
 
         if available_actions is not None:
-            available_actions = torch.tensor(available_actions).to(self.device)
+            available_actions = torch.tensor(available_actions).to(self.device, self.dtype)
 
         # Now call the actor and critic with tensors on the correct device
         actions, action_log_probs, rnn_states_actor, rnn_cells_actor = self.actor(obs,

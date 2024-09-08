@@ -4,9 +4,8 @@ from functools import reduce
 import torch
 from onpolicy.runner.separated.base_runner import Runner
 import wandb
+from onpolicy.algorithms.utils.util import _t2n
 
-def _t2n(x):
-    return x.detach().cpu().numpy()
 
 class SMACRunner(Runner):
     """Runner class to perform training, evaluation. and data collection for SMAC. See parent class for details."""

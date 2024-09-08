@@ -17,27 +17,6 @@ def _t2n(x):
     else:
         return x
 
-'''
-def _t2n(x):
-    if isinstance(x, torch.Tensor):
-        return x.detach().cpu().numpy()
-    elif isinstance(x, tuple):
-        tensors = [tensor.detach().cpu().numpy() for tensor in x]
-        return np.stack(tensors, axis=0)  # or axis=1, depending on your requirement
-    else:
-        return x
-'''
-
-'''
-def _t2n(x):
-    if isinstance(x, torch.Tensor):
-        return x.detach().cpu().numpy()
-    elif isinstance(x, tuple):
-        tensors = [tensor.detach().cpu().numpy() for tensor in x]
-        return np.concatenate(tensors, axis=0)  # or axis=1, depending on your requirement
-    else:
-        return x
- ''' 
 class MeltingpotRunner(Runner):
     def __init__(self, config):
         super(MeltingpotRunner, self).__init__(config)

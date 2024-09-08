@@ -8,7 +8,7 @@ def discrete_autoregreesive_act(decoder, obs_rep, obs, batch_size, n_agent, acti
     shifted_action = torch.zeros((batch_size, n_agent, action_dim + 1)).to(**tpdv)
     shifted_action[:, 0, 0] = 1
     output_action = torch.zeros((batch_size, n_agent, 1), dtype=torch.long)
-    output_action_log = torch.zeros_like(output_action, dtype=torch.float32)
+    output_action_log = torch.zeros_like(output_action)
 
     for i in range(n_agent):
         logit = decoder(shifted_action, obs_rep, obs)[:, i, :]
@@ -45,8 +45,8 @@ def discrete_parallel_act(decoder, obs_rep, obs, action, batch_size, n_agent, ac
 def continuous_autoregreesive_act(decoder, obs_rep, obs, batch_size, n_agent, action_dim, tpdv,
                                   deterministic=False):
     shifted_action = torch.zeros((batch_size, n_agent, action_dim)).to(**tpdv)
-    output_action = torch.zeros((batch_size, n_agent, action_dim), dtype=torch.float32)
-    output_action_log = torch.zeros_like(output_action, dtype=torch.float32)
+    output_action = torch.zeros((batch_size, n_agent, action_dim))
+    output_action_log = torch.zeros_like(output_action)
 
     for i in range(n_agent):
         act_mean = decoder(shifted_action, obs_rep, obs)[:, i, :]

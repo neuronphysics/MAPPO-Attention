@@ -144,6 +144,8 @@ def main(args):
         print("choose to use gpu...")
         device = torch.device("cuda:0")
         torch.set_num_threads(all_args.n_training_threads)
+        torch.set_default_dtype(torch.bfloat16)
+        all_args.dtype = torch.bfloat16
         if all_args.cuda_deterministic:
             torch.backends.cudnn.benchmark = False
             torch.backends.cudnn.deterministic = True

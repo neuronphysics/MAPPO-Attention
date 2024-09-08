@@ -16,7 +16,7 @@ class PopArt(nn.Module):
         self.epsilon = epsilon
         self.beta = beta
         self.per_element_update = per_element_update
-        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.tpdv = dict(device=device)
 
         self.running_mean = nn.Parameter(torch.zeros(input_shape), requires_grad=False).to(**self.tpdv)
         self.running_mean_sq = nn.Parameter(torch.zeros(input_shape), requires_grad=False).to(**self.tpdv)
@@ -34,7 +34,7 @@ class PopArt(nn.Module):
         return debiased_mean, debiased_var
 
     def forward(self, input_vector, train=True):
-        # Make sure input is float32
+        # Make sure input is float16
         if type(input_vector) == np.ndarray:
             input_vector = torch.from_numpy(input_vector)
         input_vector = input_vector.to(**self.tpdv)

@@ -9,9 +9,8 @@ import torch
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
+from onpolicy.algorithms.utils.util import _t2n
 
-def _t2n(x):
-    return x.detach().cpu().numpy()
 
 class MPERunner(Runner):
     def __init__(self, config):

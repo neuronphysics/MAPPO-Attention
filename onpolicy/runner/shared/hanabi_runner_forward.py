@@ -8,9 +8,8 @@ import torch
 
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.shared.base_runner import Runner
+from onpolicy.algorithms.utils.util import _t2n
 
-def _t2n(x):
-    return x.detach().cpu().numpy()
 
 class HanabiRunner(Runner):
     """Runner class to perform training, evaluation. and data collection for Hanabi. See parent class for details."""

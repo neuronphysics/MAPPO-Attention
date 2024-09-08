@@ -4,9 +4,8 @@ import torch
 from onpolicy.runner.shared.base_runner import Runner
 import wandb
 import imageio
+from onpolicy.algorithms.utils.util import _t2n
 
-def _t2n(x):
-    return x.detach().cpu().numpy()
 
 class MPERunner(Runner):
     """Runner class to perform training, evaluation. and data collection for the MPEs. See parent class for details."""

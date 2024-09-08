@@ -8,11 +8,7 @@ from tensorboardX import SummaryWriter
 
 from onpolicy.utils.separated_buffer import SeparatedReplayBuffer
 from onpolicy.utils.util import update_linear_schedule
-
-
-def _t2n(x):
-    return x.detach().cpu().numpy()
-
+from onpolicy.algorithms.utils.util import _t2n
 
 class Runner(object):
     def __init__(self, config):
@@ -197,7 +193,7 @@ class Runner(object):
     def train(self):
         train_infos = []
         # random update order
-        factor = np.ones((self.episode_length, self.n_rollout_threads, 1), dtype=np.float32)
+        factor = np.ones((self.episode_length, self.n_rollout_threads, 1))
 
         for agent_id in torch.randperm(self.num_agents):
             tmp_buf = self.buffer[agent_id]
@@ -289,7 +285,7 @@ class Runner(object):
                 if self.use_wandb:
                     wandb.log({agent_k: v}, step=total_num_steps)
                 else:
-                    self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)
+                    self.writter.add_scalars(agent_k, {agent_k: v if isinstance(v, float) else v.float()}, total_num_steps)
 
     def log_env(self, env_infos, total_num_steps):
         for k, v in env_infos.items():

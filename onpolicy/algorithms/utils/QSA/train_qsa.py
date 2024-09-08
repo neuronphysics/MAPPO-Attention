@@ -145,7 +145,6 @@ def load_slot_att_model(model, args):
     model_name = "ns_" + str(num_slots) + "_ls_" + str(latent_size) + "_model.pt"
     data_pack = torch.load(args.slot_att_work_path + args.substrate_name + "/" + model_name)
     model.load_state_dict(data_pack['model'])
-    model.dvae.decoder_normalize = True
     return data_pack['tau'], data_pack['sigma']
 
 

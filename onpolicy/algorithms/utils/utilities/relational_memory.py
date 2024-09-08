@@ -100,8 +100,8 @@ class RelationalMemory(nn.Module):
         self.input_gate_projector = nn.Linear(self.mem_size, self.num_gates)
         self.memory_gate_projector = nn.Linear(self.mem_size, self.num_gates)
         # trainable scalar gate bias tensors
-        self.forget_bias = nn.Parameter(torch.tensor(forget_bias, dtype=torch.float32))
-        self.input_bias = nn.Parameter(torch.tensor(input_bias, dtype=torch.float32))
+        self.forget_bias = nn.Parameter(torch.tensor(forget_bias))
+        self.input_bias = nn.Parameter(torch.tensor(input_bias))
 
         ########## number of outputs returned #####
         self.return_all_outputs = return_all_outputs

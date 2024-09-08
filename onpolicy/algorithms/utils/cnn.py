@@ -165,7 +165,7 @@ def build_linear_positions(index_dims, output_range=(-1.0, 1.0)):
     """
 
     def _linspace(n_xels_per_dim):
-        return torch.linspace(start=output_range[0], end=output_range[1], steps=n_xels_per_dim, dtype=torch.float32)
+        return torch.linspace(start=output_range[0], end=output_range[1], steps=n_xels_per_dim)
 
     dim_ranges = [_linspace(n_xels_per_dim) for n_xels_per_dim in index_dims]
 

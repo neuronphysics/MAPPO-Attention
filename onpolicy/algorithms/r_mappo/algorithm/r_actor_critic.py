@@ -42,7 +42,7 @@ class R_Actor(nn.Module):
         self._use_policy_active_masks = args.use_policy_active_masks
         self._recurrent_N = args.recurrent_N
         self._use_version_scoff = args.use_version_scoff
-        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.tpdv = dict(dtype=args.dtype, device=device)
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
 
@@ -161,32 +161,20 @@ class R_Actor(nn.Module):
             active_masks = check(active_masks).to(**self.tpdv)
 
         if self.use_slot_att:
-            model_device = torch.device("cuda", obs.device.index + 1)
-            self.slot_att.to(model_device)
-            for module in self.slot_att.modules():
-                module.to(model_device)
-            # Create CUDA streams
-            stream1 = torch.cuda.Stream(device=model_device)
-            stream2 = torch.cuda.Stream(device=self.tpdv['device'])
-            with torch.no_grad(), torch.cuda.stream(stream1):
+            with torch.no_grad():
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
                 torch.cuda.empty_cache()  # Free up GPU memory
                 features = torch.cat([
                     self.slot_att(
-                       obs_minibatch.to(model_device, non_blocking=True).permute(0, 3, 1, 2),
+                       obs_minibatch.permute(0, 3, 1, 2),
                        tau=self.tau, sigma=self.sigma
                     )["slots"]
                      for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
                 ])
-        
-                stream1.synchronize()  # Ensure the above computations are complete
-                        
                 # flatten
                 # "features" shape: [1000, 6, 50]
-                with torch.cuda.stream(stream2):
-                     # Transfer and process on the main device
-                     actor_features = features.flatten(start_dim=1).to(obs.device, non_blocking=True)
+                actor_features = features.flatten(start_dim=1)
 
                 # "actor_features" shape [1000, 300]
                 actor_features = actor_features.reshape(batch, -1)
@@ -232,13 +220,8 @@ class R_Actor(nn.Module):
                                    final_value=self.args.sigma_final)
 
         # slot att model takes (batch, 3, H, W) and returns a dict
-        # TODO: we shouldnt move the slot attention module, just for now, lets keep it on GPU 1 (second gpu)
-        slot_attn_device = torch.device("cuda", obs.device.index + 1)
-        self.slot_att.to(slot_attn_device)
-        for module in self.slot_att.modules():
-            module.to(slot_attn_device)
         # ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
-        logging.debug("Starting training slot attention module from checkpoints and on multiple gpus.")
+        logging.debug("Starting training slot attention module from checkpoints.")
 
         # Create a DistributedSampler with shuffle=False
         obs_dataset = ObsDataset(obs)
@@ -252,47 +235,24 @@ class R_Actor(nn.Module):
         
 
         slot_att_total_loss = 0
-        optimizer.zero_grad()
 
         # Iterate over the dataloader
-        for i, obs_minibatch in enumerate(dataloader):
+        for obs_minibatch in dataloader:
             # Move the minibatch to the GPU
-            obs_minibatch = obs_minibatch.permute(0, 3, 1, 2).to(slot_attn_device)
+            obs_minibatch = obs_minibatch.permute(0, 3, 1, 2).to(**self.tpdv)
+            optimizer.zero_grad()
             # Forward pass through the slot attention model
             out_tmp = self.slot_att(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
 
             # Compute the loss
             minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
-            # Normalize the loss to account for accumulation
-            minibatch_loss = minibatch_loss / self.accumulation_steps
             minibatch_loss.backward()
 
-            slot_att_total_loss += minibatch_loss.detach().item()
-
-            if (i + 1) % self.accumulation_steps == 0:
-                # Clip gradients
-                nn.utils.clip_grad_norm_(self.slot_att.parameters(), self.args.slot_clip_grade_norm)
-                
-                # Perform optimizer step
-                optimizer.step()
-                optimizer.zero_grad()
-                
-                # Step the scheduler
-                scheduler.step(self.global_step)
-
-        # Handle any remaining gradients
-        if (i + 1) % self.accumulation_steps != 0:
-            nn.utils.clip_grad_norm_(self.slot_att.parameters(), self.args.slot_clip_grade_norm)
-            optimizer.step()
-            optimizer.zero_grad()
-            scheduler.step(self.global_step)
-            nn.utils.clip_grad_norm_(self.slot_att.parameters(), self.args.slot_clip_grade_norm)
             optimizer.step()
             scheduler.step(self.global_step)
             # Accumulate the loss
-            
-        obs = obs.to(**self.tpdv)
-        return slot_att_total_loss * self.accumulation_steps  # Scale the loss back up for reporting
+            slot_att_total_loss += minibatch_loss.detach().item()
+        return slot_att_total_loss
 
 
 class R_Critic(nn.Module):
@@ -318,7 +278,7 @@ class R_Critic(nn.Module):
         self._use_orthogonal = args.use_orthogonal
         self._recurrent_N = args.recurrent_N
         self._use_popart = args.use_popart
-        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.tpdv = dict(dtype=args.dtype, device=device)
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self._use_orthogonal]
         cent_obs_shape = get_shape_from_obs_space(cent_obs_space)
 

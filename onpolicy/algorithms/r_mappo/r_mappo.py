@@ -22,7 +22,7 @@ class R_MAPPO():
 
         self.args = args
         self.device = device
-        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.tpdv = dict(device=device)
         self.policy = policy
         self.use_attention = args.use_attention
         self.clip_param = args.clip_param

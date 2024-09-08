@@ -4,10 +4,8 @@ import numpy as np
 import torch
 from tensorboardX import SummaryWriter
 from onpolicy.utils.shared_buffer import SharedReplayBuffer
+from onpolicy.algorithms.utils.util import _t2n
 
-def _t2n(x):
-    """Convert torch tensor to a numpy array."""
-    return x.detach().cpu().numpy()
 
 class Runner(object):
     """

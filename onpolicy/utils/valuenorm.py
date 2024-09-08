@@ -54,7 +54,7 @@ class ValueNorm(nn.Module):
         self.debiasing_term.mul_(weight).add_(1.0 * (1.0 - weight))
 
     def normalize(self, input_vector):
-        # Make sure input is float32
+        # Make sure input is float16
         if type(input_vector) == np.ndarray:
             input_vector = torch.from_numpy(input_vector)
         input_vector = input_vector.to(self.running_mean.device)  # not elegant, but works in most cases

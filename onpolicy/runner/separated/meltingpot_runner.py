@@ -9,10 +9,9 @@ from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
 from onpolicy.algorithms.utils.util import global_step_counter
+from onpolicy.algorithms.utils.util import _t2n
 
 
-def _t2n(x):
-    return x.detach().cpu().numpy()
 
 
 class MeltingpotRunner(Runner):
@@ -163,7 +162,7 @@ class MeltingpotRunner(Runner):
                                                             self.buffer[agent_id].rnn_cells_critic[step],
                                                             self.buffer[agent_id].masks[step])
             values.append(_t2n(value))
-            action = _t2n(action)
+            action = _t2n(action).astype(int)
             # rearrange action
             player = f"player_{agent_id}"
             if self.envs.action_space[player].__class__.__name__ == 'MultiDiscrete':

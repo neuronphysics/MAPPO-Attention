@@ -45,7 +45,7 @@ _ACTION = dm_env.specs.DiscreteArray(
     num_values=1, dtype=np.int64, name='action')
 
 
-def float32(*shape: int, name: Optional[str] = None) -> dm_env.specs.Array:
+def float16(*shape: int, name: Optional[str] = None) -> dm_env.specs.Array:
   """Returns the spec for an np.float32 tensor.
 
   Args:

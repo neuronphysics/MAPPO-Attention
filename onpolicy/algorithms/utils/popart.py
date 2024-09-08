@@ -13,7 +13,7 @@ class PopArt(torch.nn.Module):
         self.beta = beta
         self.epsilon = epsilon
         self.norm_axes = norm_axes
-        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.tpdv = dict(device=device)
 
         self.input_shape = input_shape
         self.output_shape = output_shape

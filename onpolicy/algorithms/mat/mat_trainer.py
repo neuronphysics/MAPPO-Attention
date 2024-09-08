@@ -20,7 +20,7 @@ class MATTrainer:
                  device=torch.device("cpu")):
 
         self.device = device
-        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.tpdv = dict(device=device)
         self.policy = policy
         self.num_agents = num_agents
 

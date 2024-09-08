@@ -230,7 +230,7 @@ class MultiAgentTransformer(nn.Module):
 
         self.n_agent = n_agent
         self.action_dim = action_dim
-        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.tpdv = dict(device=device)
         self.action_type = action_type
         self.device = device
 

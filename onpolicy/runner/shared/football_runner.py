@@ -10,10 +10,7 @@ import wandb
 
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.shared.base_runner import Runner
-
-
-def _t2n(x):
-    return x.detach().cpu().numpy()
+from onpolicy.algorithms.utils.util import _t2n
 
 class FootballRunner(Runner):
     def __init__(self, config):

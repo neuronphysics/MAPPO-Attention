@@ -19,7 +19,7 @@ class HAPPO():
                  device=torch.device("cpu")):
 
         self.device = device
-        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.tpdv = dict(device=device)
         self.policy = policy
 
         self.clip_param = args.clip_param

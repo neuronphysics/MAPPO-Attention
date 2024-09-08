@@ -174,6 +174,7 @@ class RIMCell(nn.Module):
 
         # self.input_layer_norm  = nn.LayerNorm(self.num_units *self.hidden_size)
         self.output_layer_norm = nn.LayerNorm(self.hidden_size)
+        self.to(device)
         self.apply(weight_init)
 
     def transpose_for_scores(self, x, num_attention_heads, attention_head_size):
