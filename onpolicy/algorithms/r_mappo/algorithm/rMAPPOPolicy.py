@@ -44,7 +44,7 @@ class R_MAPPOPolicy:
                                                  weight_decay=self.weight_decay)
 
         if args.use_slot_att:
-            self.slot_att_optimizer, self.slot_att_scheduler = configure_optimizers(self.actor.slot_att, args)
+            self.slot_att_optimizer, self.slot_att_scheduler = configure_optimizers(self.actor.slot_attn, args)
 
     def lr_decay(self, episode, episodes):
         """

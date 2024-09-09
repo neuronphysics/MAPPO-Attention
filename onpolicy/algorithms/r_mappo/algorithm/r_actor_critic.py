@@ -48,7 +48,7 @@ class R_Actor(nn.Module):
         self._use_recurrent_policy = args.use_recurrent_policy
 
         obs_shape = get_shape_from_obs_space(obs_space)
-        #improve the speed
+        # improve the speed
         self.accumulation_steps = 4  # Adjust this based on your needs
 
         self.use_attention = args.use_attention
@@ -66,16 +66,17 @@ class R_Actor(nn.Module):
             print(model.state_dict().keys())
             # Define the LoRA configuration
             lora_config = LoraConfig(
-                                     r=16,  # Rank of the low-rank update
-                                     lora_alpha=16,  # Scaling factor
-                                     lora_dropout=0.1,  # Dropout probability
-                                     target_modules=["slot_attn.project_q", "slot_attn.mlp.0", "slot_attn.mlp.2", "slot_proj"],  # Target specific layers
-                                      modules_to_save=["out"],
-                                     bias="none"
-                                    )
+                r=16,  # Rank of the low-rank update
+                lora_alpha=16,  # Scaling factor
+                lora_dropout=0.1,  # Dropout probability
+                target_modules=["slot_attn.slot_attention.project_q", "slot_attn.mlp.1", "slot_attn.mlp.3",
+                                "slot_proj", "out"],  # Target specific layers
+
+                bias="none"
+            )
             # Apply LoRA to the selected layers of the SlotAttention module
             self.slot_attn = get_peft_model(model, lora_config).to(device)
-            print_trainable_parameters(self.slot_attn) #check the fraction of parameters trained
+            print_trainable_parameters(self.slot_attn)  # check the fraction of parameters trained
             for n, p in self.slot_attn.model.named_parameters():
                 if 'lora' in n:
                     print(f"New parameter {n:<13} | {p.numel():>5} parameters | updated")
@@ -127,11 +128,11 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
             batch, _, _, _ = obs.shape
-        
+
             # your slot attention or other GPU-intensive tasks
             actor_features = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
-                                visualize=False)['slots'].reshape(batch, -1)
-            
+                                           visualize=False)['slots'].reshape(batch, -1)
+
         else:
             actor_features = self.base(obs)
         output = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
@@ -177,17 +178,17 @@ class R_Actor(nn.Module):
             active_masks = check(active_masks).to(**self.tpdv)
 
         if self.use_slot_att:
-            
+
             with torch.no_grad():
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
                 torch.cuda.empty_cache()  # Free up GPU memory
                 features = torch.cat([
                     self.slot_att(
-                       obs_minibatch.permute(0, 3, 1, 2),
-                       tau=self.tau, sigma=self.sigma
+                        obs_minibatch.permute(0, 3, 1, 2),
+                        tau=self.tau, sigma=self.sigma
                     )["slots"]
-                     for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
+                    for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
                 ])
                 # flatten
                 # "features" shape: [1000, 6, 50]
@@ -238,7 +239,7 @@ class R_Actor(nn.Module):
 
         # slot att model takes (batch, 3, H, W) and returns a dict
         # TODO: we shouldnt move the slot attention module, just for now, lets keep it on GPU 1 (second gpu)
-        
+
         # ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
         logging.debug("Starting training slot attention module from checkpoints and on multiple gpus.")
 
@@ -247,14 +248,13 @@ class R_Actor(nn.Module):
         # sampler = torch.utils.data.distributed.DistributedSampler(obs_dataset,num_replicas=world_size, rank=rank, shuffle=False)
 
         # Create a DataLoader with the DistributedSampler
-        dataloader = torch.utils.data.DataLoader(obs_dataset, 
+        dataloader = torch.utils.data.DataLoader(obs_dataset,
                                                  batch_size=self.args.slot_pretrain_batch_size // self.accumulation_steps,
                                                  num_workers=0  # Adjust based on your system
                                                  )
-        
 
         slot_att_total_loss = 0
-        
+
         # Iterate over the dataloader
         for obs_minibatch in dataloader:
             # Move the minibatch to the GPU
@@ -271,14 +271,15 @@ class R_Actor(nn.Module):
             optimizer.step()
 
             # Clip gradients 
-            nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, self.slot_attn.parameters()), self.args.slot_clip_grade_norm)
-            
+            nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, self.slot_attn.parameters()),
+                                     self.args.slot_clip_grade_norm)
+
             # Step the scheduler
             scheduler.step(self.global_step)
             slot_att_total_loss += minibatch_loss.detach().item()
             # Accumulate the loss            
 
-        return slot_att_total_loss   # Scale the loss back up for reporting
+        return slot_att_total_loss  # Scale the loss back up for reporting
 
 
 class R_Critic(nn.Module):
