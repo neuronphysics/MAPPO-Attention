@@ -10,6 +10,20 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torch.utils.data import Dataset
 import torch.distributed as dist
 
+def print_trainable_parameters(model):
+    """
+    Prints the number of trainable parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    print(
+        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param:.2f}"
+    )
+    
 def print_cuda_memory_usage():
     print(f"Allocated: {torch.cuda.memory_allocated() / 1024 ** 3:.2f} GB")
     print(f"Cached:    {torch.cuda.memory_reserved() / 1024 ** 3:.2f} GB")
