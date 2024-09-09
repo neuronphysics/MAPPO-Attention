@@ -76,11 +76,9 @@ class R_Actor(nn.Module):
             self.slot_attn = get_peft_model(model, lora_config)
             self.slot_attn.print_trainable_parameters() #check the fraction of parameters trained
             for n, p in self.slot_attn.model.named_parameters():
-                print(n, type(p))
                 if 'lora' in n:
-                    p.requires_grad = True
-                else:
-                    p.requires_grad = False
+                    print(n, type(p))
+                    
             self.tau = args.tau_start
             self.sigma = args.sigma_start
             args.use_input_att = False
