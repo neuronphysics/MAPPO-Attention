@@ -32,6 +32,8 @@ class R_MAPPO():
         self.value_loss_coef = args.value_loss_coef
         #entropy related terms
         self.entropy_coef = args.entropy_coef
+        self.entropy_initial_coef = args.entropy_coef  # Store the initial value
+
         self.entropy_final_coef = args.entropy_final_coef
         self.entropy_anneal_duration =args.entropy_anneal_duration
         self.total_updates = 0
@@ -81,8 +83,10 @@ class R_MAPPO():
         progress = (self.total_updates - self.warmup_updates) / (self.entropy_anneal_duration - self.warmup_updates - self.cooldown_updates)
         
         # Cosine annealing schedule
-        self.entropy_coef = self.entropy_final_coef + 0.5 * (self.entropy_coef - self.entropy_final_coef) * (1 + np.cos(np.pi * progress))
+        #The annealing schedule consistently moves from the initial to the final value over the specified duration.
+        self.entropy_coef = self.entropy_final_coef + 0.5 * (self.entropy_initial_coef - self.entropy_final_coef) * (1 + np.cos(np.pi * progress))
 
+    
 
     def cal_value_loss(self, values, value_preds_batch, return_batch, active_masks_batch):
         """
