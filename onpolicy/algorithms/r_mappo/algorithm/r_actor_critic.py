@@ -63,18 +63,20 @@ class R_Actor(nn.Module):
 
         if self.use_slot_att:
             model = generate_model(args)
+            print(model.state_dict().keys())
             # Define the LoRA configuration
             lora_config = LoraConfig(
                                      r=8,  # Rank of the low-rank update
                                      lora_alpha=32,  # Scaling factor
                                      lora_dropout=0.1,  # Dropout probability
-                                     target_modules=["slot_attn.project_q", "slot_attn.mlp.0", "slot_attn.mlp.-1", "slot_proj","out"],  # Target specific layers
+                                     target_modules=["slot_attn.project_q", "slot_attn.mlp.0", "slot_attn.mlp.2", "slot_proj","out"],  # Target specific layers
                                      bias="none"
                                     )
             # Apply LoRA to the selected layers of the SlotAttention module
             self.slot_attn = get_peft_model(model, lora_config)
+            self.slot_attn.print_trainable_parameters() #check the fraction of parameters trained
             for n, p in self.slot_attn.model.named_parameters():
-                print(n)
+                print(n, type(p))
                 if 'lora' in n:
                     p.requires_grad = True
                 else:
