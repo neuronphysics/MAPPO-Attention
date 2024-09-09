@@ -28,8 +28,8 @@ def generate_model(args):
 
 def configure_optimizers(model, args):
     params = [
-        {'params': (x[1] for x in model.named_parameters() if 'dvae' in x[0]), 'lr': args.lr_dvae},
-        {'params': (x[1] for x in model.named_parameters() if 'dvae' not in x[0]), 'lr': args.lr_main},
+        {'params': (x[1] for x in model.named_parameters() if 'dvae' in x[0] and x[1].requires_grad), 'lr': args.lr_dvae},
+        {'params': (x[1] for x in model.named_parameters() if 'dvae' not in x[0] and x[1].requires_grad), 'lr': args.lr_main},
     ]
     optimizer = optim.Adam(params)
 
@@ -145,7 +145,6 @@ def load_slot_att_model(model, args):
     model_name = "ns_" + str(num_slots) + "_ls_" + str(latent_size) + "_model.pt"
     data_pack = torch.load(args.slot_att_work_path + args.substrate_name + "/" + model_name)
     model.load_state_dict(data_pack['model'])
-    model.dvae.decoder_normalize = True
     return data_pack['tau'], data_pack['sigma']
 
 

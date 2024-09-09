@@ -30,7 +30,13 @@ class R_MAPPO():
         self.num_mini_batch = args.num_mini_batch
         self.data_chunk_length = args.data_chunk_length
         self.value_loss_coef = args.value_loss_coef
+        #entropy related terms
         self.entropy_coef = args.entropy_coef
+        self.entropy_final_coef = args.entropy_final_coef
+        self.entropy_anneal_duration =args.entropy_anneal_duration
+        self.total_updates = 0
+        self.warmup_updates = args.warmup_updates
+        self.cooldown_updates = args.cooldown_updates
         self.max_grad_norm = args.max_grad_norm
         self.huber_delta = args.huber_delta
 
@@ -60,6 +66,23 @@ class R_MAPPO():
             self.value_normalizer = ValueNorm(1).to(self.device)
         else:
             self.value_normalizer = None
+
+    def update_entropy_coef(self):
+        if self.total_updates < self.warmup_updates:
+            # During warm-up, keep initial entropy coefficient
+            return
+
+        if self.total_updates > (self.entropy_anneal_duration - self.cooldown_updates):
+            # During cool-down, keep final entropy coefficient
+            self.entropy_coef = self.entropy_final_coef
+            return
+
+        # Annealing phase
+        progress = (self.total_updates - self.warmup_updates) / (self.entropy_anneal_duration - self.warmup_updates - self.cooldown_updates)
+        
+        # Cosine annealing schedule
+        self.entropy_coef = self.entropy_final_coef + 0.5 * (self.entropy_coef - self.entropy_final_coef) * (1 + np.cos(np.pi * progress))
+
 
     def cal_value_loss(self, values, value_preds_batch, return_batch, active_masks_batch):
         """
@@ -246,7 +269,10 @@ class R_MAPPO():
 
         for k in train_info.keys():
             train_info[k] /= num_updates
-
+            
+        #update entropy coefficient
+        self.update_entropy_coef()
+        self.total_updates += 1
         return train_info
 
     def prep_training(self):

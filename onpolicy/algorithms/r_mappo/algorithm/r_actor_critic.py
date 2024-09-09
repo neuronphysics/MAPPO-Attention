@@ -15,6 +15,7 @@ from absl import logging
 from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
+from peft import LoraConfig, get_peft_model
 
 
 class R_Actor(nn.Module):
@@ -61,7 +62,23 @@ class R_Actor(nn.Module):
         self.base = base(args, obs_shape)
 
         if self.use_slot_att:
-            self.slot_att = generate_model(args)
+            model = generate_model(args)
+            # Define the LoRA configuration
+            lora_config = LoraConfig(
+                                     r=8,  # Rank of the low-rank update
+                                     lora_alpha=32,  # Scaling factor
+                                     lora_dropout=0.1,  # Dropout probability
+                                     target_modules=["slot_attn.project_q", "slot_attn.mlp.0", "slot_attn.mlp.-1", "slot_proj","out"],  # Target specific layers
+                                     bias="none"
+                                    )
+            # Apply LoRA to the selected layers of the SlotAttention module
+            self.slot_attn = get_peft_model(model, lora_config)
+            for n, p in self.slot_attn.model.named_parameters():
+                print(n)
+                if 'lora' in n:
+                    p.requires_grad = True
+                else:
+                    p.requires_grad = False
             self.tau = args.tau_start
             self.sigma = args.sigma_start
             args.use_input_att = False
@@ -108,14 +125,12 @@ class R_Actor(nn.Module):
 
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
-            self.slot_att.to(**self.tpdv)
             batch, _, _, _ = obs.shape
-            stream = torch.cuda.Stream()
-            with torch.cuda.stream(stream):
-                 # your slot attention or other GPU-intensive tasks
-                 actor_features = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
+        
+            # your slot attention or other GPU-intensive tasks
+            actor_features = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
                                 visualize=False)['slots'].reshape(batch, -1)
-            stream.synchronize()  # Ensure all tasks in the stream are completed before moving forward
+            
         else:
             actor_features = self.base(obs)
         output = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
@@ -148,7 +163,7 @@ class R_Actor(nn.Module):
         :return dist_entropy: (torch.Tensor) action distribution entropy for the given inputs.
         """
 
-        obs = check(obs).to(**self.tpdv, non_blocking=True)
+        obs = check(obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
         if rnn_cells is not None:
             rnn_cells = check(rnn_cells).to(**self.tpdv)
@@ -161,32 +176,21 @@ class R_Actor(nn.Module):
             active_masks = check(active_masks).to(**self.tpdv)
 
         if self.use_slot_att:
-            model_device = torch.device("cuda", obs.device.index + 1)
-            self.slot_att.to(model_device)
-            for module in self.slot_att.modules():
-                module.to(model_device)
-            # Create CUDA streams
-            stream1 = torch.cuda.Stream(device=model_device)
-            stream2 = torch.cuda.Stream(device=self.tpdv['device'])
-            with torch.no_grad(), torch.cuda.stream(stream1):
+            
+            with torch.no_grad():
                 # slot att model takes (batch, 3, H, W) and returns a dict
                 batch, _, _, _ = obs.shape
                 torch.cuda.empty_cache()  # Free up GPU memory
                 features = torch.cat([
                     self.slot_att(
-                       obs_minibatch.to(model_device, non_blocking=True).permute(0, 3, 1, 2),
+                       obs_minibatch.permute(0, 3, 1, 2),
                        tau=self.tau, sigma=self.sigma
                     )["slots"]
                      for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
                 ])
-        
-                stream1.synchronize()  # Ensure the above computations are complete
-                        
                 # flatten
                 # "features" shape: [1000, 6, 50]
-                with torch.cuda.stream(stream2):
-                     # Transfer and process on the main device
-                     actor_features = features.flatten(start_dim=1).to(obs.device, non_blocking=True)
+                actor_features = features.flatten(start_dim=1)
 
                 # "actor_features" shape [1000, 300]
                 actor_features = actor_features.reshape(batch, -1)
@@ -233,10 +237,7 @@ class R_Actor(nn.Module):
 
         # slot att model takes (batch, 3, H, W) and returns a dict
         # TODO: we shouldnt move the slot attention module, just for now, lets keep it on GPU 1 (second gpu)
-        slot_attn_device = torch.device("cuda", obs.device.index + 1)
-        self.slot_att.to(slot_attn_device)
-        for module in self.slot_att.modules():
-            module.to(slot_attn_device)
+        
         # ddp_model=DDP(self.slot_att, device_ids=[local_rank], output_device=local_rank)
         logging.debug("Starting training slot attention module from checkpoints and on multiple gpus.")
 
@@ -247,53 +248,36 @@ class R_Actor(nn.Module):
         # Create a DataLoader with the DistributedSampler
         dataloader = torch.utils.data.DataLoader(obs_dataset, 
                                                  batch_size=self.args.slot_pretrain_batch_size // self.accumulation_steps,
-                                                 pin_memory=True,
-                                                 num_workers=4  # Adjust based on your system
+                                                 num_workers=0  # Adjust based on your system
                                                  )
         
 
         slot_att_total_loss = 0
-        optimizer.zero_grad()
-
+        
         # Iterate over the dataloader
-        for i, obs_minibatch in enumerate(dataloader):
+        for obs_minibatch in dataloader:
             # Move the minibatch to the GPU
-            obs_minibatch = obs_minibatch.permute(0, 3, 1, 2).to(slot_attn_device)
+            obs_minibatch = obs_minibatch.permute(0, 3, 1, 2).to(**self.tpdv)
+            optimizer.zero_grad()
             # Forward pass through the slot attention model
             out_tmp = self.slot_att(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
 
             # Compute the loss
             minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
             # Normalize the loss to account for accumulation
-            minibatch_loss = minibatch_loss / self.accumulation_steps
             minibatch_loss.backward()
-
-            slot_att_total_loss += minibatch_loss.detach().item()
-
-            if (i + 1) % self.accumulation_steps == 0:
-                # Clip gradients
-                nn.utils.clip_grad_norm_(self.slot_att.parameters(), self.args.slot_clip_grade_norm)
-                
-                # Perform optimizer step
-                optimizer.step()
-                optimizer.zero_grad()
-                
-                # Step the scheduler
-                scheduler.step(self.global_step)
-
-        # Handle any remaining gradients
-        if (i + 1) % self.accumulation_steps != 0:
-            nn.utils.clip_grad_norm_(self.slot_att.parameters(), self.args.slot_clip_grade_norm)
+            # Perform optimizer step
             optimizer.step()
-            optimizer.zero_grad()
-            scheduler.step(self.global_step)
-            nn.utils.clip_grad_norm_(self.slot_att.parameters(), self.args.slot_clip_grade_norm)
-            optimizer.step()
-            scheduler.step(self.global_step)
-            # Accumulate the loss
+
+            # Clip gradients 
+            nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, self.slot_attn.parameters()), self.args.slot_clip_grade_norm)
             
-        obs = obs.to(**self.tpdv)
-        return slot_att_total_loss * self.accumulation_steps  # Scale the loss back up for reporting
+            # Step the scheduler
+            scheduler.step(self.global_step)
+            slot_att_total_loss += minibatch_loss.detach().item()
+            # Accumulate the loss            
+
+        return slot_att_total_loss   # Scale the loss back up for reporting
 
 
 class R_Critic(nn.Module):

@@ -266,8 +266,17 @@ def get_config():
                         help='ppo clip parameter (default: 0.2)')
     parser.add_argument("--num_mini_batch", type=int, default=1,
                         help='number of batches for ppo (default: 1)')
-    parser.add_argument("--entropy_coef", type=float, default=0.006,
+    # entropy_coef params
+    parser.add_argument("--entropy_coef", type=float, default=0.1,
                         help='entropy term coefficient (default: 0.01)')
+    parser.add_argument("--entropy_final_coef", type=float, default=0.01,
+                        help='final entropy coefficiennt value after annealing')
+    parser.add_argument("--entropy_anneal_duration", type=float, default=1000000,
+                        help='duration of entropy annealing')
+    parser.add_argument("--warmup_updates", type=int, default=50000,
+                        help='number of warmup updates')
+    parser.add_argument("--cooldown_updates", type=int, default=50000,
+                        help='number of cooldown updates')
     parser.add_argument("--value_loss_coef", type=float,
                         default=1, help='value loss coefficient (default: 0.5)')
     parser.add_argument("--use_max_grad_norm",
