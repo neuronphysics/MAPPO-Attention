@@ -276,7 +276,9 @@ def gru_cell(input_size, hidden_size, bias=True):
     m = nn.GRUCell(input_size, hidden_size, bias)
 
     nn.init.xavier_uniform_(m.weight_ih)
-    nn.init.orthogonal_(m.weight_hh)
+    hh_32 = m.weight_hh.to(torch.float32)
+    nn.init.orthogonal_(hh_32)
+    m.weight_hh.data.copy_(hh_32)
 
     if bias:
         nn.init.zeros_(m.bias_ih)

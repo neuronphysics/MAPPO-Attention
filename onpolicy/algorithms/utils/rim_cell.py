@@ -263,7 +263,7 @@ class RIMCell(nn.Module):
 
         if self.use_input_att:
             # Compute input attention
-            null_input = torch.zeros(batch_size, 1, input_size).float().to(self.device)
+            null_input = torch.zeros(batch_size, 1, input_size).to(self.device)
             x = torch.cat((x, null_input), dim=1)
             inputs, mask = self.input_attention_mask(x, hs)
             mask = mask.unsqueeze(-1)
