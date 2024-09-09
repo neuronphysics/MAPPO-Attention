@@ -130,7 +130,7 @@ class R_Actor(nn.Module):
             batch, _, _, _ = obs.shape
 
             # your slot attention or other GPU-intensive tasks
-            actor_features = self.slot_att(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
+            actor_features = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
                                            visualize=False)['slots'].reshape(batch, -1)
 
         else:
@@ -184,7 +184,7 @@ class R_Actor(nn.Module):
                 batch, _, _, _ = obs.shape
                 torch.cuda.empty_cache()  # Free up GPU memory
                 features = torch.cat([
-                    self.slot_att(
+                    self.slot_attn(
                         obs_minibatch.permute(0, 3, 1, 2),
                         tau=self.tau, sigma=self.sigma
                     )["slots"]
@@ -261,7 +261,7 @@ class R_Actor(nn.Module):
             obs_minibatch = obs_minibatch.permute(0, 3, 1, 2).to(**self.tpdv)
             optimizer.zero_grad()
             # Forward pass through the slot attention model
-            out_tmp = self.slot_att(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
+            out_tmp = self.slot_attn(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
 
             # Compute the loss
             minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
