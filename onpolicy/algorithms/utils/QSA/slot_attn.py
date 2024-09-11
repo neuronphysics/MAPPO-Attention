@@ -59,17 +59,10 @@ class SlotAttention(nn.Module):
             slots = self.norm_slots(slots)
             q = self.project_q(slots)
             # Attention
-            #scale = D ** -0.5
-            #attn_logits = torch.einsum('bid,bjd->bij', q, k) * scale
-            #attn = F.softmax(attn_logits, dim=1)
+            scale = D ** -0.5
+            attn_logits = torch.einsum('bid,bjd->bij', q, k) * scale
+            attn = F.softmax(attn_logits, dim=1)
             # Use torch.baddbmm for efficient batched matrix multiplication
-            attn_logits = torch.baddbmm(
-                torch.empty(B, slots.size(1), N, device=q.device),
-                q,# [B, num_slots, D]
-                k.transpose(-2, -1),# [B, D, num_features]
-                beta=0, alpha=D**-0.5
-            )# Output: [B, num_slots, num_features]
-            attn = F.softmax(attn_logits, dim=-1)# Should match `N`
 
             # Weighted mean
             attn_sum = torch.sum(attn, dim=-1, keepdim=True) + self.epsilon
