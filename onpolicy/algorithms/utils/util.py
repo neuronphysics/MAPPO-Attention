@@ -65,8 +65,17 @@ def weight_init(m: nn.Module) -> None:
                 for ih in param.chunk(4, 0):
                     nn.init.xavier_uniform_(ih)
             elif 'weight_hh' in name:
-                for hh in param.chunk(4, 0):
-                    nn.init.orthogonal_(hh)
+                chunks = param.chunk(4, 0)
+                param_type = param.dtype
+                for i, hh in enumerate(chunks):
+                    hh_32 = hh.to(torch.float32)
+                    nn.init.orthogonal_(hh_32)
+                    # Determine the start and end indices for this chunk
+                    start_idx = i * hh.size(0)
+                    end_idx = start_idx + hh.size(0)
+
+                    # Update the original tensor with the modified chunk
+                    param.data[start_idx:end_idx].copy_(hh_32.to(param_type))
             elif 'weight_hr' in name:
                 nn.init.xavier_uniform_(param)
             elif 'bias_ih' in name:

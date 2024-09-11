@@ -19,7 +19,7 @@ class SLATE(nn.Module):
 
         self.vocab_size = args.vocab_size
         self.d_model = args.d_model
-        
+
         self.dvae = dVAE(args.vocab_size, args.img_channels, args.dvae_kernel_size)
         N_tokens = (args.crop_size // 4) * (args.crop_size // 4)
 
@@ -114,9 +114,10 @@ class SLATE(nn.Module):
         if visualize:
             with torch.no_grad():
                 out['recon'] = recon
-                pred_z = F.one_hot(pred.argmax(dim=-1), self.vocab_size).float().transpose(1, 2).reshape(B,
-                                                                                                         self.vocab_size,
-                                                                                                         H // 4, W // 4)
+                pred_z = F.one_hot(pred.argmax(dim=-1), self.vocab_size).transpose(1, 2).reshape(B,
+                                                                                                 self.vocab_size,
+                                                                                                 H // 4, W // 4).to(
+                    pred.dtype)
                 pred_image = self.dvae.decoder(pred_z)
                 out["pred_image"] = pred_image.clamp(0, 1)
 

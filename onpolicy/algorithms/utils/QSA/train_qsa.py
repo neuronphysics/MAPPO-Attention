@@ -90,7 +90,7 @@ def train_qsa(args):
                                 final_value=args.tau_final)
             sigma = cosine_anneal(global_step, args.sigma_steps, start_value=args.sigma_start,
                                   final_value=args.sigma_final)
-            out = model(batch_data.to(args.device), tau=tau, sigma=sigma, is_Train=True,
+            out = model(batch_data.to(args.device, args.dtype), tau=tau, sigma=sigma, is_Train=True,
                         visualize=ep % args.slot_log_fre == 0)
 
             mse_loss = out['loss']['mse']
