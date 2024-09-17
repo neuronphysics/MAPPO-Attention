@@ -285,7 +285,13 @@ class Runner(object):
                 if self.use_wandb:
                     wandb.log({agent_k: v}, step=total_num_steps)
                 else:
-                    self.writter.add_scalars(agent_k, {agent_k: v if isinstance(v, float) else v.float()}, total_num_steps)
+                    if isinstance(v, float) or isinstance(v, np.float32):
+                        res = v
+                    elif isinstance(v, torch.Tensor):
+                        res = v.float()
+                    else:
+                        raise Exception
+                    self.writter.add_scalars(agent_k, {agent_k: res}, total_num_steps)
 
     def log_env(self, env_infos, total_num_steps):
         for k, v in env_infos.items():

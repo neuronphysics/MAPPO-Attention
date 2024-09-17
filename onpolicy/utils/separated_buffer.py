@@ -42,7 +42,7 @@ class SeparatedReplayBuffer(object):
         self.rnn_states = np.zeros((self.episode_length + 1, self.n_rollout_threads, self.recurrent_N,
                                     self.rnn_hidden_size), dtype=np.float32)
         self.rnn_cells = np.zeros_like(self.rnn_states)
-        
+
         self.rnn_states_critic = np.zeros_like(self.rnn_states)
         self.rnn_cells_critic = np.zeros_like(self.rnn_states_critic)
 
@@ -70,7 +70,8 @@ class SeparatedReplayBuffer(object):
     def update_factor(self, factor):
         self.factor = factor.copy()
 
-    def insert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions, action_log_probs,
+    def insert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions,
+               action_log_probs,
                value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
         self.share_obs[self.step + 1] = share_obs.copy()
         self.obs[self.step + 1] = obs.copy()
@@ -92,7 +93,8 @@ class SeparatedReplayBuffer(object):
 
         self.step = (self.step + 1) % self.episode_length
 
-    def chooseinsert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions, action_log_probs,
+    def chooseinsert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions,
+                     action_log_probs,
                      value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
         self.share_obs[self.step] = share_obs.copy()
         self.obs[self.step] = obs.copy()
@@ -360,7 +362,7 @@ class SeparatedReplayBuffer(object):
         rnn_states_critic = self.rnn_states_critic[:-1].transpose(1, 0, 2, 3).reshape(-1,
                                                                                       *self.rnn_states_critic.shape[2:])
         rnn_cells_critic = self.rnn_cells_critic[:-1].transpose(1, 0, 2, 3).reshape(-1,
-                                                                                      *self.rnn_cells_critic.shape[2:])
+                                                                                    *self.rnn_cells_critic.shape[2:])
 
         if self.available_actions is not None:
             available_actions = _cast(self.available_actions[:-1])
@@ -421,8 +423,10 @@ class SeparatedReplayBuffer(object):
             batch_dim = N
             rnn_states_batch = np.stack(rnn_states_batch).reshape(batch_dim, *self.rnn_states.shape[2:])
             rnn_cells_batch = np.stack(rnn_cells_batch).reshape(batch_dim, *self.rnn_cells.shape[2:])
-            rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(batch_dim, *self.rnn_states_critic.shape[2:])
-            rnn_cells_critic_batch = np.stack(rnn_cells_critic_batch).reshape(batch_dim, *self.rnn_cells_critic.shape[2:])
+            rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(batch_dim,
+                                                                                *self.rnn_states_critic.shape[2:])
+            rnn_cells_critic_batch = np.stack(rnn_cells_critic_batch).reshape(batch_dim,
+                                                                              *self.rnn_cells_critic.shape[2:])
             # Flatten the (L, N, ...) from_numpys to (L * N, ...)
             share_obs_batch = _flatten(L, N, share_obs_batch)
             obs_batch = _flatten(L, N, obs_batch)

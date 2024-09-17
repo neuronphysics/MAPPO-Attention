@@ -63,8 +63,10 @@ class Categorical(nn.Module):
 
     def forward(self, x, available_actions=None):
         x = self.linear(x)
+
         if available_actions is not None:
-            x[available_actions == 0] = -1e10
+            neg_inf = -1e10 if available_actions.dtype == torch.float32 else -1e4
+            x[available_actions == 0] = neg_inf
         return FixedCategorical(logits=x)
 
 
