@@ -17,6 +17,8 @@ class Runner(object):
     def __init__(self, config):
 
         self.all_args = config['all_args']
+        self.all_args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         self.envs = config['envs']
         self.eval_envs = config['eval_envs']
         self.device = config['device']
@@ -98,10 +100,10 @@ class Runner(object):
         
         # buffer
         self.buffer = SharedReplayBuffer(self.all_args,
-                                        self.num_agents,
-                                        self.envs.observation_space['player_0']['RGB'],
-                                        share_observation_space,
-                                        self.envs.action_space['player_0'])
+                                         self.num_agents,
+                                         self.envs.observation_space['player_0']['RGB'],
+                                         share_observation_space,
+                                         self.envs.action_space['player_0'])
 
     def run(self):
         """Collect training data, perform training updates, and evaluate policy."""
@@ -128,14 +130,17 @@ class Runner(object):
         self.trainer.prep_rollout()
         if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
             next_values = self.trainer.policy.get_values(np.concatenate(self.buffer.share_obs[-1]),
-                                                        np.concatenate(self.buffer.obs[-1]),
-                                                        np.concatenate(self.buffer.rnn_states_critic[-1]),
-                                                        np.concatenate(self.buffer.masks[-1]))
+                                                         np.concatenate(self.buffer.obs[-1]),
+                                                         np.concatenate(self.buffer.rnn_states_critic[-1]),
+                                                         np.concatenate(self.buffer.masks[-1]))
         else:
             next_values = self.trainer.policy.get_values(np.concatenate(self.buffer.share_obs[-1]),
-                                                        np.concatenate(self.buffer.rnn_states_critic[-1]),
-                                                        np.concatenate(self.buffer.masks[-1]))
-        next_values = np.array(np.split(_t2n(next_values), self.n_rollout_threads))
+                                                         np.concatenate(self.buffer.rnn_states_critic[-1]),
+                                                         np.concatenate(self.buffer.rnn_cells_critic[-1]),
+                                                         np.concatenate(self.buffer.masks[-1]))
+        
+        next_values = np.array(np.split(_t2n(next_values.squeeze(0)), self.n_rollout_threads))
+
         self.buffer.compute_returns(next_values, self.trainer.value_normalizer)
     
     def train(self):
@@ -176,7 +181,14 @@ class Runner(object):
             if self.use_wandb:
                 wandb.log({k: v}, step=total_num_steps)
             else:
-                self.writter.add_scalars(k, {k: v}, total_num_steps)
+                if isinstance(v, float) or isinstance(v, np.float32):
+                    res = v
+                elif isinstance(v, torch.Tensor):
+                    res = v.float()
+                else:
+                    raise TypeError(f"Unsupported type {type(v)} for value {v}")
+                self.writter.add_scalars(k, {k: res}, total_num_steps)
+
 
     def log_env(self, env_infos, total_num_steps):
         """

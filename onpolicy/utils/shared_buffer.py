@@ -50,7 +50,9 @@ class SharedReplayBuffer(object):
             (self.episode_length + 1, self.n_rollout_threads, num_agents, self.recurrent_N, self.hidden_size),
             dtype=np.float32)
         
+        self.rnn_cells = np.zeros_like(self.rnn_states)       
         self.rnn_states_critic = np.zeros_like(self.rnn_states)
+        self.rnn_cells_critic  = np.zeros_like(self.rnn_states)
 
         self.value_preds = np.zeros(
             (self.episode_length + 1, self.n_rollout_threads, num_agents, 1), dtype=np.float32)
@@ -78,7 +80,7 @@ class SharedReplayBuffer(object):
 
         self.step = 0
 
-    def insert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
+    def insert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions, action_log_probs,
                value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
         """
         Insert data into the buffer.
@@ -98,7 +100,9 @@ class SharedReplayBuffer(object):
         self.share_obs[self.step + 1] = share_obs.copy()
         self.obs[self.step + 1] = obs.copy()
         self.rnn_states[self.step + 1] = rnn_states.copy()
+        self.rnn_cells[self.step + 1] = rnn_cells.copy()
         self.rnn_states_critic[self.step + 1] = rnn_states_critic.copy()
+        self.rnn_cells_critic[self.step + 1] = rnn_cells_critic.copy()
         self.actions[self.step] = actions.copy()
         self.action_log_probs[self.step] = action_log_probs.copy()
         self.value_preds[self.step] = value_preds.copy()
@@ -113,7 +117,7 @@ class SharedReplayBuffer(object):
 
         self.step = (self.step + 1) % self.episode_length
 
-    def chooseinsert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
+    def chooseinsert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions, action_log_probs,
                      value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
         """
         Insert data into the buffer. This insert function is used specifically for Hanabi, which is turn based.
@@ -133,7 +137,9 @@ class SharedReplayBuffer(object):
         self.share_obs[self.step] = share_obs.copy()
         self.obs[self.step] = obs.copy()
         self.rnn_states[self.step + 1] = rnn_states.copy()
+        self.rnn_cells[self.step + 1] = rnn_cells.copy()
         self.rnn_states_critic[self.step + 1] = rnn_states_critic.copy()
+        self.rnn_cells_critic[self.step + 1] = rnn_cells_critic.copy()
         self.actions[self.step] = actions.copy()
         self.action_log_probs[self.step] = action_log_probs.copy()
         self.value_preds[self.step] = value_preds.copy()
@@ -153,7 +159,9 @@ class SharedReplayBuffer(object):
         self.share_obs[0] = self.share_obs[-1].copy()
         self.obs[0] = self.obs[-1].copy()
         self.rnn_states[0] = self.rnn_states[-1].copy()
+        self.rnn_cells[0] = self.rnn_cells[-1].copy()
         self.rnn_states_critic[0] = self.rnn_states_critic[-1].copy()
+        self.rnn_cells_critic[0] = self.rnn_cells_critic[-1].copy()
         self.masks[0] = self.masks[-1].copy()
         self.bad_masks[0] = self.bad_masks[-1].copy()
         self.active_masks[0] = self.active_masks[-1].copy()
@@ -163,7 +171,9 @@ class SharedReplayBuffer(object):
     def chooseafter_update(self):
         """Copy last timestep data to first index. This method is used for Hanabi."""
         self.rnn_states[0] = self.rnn_states[-1].copy()
+        self.rnn_cells[0] = self.rnn_cells[-1].copy()
         self.rnn_states_critic[0] = self.rnn_states_critic[-1].copy()
+        self.rnn_cells_critic[0] = self.rnn_cells_critic[-1].copy()
         self.masks[0] = self.masks[-1].copy()
         self.bad_masks[0] = self.bad_masks[-1].copy()
 
@@ -251,7 +261,9 @@ class SharedReplayBuffer(object):
         share_obs = self.share_obs[:-1].reshape(-1, *self.share_obs.shape[3:])
         obs = self.obs[:-1].reshape(-1, *self.obs.shape[3:])
         rnn_states = self.rnn_states[:-1].reshape(-1, *self.rnn_states.shape[3:])
+        rnn_cells = self.rnn_cells[:-1].reshape(-1, *self.rnn_cells.shape[3:])
         rnn_states_critic = self.rnn_states_critic[:-1].reshape(-1, *self.rnn_states_critic.shape[3:])
+        rnn_cells_critic = self.rnn_cells_critic[:-1].reshape(-1, *self.rnn_cells_critic.shape[3:])
         actions = self.actions.reshape(-1, self.actions.shape[-1])
         if self.available_actions is not None:
             available_actions = self.available_actions[:-1].reshape(-1, self.available_actions.shape[-1])
@@ -267,7 +279,9 @@ class SharedReplayBuffer(object):
             share_obs_batch = share_obs[indices]
             obs_batch = obs[indices]
             rnn_states_batch = rnn_states[indices]
+            rnn_cells_batch = rnn_cells[indices]
             rnn_states_critic_batch = rnn_states_critic[indices]
+            rnn_cells_critic_batch = rnn_cells_critic[indices]
             actions_batch = actions[indices]
             if self.available_actions is not None:
                 available_actions_batch = available_actions[indices]
@@ -283,7 +297,7 @@ class SharedReplayBuffer(object):
             else:
                 adv_targ = advantages[indices]
 
-            yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch,\
+            yield share_obs_batch, obs_batch, rnn_states_batch, rnn_cells_batch, rnn_states_critic_batch, rnn_cells_critic_batch, actions_batch,\
                   value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch,\
                   adv_targ, available_actions_batch
 
@@ -305,7 +319,9 @@ class SharedReplayBuffer(object):
         share_obs = self.share_obs.reshape(-1, batch_size, *self.share_obs.shape[3:])
         obs = self.obs.reshape(-1, batch_size, *self.obs.shape[3:])
         rnn_states = self.rnn_states.reshape(-1, batch_size, *self.rnn_states.shape[3:])
+        rnn_cells = self.rnn_cells.reshape(-1, batch_size, *self.rnn_cells.shape[3:])
         rnn_states_critic = self.rnn_states_critic.reshape(-1, batch_size, *self.rnn_states_critic.shape[3:])
+        rnn_cells_critic = self.rnn_cells_critic.reshape(-1, batch_size, *self.rnn_cells_critic.shape[3:])
         actions = self.actions.reshape(-1, batch_size, self.actions.shape[-1])
         if self.available_actions is not None:
             available_actions = self.available_actions.reshape(-1, batch_size, self.available_actions.shape[-1])
@@ -320,7 +336,9 @@ class SharedReplayBuffer(object):
             share_obs_batch = []
             obs_batch = []
             rnn_states_batch = []
+            rnn_cells_batch = []
             rnn_states_critic_batch = []
+            rnn_cells_critic_batch = []
             actions_batch = []
             available_actions_batch = []
             value_preds_batch = []
@@ -335,7 +353,9 @@ class SharedReplayBuffer(object):
                 share_obs_batch.append(share_obs[:-1, ind])
                 obs_batch.append(obs[:-1, ind])
                 rnn_states_batch.append(rnn_states[0:1, ind])
+                rnn_cells_batch.append(rnn_cells[0:1, ind])
                 rnn_states_critic_batch.append(rnn_states_critic[0:1, ind])
+                rnn_cells_critic_batch.append(rnn_cells_critic[0:1, ind])
                 actions_batch.append(actions[:, ind])
                 if self.available_actions is not None:
                     available_actions_batch.append(available_actions[:-1, ind])
@@ -363,7 +383,9 @@ class SharedReplayBuffer(object):
 
             # States is just a (N, dim) from_numpy [N[1,dim]]
             rnn_states_batch = np.stack(rnn_states_batch).reshape(N, *self.rnn_states.shape[3:])
+            rnn_cells_batch = np.stack(rnn_cells_batch).reshape(N, *self.rnn_cells.shape[3:])
             rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(N, *self.rnn_states_critic.shape[3:])
+            rnn_cells_critic_batch = np.stack(rnn_cells_critic_batch).reshape(N, *self.rnn_cells_critic.shape[3:])
 
             # Flatten the (T, N, ...) from_numpys to (T * N, ...)
             share_obs_batch = _flatten(T, N, share_obs_batch)
@@ -380,7 +402,7 @@ class SharedReplayBuffer(object):
             old_action_log_probs_batch = _flatten(T, N, old_action_log_probs_batch)
             adv_targ = _flatten(T, N, adv_targ)
 
-            yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch,\
+            yield share_obs_batch, obs_batch, rnn_states_batch, rnn_cells_batch, rnn_states_critic_batch, rnn_cells_critic_batch, actions_batch,\
                   value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch,\
                   adv_targ, available_actions_batch
 
@@ -416,9 +438,13 @@ class SharedReplayBuffer(object):
         # rnn_states = _cast(self.rnn_states[:-1])
         # rnn_states_critic = _cast(self.rnn_states_critic[:-1])
         rnn_states = self.rnn_states[:-1].transpose(1, 2, 0, 3, 4).reshape(-1, *self.rnn_states.shape[3:])
+        rnn_cells = self.rnn_cells[:-1].transpose(1, 2, 0, 3, 4).reshape(-1, *self.rnn_cells.shape[3:])
         rnn_states_critic = self.rnn_states_critic[:-1].transpose(1, 2, 0, 3, 4).reshape(-1,
                                                                                          *self.rnn_states_critic.shape[
                                                                                           3:])
+        rnn_cells_critic = self.rnn_cells_critic[:-1].transpose(1, 2, 0, 3, 4).reshape(-1,
+                                                                                       *self.rnn_cells_critic.shape[3:])
+
 
         if self.available_actions is not None:
             available_actions = _cast(self.available_actions[:-1])
@@ -427,7 +453,9 @@ class SharedReplayBuffer(object):
             share_obs_batch = []
             obs_batch = []
             rnn_states_batch = []
+            rnn_cells_batch = []
             rnn_states_critic_batch = []
+            rnn_cells_critic_batch = []
             actions_batch = []
             available_actions_batch = []
             value_preds_batch = []
@@ -454,7 +482,9 @@ class SharedReplayBuffer(object):
                 adv_targ.append(advantages[ind:ind + data_chunk_length])
                 # size [T+1 N M Dim]-->[T N M Dim]-->[N M T Dim]-->[N*M*T,Dim]-->[1,Dim]
                 rnn_states_batch.append(rnn_states[ind])
+                rnn_cells_batch.append(rnn_cells[ind])
                 rnn_states_critic_batch.append(rnn_states_critic[ind])
+                rnn_cells_critic_batch.append(rnn_cells_critic[ind])
 
             L, N = data_chunk_length, mini_batch_size
 
@@ -473,8 +503,12 @@ class SharedReplayBuffer(object):
             adv_targ = np.stack(adv_targ, axis=1)
 
             # States is just a (N, -1) from_numpy
+
             rnn_states_batch = np.stack(rnn_states_batch).reshape(N, *self.rnn_states.shape[3:])
+            rnn_cells_batch = np.stack(rnn_cells_batch).reshape(N, *self.rnn_cells.shape[3:])
             rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(N, *self.rnn_states_critic.shape[3:])
+            rnn_cells_critic_batch = np.stack(rnn_cells_critic_batch).reshape(N, *self.rnn_cells_critic.shape[3:])
+            
 
             # Flatten the (L, N, ...) from_numpys to (L * N, ...)
             share_obs_batch = _flatten(L, N, share_obs_batch)
@@ -491,6 +525,6 @@ class SharedReplayBuffer(object):
             old_action_log_probs_batch = _flatten(L, N, old_action_log_probs_batch)
             adv_targ = _flatten(L, N, adv_targ)
 
-            yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch,\
+            yield share_obs_batch, obs_batch, rnn_states_batch, rnn_cells_batch, rnn_states_critic_batch, rnn_cells_critic_batch, actions_batch,\
                   value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch,\
                   adv_targ, available_actions_batch
