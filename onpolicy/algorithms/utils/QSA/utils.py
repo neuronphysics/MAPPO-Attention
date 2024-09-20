@@ -8,7 +8,9 @@ from pytorch_lightning import Trainer
 from copy import deepcopy
 import torch.nn as nn
 import torch.nn.functional as F
+from scipy.optimize import linear_sum_assignment
 
+from typing import Tuple
 Tensor = TypeVar("Tensor")
 T = TypeVar("T")
 TK = TypeVar("TK")
@@ -285,3 +287,90 @@ def gru_cell(input_size, hidden_size, bias=True):
         nn.init.zeros_(m.bias_hh)
 
     return m
+
+def hungarian_slots_loss(
+    true_latents: torch.Tensor,
+    predicted_latents: torch.Tensor,
+    device: str = "cpu",
+    p: int = 2,
+    reduction: str = "mean",
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Computes pairwise distance between slots, matches slots with Hungarian algorithm and outputs
+    sum of distances ^ p.
+
+    Args:
+        true_latents: tensor of shape (batch_size, n_slots, n_latents)
+        predicted_latents: tensor of shape (batch_size, n_slots, n_latents)
+        device: device to run on
+        p: for l-p distance, i.e. ||x - y||_p^p
+        reduction: "sum" for distance sum over all slots or "mean" for average distance
+
+    Returns:
+        loss: sum/mean of distances ^ p
+        transposed_indices: indices of matched slots (later used for R2 score calculation)
+    """
+    # Normalizing the latents
+    true_latents = (true_latents - true_latents.mean()) / (true_latents.std() + 1e-8)
+    predicted_latents = (predicted_latents - predicted_latents.mean()) / (
+        predicted_latents.std() + 1e-8
+    )
+
+    pairwise_cost = (
+        torch.cdist(true_latents, predicted_latents, p=p).transpose(-1, -2).pow(p)
+    )
+
+    indices = np.array(
+        list(map(linear_sum_assignment, pairwise_cost.detach().cpu().numpy()))
+    )  # applying hungarian algorithm to every sample in batch
+    transposed_indices = torch.from_numpy(
+        np.transpose(indices, axes=(0, 2, 1))
+    )  # these indexes are showing how I need to shuffle the g.t. latents to match the predicted latents
+
+    # extracting the cost of the matched slots; this code is a bit ugly, idk what is the nice way to do it
+    loss = torch.gather(pairwise_cost, 2, transposed_indices.to(device))[:, :, -1].sum(
+        1
+    )  # sum along slots
+
+    # taking the inverse, to match the predicted latents to the g.t.
+    inverse_indices = torch.argsort(transposed_indices, dim=1)
+
+    if reduction == "mean":
+        loss = loss.mean()
+    elif reduction == "sum":
+        loss = loss.sum()
+    else:
+        raise ValueError("Reduction type not supported.")
+
+    return loss, inverse_indices
+
+def sample_z_from_latents(latents: torch.Tensor, n_samples: int = 64):
+    """
+    Sample imaginable latents combinations z from infered latents.
+
+    Args:
+        latents: tensor of shape (batch_size, n_slots, n_latents)
+        n_samples: number of samples to generate
+
+    Returns:
+        sampled_z: tensor of shape (n_samples, n_slots, n_latents)
+        indices: array of indices of the sampled latents
+    """
+    batch_size, n_slots, n_latents = latents.shape
+
+    # Flatten the latents tensor into a 2D tensor
+    flattened_latents = latents.reshape(batch_size * n_slots, n_latents)
+
+    # Sample indices randomly with replacement from the flattened latents tensor
+    indices = np.random.choice(
+        len(flattened_latents),
+        size=n_samples * n_slots,
+    )
+
+    # Gather the sampled latents from the flattened tensor
+    sampled_latents = flattened_latents[indices]
+
+    # Reshape the sampled latents tensor back to the original shape
+    sampled_z = sampled_latents.reshape(n_samples, n_slots, n_latents)
+
+    return sampled_z.to(latents.device), indices

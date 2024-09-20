@@ -6,6 +6,7 @@ from .slot_attn import SlotAttentionEncoder
 from .encoder import Encoder
 from .transformer import PositionalEncoding, TransformerDecoder
 from sklearn.cluster import KMeans
+from contextlib import nullcontext
 
 
 class SLATE(nn.Module):
@@ -19,6 +20,7 @@ class SLATE(nn.Module):
 
         self.vocab_size = args.vocab_size
         self.d_model = args.d_model
+        self.use_consistency_loss= args.use_consistency_loss
 
         self.dvae = dVAE(args.vocab_size, args.img_channels, args.dvae_kernel_size)
         N_tokens = (args.crop_size // 4) * (args.crop_size // 4)
@@ -67,7 +69,7 @@ class SLATE(nn.Module):
 
         # target tokens for transformer
         target = z.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)  # B x H_z*W_z x C
-
+        print(f"target shape inside forward {target.shape}")
         # add BOS token
         input = torch.cat([torch.zeros_like(target[..., :1]), target], dim=-1)  # B x H_z*W_z x C+1
         input = torch.cat([torch.zeros_like(input[..., :1, :]), input], dim=-2)  # B x 1 + H_z*W_z x C+1
@@ -101,7 +103,7 @@ class SLATE(nn.Module):
         out['slots'] = slots
         labels = torch.arange(self.num_slots).unsqueeze(0).repeat(B, 1).reshape(-1).to(slots.device)
         out['sim_loss'] = self.ortho_loss_fn(slots.reshape(-1, self.slot_size), labels)
-
+        
         # apply transformer
         slots_t = self.slot_proj(slots)
         decoder_output = self.tf_dec(emb_input[:, :-1], slots_t)
@@ -110,6 +112,13 @@ class SLATE(nn.Module):
         cross_entropy = -(target * torch.log_softmax(pred, dim=-1)).sum() / B
 
         loss["cross_entropy"] = cross_entropy
+        # we always want to look at the consistency loss, but we not always want to backpropagate through consistency part
+        consistency_pass_dict = self.consistency_pass(slots, sigma)
+        loss["compositional_consistency_loss"], _ =  hungarian_slots_loss(
+                consistency_pass_dict["sampled_latents"] ,
+                consistency_pass_dict["predicted_sampled_latents"],
+                slots.device,
+            )
 
         if visualize:
             with torch.no_grad():
@@ -124,6 +133,60 @@ class SLATE(nn.Module):
         out['attns'] = attns
         out['loss'] = loss
         return out
+
+    def consistency_pass(
+        self,
+        hat_z, 
+        sigma
+    ):
+        # getting imaginary samples
+        with torch.no_grad():
+            batch_size = hat_z.size(0)
+            z_sampled, indices = sample_z_from_latents(hat_z.detach(), n_samples=batch_size)
+            slots_t = self.slot_proj(z_sampled)
+            # Generate target from z_sampled
+            # Reshape z_sampled to match the expected input shape
+            # [64, 6, 45] -> [64, 270]
+            target = z_sampled.reshape(z_sampled.size(0), -1)
+            # Add BOS token
+            bos_feature = torch.zeros_like(target[:, :1])  # Shape: [64, 1]
+            input = torch.cat([bos_feature, target], dim=-1)  # Shape: [64, 271]
+        
+            # Add BOS token (expand the sequence dimension)
+            bos_token = torch.zeros_like(input[:, :1])  # Shape: [64, 1]
+            input = torch.cat([bos_token, input], dim=-1)  # Shape: [64, 272]
+        
+            input[:, 0] = 1.0  # Set BOS token
+            # Tokens to embeddings
+            embed_input = self.positional_encoder(self.dictionary(input.unsqueeze(-1)))
+        
+            x_sampled = self.tf_dec(embed_input[:, :-1], slots_t).clamp(0, 1)
+            # Assuming the backbone expects input of shape [batch_size, channels, height, width]
+            batch_size, seq_len, d_model = x_sampled.shape
+            height = int(np.sqrt(seq_len))
+            x_sampled_reshaped = x_sampled.transpose(1, 2).reshape(batch_size, d_model, height, height)
+
+        # encoder pass
+        with nullcontext() if (self.use_consistency_loss) else torch.no_grad():
+            f = self.backbone(x_sampled_reshaped)
+            hat_z_sampled = self.slot_attn(f, sigma=sigma)['slots']
+            
+
+        # second decoder pass - for debugging purposes
+        with torch.no_grad():
+            slots_hat_sampled = self.slot_proj(hat_z_sampled)
+            hat_x_sampled= self.tf_dec(embed_input[:, :-1], slots_hat_sampled)
+        print(f"hat_z shape: {hat_z.shape}")
+        print(f"z_sampled shape: {z_sampled.shape}")
+        print(f"x_sampled shape: {x_sampled.shape}")
+        print(f"x_sampled_reshaped shape: {x_sampled_reshaped.shape}")
+
+        return {
+            "sampled_image": x_sampled,
+            "sampled_latents": z_sampled,
+            "reconstructed_sampled_image": hat_x_sampled,
+            "predicted_sampled_latents": hat_z_sampled
+        }
 
 
 class OneHotDictionary(nn.Module):
