@@ -9,6 +9,7 @@ from sklearn.cluster import KMeans
 from contextlib import nullcontext
 
 
+
 class SLATE(nn.Module):
     def __init__(self, args):
         super().__init__()
@@ -69,7 +70,7 @@ class SLATE(nn.Module):
 
         # target tokens for transformer
         target = z.permute(0, 2, 3, 1).flatten(start_dim=1, end_dim=2)  # B x H_z*W_z x C
-        print(f"target shape inside forward {target.shape}")
+
         # add BOS token
         input = torch.cat([torch.zeros_like(target[..., :1]), target], dim=-1)  # B x H_z*W_z x C+1
         input = torch.cat([torch.zeros_like(input[..., :1, :]), input], dim=-2)  # B x 1 + H_z*W_z x C+1
@@ -113,7 +114,7 @@ class SLATE(nn.Module):
 
         loss["cross_entropy"] = cross_entropy
         # we always want to look at the consistency loss, but we not always want to backpropagate through consistency part
-        consistency_pass_dict = self.consistency_pass(slots, sigma)
+        consistency_pass_dict = self.consistency_pass(emb_input, slots, sigma, H, W)
         loss["compositional_consistency_loss"], _ =  hungarian_slots_loss(
                 consistency_pass_dict["sampled_latents"] ,
                 consistency_pass_dict["predicted_sampled_latents"],
@@ -135,56 +136,31 @@ class SLATE(nn.Module):
         return out
 
     def consistency_pass(
-        self,
-        hat_z, 
-        sigma
+            self, embed_input, slots, sigma, H, W,
     ):
         # getting imaginary samples
         with torch.no_grad():
-            batch_size = hat_z.size(0)
-            z_sampled, indices = sample_z_from_latents(hat_z.detach(), n_samples=batch_size)
+            batch_size = slots.size(0)
+            z_sampled, indices = sample_z_from_latents(slots.detach(), n_samples=batch_size)
             slots_t = self.slot_proj(z_sampled)
-            # Generate target from z_sampled
-            # Reshape z_sampled to match the expected input shape
-            # [64, 6, 45] -> [64, 270]
-            target = z_sampled.reshape(z_sampled.size(0), -1)
-            # Add BOS token
-            bos_feature = torch.zeros_like(target[:, :1])  # Shape: [64, 1]
-            input = torch.cat([bos_feature, target], dim=-1)  # Shape: [64, 271]
-        
-            # Add BOS token (expand the sequence dimension)
-            bos_token = torch.zeros_like(input[:, :1])  # Shape: [64, 1]
-            input = torch.cat([bos_token, input], dim=-1)  # Shape: [64, 272]
-        
-            input[:, 0] = 1.0  # Set BOS token
-            # Tokens to embeddings
-            embed_input = self.positional_encoder(self.dictionary(input.unsqueeze(-1)))
-        
+
             x_sampled = self.tf_dec(embed_input[:, :-1], slots_t).clamp(0, 1)
             # Assuming the backbone expects input of shape [batch_size, channels, height, width]
-            batch_size, seq_len, d_model = x_sampled.shape
-            height = int(np.sqrt(seq_len))
-            x_sampled_reshaped = x_sampled.transpose(1, 2).reshape(batch_size, d_model, height, height)
+            pred = self.out(x_sampled)
+            pred_z = F.one_hot(pred.argmax(dim=-1),
+                               self.vocab_size).float().transpose(1, 2).reshape(batch_size, self.vocab_size,
+                                                                                H // 4,
+                                                                                W // 4).to(pred.dtype)
+            pred_image = self.dvae.decoder(pred_z)
 
         # encoder pass
         with nullcontext() if (self.use_consistency_loss) else torch.no_grad():
-            f = self.backbone(x_sampled_reshaped)
+            f = self.backbone(pred_image)
             hat_z_sampled = self.slot_attn(f, sigma=sigma)['slots']
-            
-
-        # second decoder pass - for debugging purposes
-        with torch.no_grad():
-            slots_hat_sampled = self.slot_proj(hat_z_sampled)
-            hat_x_sampled= self.tf_dec(embed_input[:, :-1], slots_hat_sampled)
-        print(f"hat_z shape: {hat_z.shape}")
-        print(f"z_sampled shape: {z_sampled.shape}")
-        print(f"x_sampled shape: {x_sampled.shape}")
-        print(f"x_sampled_reshaped shape: {x_sampled_reshaped.shape}")
 
         return {
-            "sampled_image": x_sampled,
+            "sampled_image": pred,
             "sampled_latents": z_sampled,
-            "reconstructed_sampled_image": hat_x_sampled,
             "predicted_sampled_latents": hat_z_sampled
         }
 

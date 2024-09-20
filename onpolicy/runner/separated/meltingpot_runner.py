@@ -386,7 +386,9 @@ class MeltingpotRunner(Runner):
 
             # Observ reward and next obs
             eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(np.array(eval_actions_env))
-            eval_obs = np.array([[t[player]['RGB'][0] for i in range(self.num_agents)] for t in eval_obs])
+            if not isinstance(eval_obs[0], dict):
+                eval_obs = eval_obs[:, 0]
+            _, eval_obs = self.process_obs(eval_obs)
 
             eval_episode_rewards.append(eval_rewards)
             eval_dones = self.extract_data(eval_dones, np.bool_).transpose(2, 1, 0)
@@ -408,6 +410,9 @@ class MeltingpotRunner(Runner):
             print(f"Evaluation average reward for agent {agent_id} is {eval_average_episode_rewards}")
 
         self.log_train(eval_train_infos, total_num_steps)
+
+    # def process_eval_obs(self, eval_obs):
+
 
     @torch.no_grad()
     def render(self):

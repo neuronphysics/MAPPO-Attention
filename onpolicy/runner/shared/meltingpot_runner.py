@@ -181,7 +181,6 @@ class MeltingpotRunner(Runner):
     def insert(self, data):
         obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic = data
 
-        print("before change ", rnn_states.shape, rnn_states_critic.shape)
         data_dict = obs[0]
         stacked_data = np.stack([np.squeeze(data_dict[f'player_{i}']['RGB']) for i in range(self.num_agents)])
         new_obs = stacked_data[np.newaxis, ...]
@@ -223,52 +222,43 @@ class MeltingpotRunner(Runner):
         eval_obs = np.array([eval_obs[f'player_{i}']['RGB'] for i in range(self.num_agents)])
         eval_obs = np.tile(np.expand_dims(eval_obs, 0), (self.n_eval_rollout_threads, 1, 1, 1, 1))
         eval_rnn_states = np.zeros((self.n_eval_rollout_threads, *self.buffer.rnn_states.shape[2:]), dtype=np.float32)
-        eval_rnn_cells = np.zeros((self.n_eval_rollout_threads, *self.buffer.rnn_cells.shape[2:]), dtype=np.float32)
-
+        eval_rnn_cells = np.zeros((self.n_eval_rollout_threads, *self.buffer.rnn_cells.shape[2:]),
+                                  dtype=np.float32)
         eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
 
         for eval_step in range(self.episode_length):
             self.trainer.prep_rollout()
-            eval_action, eval_rnn_states, eval_rnn_cells = self.trainer.policy.act(np.concatenate(eval_obs),
-                                                                                   np.concatenate(eval_rnn_states),
-                                                                                   np.concatenate(eval_rnn_cells),
-                                                                                   np.concatenate(eval_masks),
-                                                                                   deterministic=True)
+            eval_action, eval_rnn_state, eval_rnn_cell = self.trainer.policy.act(np.concatenate(eval_obs),
+                                                                                 np.concatenate(eval_rnn_states),
+                                                                                 np.concatenate(eval_rnn_cells),
+                                                                                 np.concatenate(eval_masks),
+                                                                                 deterministic=True)
             eval_actions = np.array(np.split(_t2n(eval_action), self.n_eval_rollout_threads))
-            eval_rnn_states = np.array(np.split(_t2n(eval_rnn_states.transpose(1, 0)), self.n_eval_rollout_threads))
-            eval_rnn_cells = np.array(np.split(_t2n(eval_rnn_cells.transpose(1, 0)), self.n_eval_rollout_threads))  
-
-            player = f"player_0"         
-            if self.eval_envs.action_space[player].__class__.__name__ == 'MultiDiscrete':
-                for i in range(self.eval_envs.action_space[player].shape):
-                    eval_uc_actions_env = np.eye(self.eval_envs.action_space[player].high[i]+1)[eval_actions[:, :, i]]
-                    if i == 0:
-                        eval_actions_env = eval_uc_actions_env
-                    else:
-                        eval_actions_env = np.concatenate((eval_actions_env, eval_uc_actions_env), axis=2)
-            elif self.eval_envs.action_space[player].__class__.__name__ == 'Discrete':
-                eval_actions_env = np.squeeze(np.eye(self.eval_envs.action_space[player].n)[eval_actions], 2)
-            else:
-                raise NotImplementedError
+            eval_rnn_states = np.array(np.split(_t2n(eval_rnn_state.transpose(1, 0)), self.n_eval_rollout_threads))
+            eval_rnn_cells = np.array(np.split(_t2n(eval_rnn_cell.transpose(1, 0)), self.n_eval_rollout_threads))
 
             # Obser reward and next obs
-            eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(eval_actions_env)
+            eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(eval_actions)
             eval_episode_rewards.append(self.extract_data(eval_rewards, np.float32))
 
-            eval_obs = np.array([[t[f'player_{i}']['RGB'][0] for i in range(self.num_agents)] for t in eval_obs])
+            if not isinstance(eval_obs[0], dict):
+                eval_obs = eval_obs[:, 0]
+            _, eval_obs = self.process_obs(eval_obs)
 
             eval_dones = self.extract_data(eval_dones, np.bool_).transpose(2, 1, 0)
 
-            eval_rnn_states[eval_dones == True] = np.zeros(((eval_dones == True).sum(), self.hidden_size), dtype=np.float32)
-            eval_rnn_cells[eval_dones == True] = np.zeros(((eval_dones == True).sum(), self.hidden_size), dtype=np.float32)
-
+            eval_rnn_states[eval_dones == True] = np.zeros(
+                ((eval_dones == True).sum(), self.hidden_size), dtype=np.float32)
+            eval_rnn_cells[eval_dones == True] = np.zeros(
+                ((eval_dones == True).sum(), self.hidden_size), dtype=np.float32)
             eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1, 1), dtype=np.float32)
             eval_masks[eval_dones == True] = np.zeros(((eval_dones == True).sum(), 1), dtype=np.float32)
 
         eval_episode_rewards = np.array(eval_episode_rewards)
         eval_env_infos = {}
-        eval_env_infos['eval_average_episode_rewards'] = np.sum(eval_episode_rewards) / (self.num_agents * self.n_eval_rollout_threads)
 
+        eval_env_infos['eval_average_episode_rewards'] = np.sum(eval_episode_rewards) / (
+                    self.num_agents * self.n_eval_rollout_threads)
         print("eval average episode rewards of agent: " + str(eval_env_infos['eval_average_episode_rewards']))
         self.log_train(eval_env_infos, total_num_steps)
 
@@ -286,6 +276,62 @@ class MeltingpotRunner(Runner):
                 per_thread.append(per_thread_list[player_name])
             new_data.append(per_thread)
         return np.array(new_data, dtype=data_type).transpose(2, 1, 0)
+
+    def process_obs(self, obs):
+        """
+        This function takes a dict of agents, each agent should be (thread, obs_shape)
+        or
+        takes a list of dict of agents, each agent should be (obs_shape)
+        """
+        # todo, check if we need to swap axis
+        # Initialize lists to store processed observations
+        share_obs = []
+        agent_obs = []
+
+        if isinstance(obs, dict):
+            # If sublist is a dictionary, process it directly
+            for agent_id in range(self.num_agents):
+                player = f"player_{agent_id}"
+                if player in obs:
+                    share_obs.append(obs[player]['WORLD.RGB'])
+                    agent_obs.append(obs[player]['RGB'])
+
+            share_obs = np.array(share_obs)
+            agent_obs = np.array(agent_obs)
+            share_obs = share_obs.transpose(1, 0, 3, 2, 4)
+            agent_obs = agent_obs.transpose(1, 0, 3, 2, 4)
+        elif isinstance(obs, np.ndarray) or isinstance(obs, list):
+            for thread_list in obs:
+                per_thread_share = []
+                per_thread_obs = []
+                for agent_id in range(self.num_agents):
+                    player = f"player_{agent_id}"
+                    if player in thread_list:
+                        share = thread_list[player]['WORLD.RGB']
+                        obs = thread_list[player]['RGB']
+                        if len(share.shape) > 3:
+                            per_thread_share.append(np.squeeze(share, axis=0))
+                        else:
+                            per_thread_share.append(share)
+
+                        if len(obs.shape) > 3:
+                            per_thread_obs.append(np.squeeze(obs, axis=0))
+                        else:
+                            per_thread_obs.append(obs)
+
+                share_obs.append(per_thread_share)
+                agent_obs.append(per_thread_obs)
+
+            share_obs = np.array(share_obs)
+            agent_obs = np.array(agent_obs)
+            if len(share_obs.shape) != 5:
+                print(f'Wrong dim! share obs has shape {share_obs.shape}, obs has shape {agent_obs.shape}')
+            share_obs = share_obs.transpose(0, 1, 3, 2, 4)
+            agent_obs = agent_obs.transpose(0, 1, 3, 2, 4)
+        else:
+            print("Error: Obs not in correct data structure !")
+
+        return share_obs, agent_obs
 
     @torch.no_grad()
     def render(self):        

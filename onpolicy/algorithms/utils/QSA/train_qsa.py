@@ -11,7 +11,6 @@ import torch.nn.functional as F
 from torch import optim
 from onpolicy.algorithms.utils.QSA.data_loader import GlobDataset
 
-
 from .model_trans_dec import SLATE
 import math
 
@@ -28,12 +27,12 @@ def generate_model(args):
 
 def configure_optimizers(model, args):
     params = [
-        {'params': (x[1] for x in model.named_parameters() if 'dvae' in x[0] and x[1].requires_grad), 'lr': args.lr_dvae},
-        {'params': (x[1] for x in model.named_parameters() if 'dvae' not in x[0] and x[1].requires_grad), 'lr': args.lr_main},
+        {'params': (x[1] for x in model.named_parameters() if 'dvae' in x[0] and x[1].requires_grad),
+         'lr': args.lr_dvae},
+        {'params': (x[1] for x in model.named_parameters() if 'dvae' not in x[0] and x[1].requires_grad),
+         'lr': args.lr_main},
     ]
     optimizer = optim.Adam(params)
-
-
 
     warmup_steps = args.warmup_steps
     decay_steps = args.decay_steps
@@ -98,9 +97,9 @@ def train_qsa(args):
             mse_loss = out['loss']['mse']
             similarity_loss = out['sim_loss']
             cross_entropy = out['loss']['cross_entropy']
-            consistency_loss =out['loss']['compositional_consistency_loss'].item()*len(ep) / len(train_loader.dataset)
+            consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(train_loader.dataset)
             optimizer.zero_grad()
-            loss = mse_loss + cross_entropy + similarity_loss 
+            loss = mse_loss + cross_entropy + similarity_loss
             if args.use_consistency_loss:
                 loss += consistency_loss
             loss.backward()
@@ -122,6 +121,7 @@ def train_qsa(args):
 
         if ep % args.slot_save_fre == 0:
             save_slot_att_model(model, tau, sigma, args)
+
 
 def visualize_img(out, original):
     B, C, H, W = original.shape
