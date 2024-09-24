@@ -72,7 +72,7 @@ class SlotAttention(nn.Module):
             # Update slots
 
             # Update slots using checkpoint to save memory
-            slots = checkpoint(self._update_slots, updates, slots_prev)
+            slots = checkpoint(self._update_slots, updates, slots_prev, use_reentrant=False)
 
         return slots, attn
 

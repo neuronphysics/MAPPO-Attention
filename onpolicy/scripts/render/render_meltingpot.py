@@ -79,7 +79,7 @@ def parse_args(args, parser):
 
     parser.add_argument("--save_videos", action="store_true", default=True, 
                         help="by default, do not save render video. If set, save video.")
-    parser.add_argument("--video_dir", type=str, default="/home/zsheikhb/MARL/master/videos/", 
+    parser.add_argument("--video_dir", type=str, default="/home/mila/z/zahra.sheikhbahaee/Projects/meltingpot/Lora/onpolicy/scripts/results/videos/", 
                         help="directory to save videos.")
     
     all_args = parser.parse_known_args(args)[0]

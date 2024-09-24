@@ -58,11 +58,15 @@ def configure_optimizers(model, args):
 
 
 def train_qsa(args):
-    train_dataset = GlobDataset(world_root=args.slot_att_work_path + "world_data/*", phase='train', img_glob="*.pt",
-                                crop_repeat=args.slot_att_crop_repeat, crop_size=args.crop_size)
-    # val_dataset = GlobDataset(root=args.slot_att_work_path + "world_data/*", phase='val', img_glob="*.pt",
-    #                           seq_len=args.seq_len)
+    #train_dataset = GlobDataset(world_root=args.slot_att_work_path + "world_data/*", phase='train', img_glob="*.pt",
+    #                            crop_repeat=args.slot_att_crop_repeat, crop_size=args.crop_size)
 
+    train_dataset = GlobDataset(world_root=args.slot_att_work_path+"world_data/"+args.substrate_name+"*ep", 
+                                phase='train', img_glob="*.pt",
+                                crop_repeat=args.slot_att_crop_repeat, crop_size=args.crop_size)
+    # Check how many files were read
+    num_files = len(train_dataset.episodes)
+    print(f"Number of files read: {num_files}")
     loader_kwargs = {
         'batch_size': args.slot_pretrain_batch_size,
         'shuffle': True,
