@@ -1,4 +1,4 @@
-program: /home/memole/projects/def-irina/memole/Lora/train_meltingpot.py
+program: /home/memole/projects/def-irina/memole/Lora/onpolicy/scripts/train/train_meltingpot.py
 method: bayes  # You can also use 'random' or 'grid'
 metric:
   name: average_episode_rewards  # This should be the metric logged to wandb to optimize.
@@ -51,7 +51,7 @@ parameters:
   seed:
     value: 123
   n_rollout_threads:
-    value: 15
+    value: 12
   use_attention:
     value: True
   attention_module:
