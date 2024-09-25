@@ -1,0 +1,113 @@
+program: /home/memole/projects/def-irina/memole/Lora/train_meltingpot.py
+method: bayes  # You can also use 'random' or 'grid'
+metric:
+  name: average_episode_rewards  # This should be the metric logged to wandb to optimize.
+  goal: maximize  # Or minimize, depending on your metric.
+parameters:
+  # Tunable hyperparameters (these will be varied by the sweep)
+  lr:
+    distribution: log_uniform
+    min: 0.00001
+    max: 0.001
+  critic_lr:
+    distribution: log_uniform
+    min: 0.00001
+    max: 0.001
+  entropy_coef:
+    distribution: uniform
+    min: 0.006
+    max: 0.05
+  entropy_final_coef:
+    distribution: uniform
+    min: 0.001
+    max: 0.01
+  gain:
+    distribution: uniform
+    min: 0.001
+    max: 0.1
+  clip_param:
+    distribution: uniform
+    min: 0.001
+    max: 0.1
+  max_grad_norm:
+    distribution: uniform
+    min: 0.001
+    max: 0.5
+  # Static hyperparameters (constant across all runs)
+  use_valuenorm:
+    value: False
+  use_popart:
+    value: True
+  env_name:
+    value: "Meltingpot"
+  algorithm_name:
+    value: "mappo"
+  experiment_name:
+    value: "rim_LSTM_prisoners_nu6_tk_4"
+  substrate_name:
+    value: "prisoners_dilemma_in_the_matrix__arena"
+  num_agents:
+    value: 8
+  seed:
+    value: 123
+  n_rollout_threads:
+    value: 15
+  use_attention:
+    value: True
+  attention_module:
+    value: "RIM"
+  rnn_attention_module:
+    value: "LSTM"
+  rim_num_units:
+    value: 6
+  rim_topk:
+    value: 4
+  hidden_size:
+    value: 300
+  num_env_steps:
+    value: 1000000
+  log_interval:
+    value: 1
+  episode_length:
+    value: 1000
+  downsample:
+    value: True
+  img_scale_factor:
+    value: 8
+  world_img_scale_factor:
+    value: 8
+  pretrain_slot_att:
+    value: False
+  slot_train_ep:
+    value: 200
+  slot_pretrain_batch_size:
+    value: 200
+  slot_att_work_path:
+    value:  "/home/memole/projects/def-irina/memole/Lora/onpolicy/scripts/results/slot_att/"
+  slot_att_load_model:
+    value: False
+  use_slot_att:
+    value: False
+  use_pos_encoding:
+    value: False
+  use_input_att:
+    value: True
+  use_com_att:
+    value: True
+  use_x_reshape:
+    value: True
+  slot_att_crop_repeat:
+    value: 2
+  slot_log_fre:
+    value: 50
+  collect_data:
+    value: False
+  no_train:
+    value: False
+  collect_agent: 
+    value: False 
+  collect_world:
+    value: True
+  use_sweep_wandb_hyper_search:
+    value: True
+

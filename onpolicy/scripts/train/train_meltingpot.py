@@ -175,6 +175,15 @@ def main(args):
                          dir=str(run_dir),
                          job_type="training",
                          reinit=True)
+        if all_args.use_sweep_wandb_hyper_search:
+            all_args.lr = wandb.config.lr
+            all_args.critic_lr = wandb.config.critic_lr
+            all_args.entropy_coef = wandb.config.entropy_coef
+            all_args.entropy_final_coef = wandb.config.entropy_final_coef
+            all_args.clip_param = wandb.config.clip_param
+            all_args.max_grad_norm = wandb.config.max_grad_norm
+            all_args.gain = wandb.config.gain
+            
     else:
         if not run_dir.exists():
             curr_run = 'run1'

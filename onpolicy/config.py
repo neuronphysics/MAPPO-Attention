@@ -188,7 +188,8 @@ def get_config():
                         help="[for wandb usage], to specify user's name for simply collecting training data.")
     parser.add_argument("--use_wandb", type=str2bool, default=False,
                         help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
-
+    parser.add_argument("--use_sweep_wandb_hyper_search", type=str2bool, default=False,
+                        help="hyper parameter  search")
     # env parameters
     parser.add_argument("--env_name", type=str, default='StarCraft2', help="specify the name of environment")
     parser.add_argument("--use_obs_instead_of_state", type=str2bool,

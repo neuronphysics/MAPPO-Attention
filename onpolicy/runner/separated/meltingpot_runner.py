@@ -404,11 +404,15 @@ class MeltingpotRunner(Runner):
         eval_episode_rewards = self.extract_data(np.array(eval_episode_rewards), np.float64)
 
         eval_train_infos = []
+        total_average_episode_rewards = 0
         for agent_id in range(self.num_agents):
             eval_average_episode_rewards = np.mean(np.sum(eval_episode_rewards[:, agent_id, :], axis=-1))
             eval_train_infos.append({'eval_average_episode_rewards': eval_average_episode_rewards})
             print(f"Evaluation average reward for agent {agent_id} is {eval_average_episode_rewards}")
 
+            total_average_episode_rewards += eval_average_episode_rewards
+        overall_average_episode_reward = total_average_episode_rewards / self.num_agents
+        print("Overall evaluation average episode reward for all agents:", overall_average_episode_reward)
         self.log_train(eval_train_infos, total_num_steps)
 
     # def process_eval_obs(self, eval_obs):
