@@ -169,7 +169,11 @@ class MeltingpotRunner(Runner):
                     
         elif self.envs.action_space['player_0'].__class__.__name__ == 'Discrete':
             
-            actions_env = np.squeeze(np.eye(self.envs.action_space['player_0'].n)[actions], 2)
+            var = np.eye(self.envs.action_space['player_0'].n)[actions]
+            actions_env = np.squeeze(var,
+                                        axis=next((axis for axis, size in enumerate(var.shape) if size == 1), None))
+
+            
 
         else:
             raise NotImplementedError
