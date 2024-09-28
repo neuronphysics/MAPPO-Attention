@@ -1,4 +1,4 @@
-program: /home/memole/projects/def-irina/memole/Lora/onpolicy/scripts/train/train_meltingpot.py
+program: /mnt/d/Projects/MAPPO-Attention/onpolicy/scripts/train/train_meltingpot.py
 method: bayes  # You can also use 'random' or 'grid'
 metric:
   name: average_episode_rewards  # This should be the metric logged to wandb to optimize.
@@ -51,7 +51,7 @@ parameters:
   seed:
     value: 123
   n_rollout_threads:
-    value: 12
+    value: 2
   use_attention:
     value: True
   attention_module:
@@ -63,13 +63,13 @@ parameters:
   rim_topk:
     value: 4
   hidden_size:
-    value: 300
+    value: 12
   num_env_steps:
     value: 1000000
   log_interval:
     value: 1
   episode_length:
-    value: 1000
+    value: 100
   downsample:
     value: True
   img_scale_factor:
@@ -83,7 +83,7 @@ parameters:
   slot_pretrain_batch_size:
     value: 200
   slot_att_work_path:
-    value:  "/home/memole/projects/def-irina/memole/Lora/onpolicy/scripts/results/slot_att/"
+    value:  "/mnt/d/Projects/MAPPO-Attention/onpolicy/scripts/results/slot_att/"
   slot_att_load_model:
     value: False
   use_slot_att:

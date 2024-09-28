@@ -57,7 +57,7 @@ class MeltingpotRunner(Runner):
 
             for step in range(self.episode_length):
                 # Sample actions
-                values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions_env = self.collect(step)
+                values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic = self.collect(step)
                     
                 # Obser reward and next obs
                 obs, rewards, dones, infos = self.envs.step(actions)
@@ -139,47 +139,26 @@ class MeltingpotRunner(Runner):
                                               np.concatenate(self.buffer.masks[step]))
         # [self.envs, agents, dim]
         
-        if self.n_rollout_threads == 1:
-            values = np.array(_t2n(value))
-            actions = np.array(_t2n(action))
-            action_log_probs = np.array(_t2n(action_log_prob))
-            rnn_states = np.array(_t2n(rnn_states))
-            rnn_cells  = np.array(_t2n(rnn_cells))
-            rnn_states_critic = np.array(_t2n(rnn_states_critic))
-            rnn_cells_critic = np.array(_t2n(rnn_cells_critic))
+        # if self.n_rollout_threads == 1:
+        #     values = np.array(_t2n(value))
+        #     actions = np.array(_t2n(action))
+        #     action_log_probs = np.array(_t2n(action_log_prob))
+        #     rnn_states = np.array(_t2n(rnn_states))
+        #     rnn_cells  = np.array(_t2n(rnn_cells))
+        #     rnn_states_critic = np.array(_t2n(rnn_states_critic))
+        #     rnn_cells_critic = np.array(_t2n(rnn_cells_critic))
+        #
+        # else:
+        values = np.array(np.split(_t2n(value.squeeze(0)), self.n_rollout_threads))
+        actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
+        action_log_probs = np.array(np.split(_t2n(action_log_prob), self.n_rollout_threads))
+        rnn_states = np.array(np.split(_t2n(rnn_states.squeeze(0)), self.n_rollout_threads))
+        rnn_cells  = np.array(np.split(_t2n(rnn_cells.squeeze(0)), self.n_rollout_threads))
+        rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic.squeeze(0)), self.n_rollout_threads))
+        rnn_cells_critic  = np.array(np.split(_t2n(rnn_cells_critic.squeeze(0)), self.n_rollout_threads))
 
-        else:
-            values = np.array(np.split(_t2n(value.squeeze(0)), self.n_rollout_threads))
-            actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
-            action_log_probs = np.array(np.split(_t2n(action_log_prob), self.n_rollout_threads))
-            rnn_states = np.array(np.split(_t2n(rnn_states.squeeze(0)), self.n_rollout_threads))
-            rnn_cells  = np.array(np.split(_t2n(rnn_cells.squeeze(0)), self.n_rollout_threads))
-            rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic.squeeze(0)), self.n_rollout_threads))
-            rnn_cells_critic  = np.array(np.split(_t2n(rnn_cells_critic.squeeze(0)), self.n_rollout_threads))
 
-        
-        # rearrange action
-        if self.envs.action_space['player_0'].__class__.__name__ == 'MultiDiscrete':
-            for i in range(self.envs.action_space['player_0'].shape):
-                uc_actions_env = np.eye(self.envs.action_space['player_0'].high[i] + 1)[actions[:, :, i]]
-                if i == 0:
-                    actions_env = uc_actions_env
-                else:
-                    actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
-                    
-        elif self.envs.action_space['player_0'].__class__.__name__ == 'Discrete':
-            
-            var = np.eye(self.envs.action_space['player_0'].n)[actions]
-            actions_env = np.squeeze(var,
-                                        axis=next((axis for axis, size in enumerate(var.shape) if size == 1), None))
-
-            
-
-        else:
-            raise NotImplementedError
-
-        
-        return values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions_env
+        return values, actions, action_log_probs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic
 
 
     def insert(self, data):
@@ -232,10 +211,14 @@ class MeltingpotRunner(Runner):
 
         for eval_step in range(self.episode_length):
             self.trainer.prep_rollout()
+            if eval_masks.ndim == 4:
+                input_mask = np.squeeze(np.concatenate(eval_masks), axis=-1)
+            else:
+                input_mask = np.concatenate(eval_masks)
             eval_action, eval_rnn_state, eval_rnn_cell = self.trainer.policy.act(np.concatenate(eval_obs),
                                                                                  np.concatenate(eval_rnn_states),
                                                                                  np.concatenate(eval_rnn_cells),
-                                                                                 np.concatenate(eval_masks),
+                                                                                 input_mask,
                                                                                  deterministic=True)
             eval_actions = np.array(np.split(_t2n(eval_action), self.n_eval_rollout_threads))
             eval_rnn_states = np.array(np.split(_t2n(eval_rnn_state.transpose(1, 0)), self.n_eval_rollout_threads))
@@ -413,7 +396,7 @@ class MeltingpotRunner(Runner):
         model = self.trainer.policy.actor.slot_att
         load_slot_att_model(model, self.all_args)
     def save_obs(self, obs, episode):
-        base_path = self.all_args.slot_att_work_path + "data/" + self.all_args.substrate_name + "_" + str(
+        base_path = self.all_args.slot_att_work_path + "agent_data/" + self.all_args.substrate_name + "_" + str(
             episode) + "ep"
         if not os.path.exists(base_path):
             os.makedirs(base_path)

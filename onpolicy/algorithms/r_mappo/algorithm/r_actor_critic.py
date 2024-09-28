@@ -2,6 +2,8 @@ import math
 
 import torch
 import torch.nn as nn
+
+from onpolicy.algorithms.utils.lstm import LSTMLayer
 from onpolicy.algorithms.utils.util import print_trainable_parameters, init, check, ObsDataset, distributed_setup
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
 from onpolicy.algorithms.utils.modularity import SCOFF
@@ -97,7 +99,10 @@ class R_Actor(nn.Module):
             if len(obs_shape) == 3:
                 logging.info('Not using any attention module, input width: %d ', obs_shape[1])
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-                self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
+                if self.rnn_attention_module == "GRU":
+                    self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
+                else:
+                    self.rnn = LSTMLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
         self.act = ACTLayer(action_space, self.hidden_size, self._use_orthogonal, self._gain)
         self.to(device)
@@ -131,14 +136,23 @@ class R_Actor(nn.Module):
 
             # your slot attention or other GPU-intensive tasks
             actor_features = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
-                                           visualize=False)['slots'].reshape(batch, -1)
+                                            visualize=False)['slots'].reshape(batch, -1)
 
         else:
             actor_features = self.base(obs)
-        output = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
+
+        if self.use_attention:
+            output = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
+        else:
+            if self.rnn_attention_module == "GRU":
+                output = self.rnn(actor_features, rnn_states, masks=masks)
+            else:
+                x, (h, c) = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
+                output = (x, h)
+
         # expect actor_feature (batch, input_size) rnn_state (1, batch, hidden_size)
         actor_features, rnn_states = output[:2]
-        if self.rnn_attention_module == "LSTM":
+        if self.use_attention and self.rnn_attention_module == "LSTM":
             rnn_cells = output[-1]
         else:
             rnn_cells = rnn_cells.permute(1, 0, 2)
@@ -200,10 +214,17 @@ class R_Actor(nn.Module):
             actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy or self.use_attention:
-            output = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
-            actor_features, rnn_states = output[:2]
-            if self.rnn_attention_module == "LSTM":
-                rnn_cells = output[-1]
+
+            if self.use_attention:
+                output = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
+            else:
+                if self.rnn_attention_module == "GRU":
+                    output = self.rnn(actor_features, rnn_states, masks=masks)
+                else:
+                    x, (h, c) = self.rnn(actor_features, rnn_states, rnn_cells, masks=masks)
+                    output = (x, h)
+
+        actor_features, rnn_states = output[:2]
 
         if self.algo == "hatrpo":
             action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(
@@ -265,11 +286,11 @@ class R_Actor(nn.Module):
             accum_adjustment = len(obs_minibatch) / len(dataloader.dataset)
             accum_consistency_encoder_loss = (
                     out_tmp['loss']['compositional_consistency_loss'].item() * accum_adjustment
-                )
+            )
             # Compute the loss
             minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
             if self.args.use_consistency_loss:
-               minibatch_loss+=accum_consistency_encoder_loss
+                minibatch_loss += accum_consistency_encoder_loss
             # Normalize the loss to account for accumulation
             minibatch_loss.backward()
             # Perform optimizer step
@@ -351,7 +372,10 @@ class R_Critic(nn.Module):
                                  args)
         elif not self.use_attention:
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-                self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
+                if self.rnn_attention_module == "GRU":
+                    self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
+                else:
+                    self.rnn = LSTMLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0))
@@ -380,9 +404,18 @@ class R_Critic(nn.Module):
         masks = check(masks).to(**self.tpdv)
 
         critic_features = self.base(cent_obs)
-        output = self.rnn(critic_features, rnn_states, rnn_cells, masks=masks)
+
+        if self.use_attention:
+            output = self.rnn(critic_features, rnn_states, rnn_cells, masks=masks)
+        else:
+            if self.rnn_attention_module == "GRU":
+                output = self.rnn(critic_features, rnn_states, masks=masks)
+            else:
+                x, (h, c) = self.rnn(critic_features, rnn_states, rnn_cells, masks=masks)
+                output = (x, h)
+
         critic_features, rnn_states = output[:2]
-        if self.rnn_attention_module == "LSTM":
+        if self.use_attention and self.rnn_attention_module == "LSTM":
             rnn_cells = output[-1]
         else:
             if rnn_cells is not None:

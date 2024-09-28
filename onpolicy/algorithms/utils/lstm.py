@@ -71,7 +71,7 @@ class LSTMLayer(nn.Module):
                 end_idx = has_zeros[i + 1]
                 hxs_temp = (hxs * masks[start_idx].view(1, -1, 1).repeat(self.n_lstm_layers, 1, 1)).contiguous()
                 cxs_temp = (cxs * masks[start_idx].view(1, -1, 1).repeat(self.n_lstm_layers, 1, 1)).contiguous()
-                lstm_scores, hxs = self.lstm(x[start_idx:end_idx], (hxs_temp, cxs_temp))
+                lstm_scores, (hxs, cxs) = self.lstm(x[start_idx:end_idx], (hxs_temp, cxs_temp))
                 outputs.append(lstm_scores)
 
             # assert len(outputs) == T

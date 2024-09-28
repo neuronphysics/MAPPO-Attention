@@ -106,6 +106,7 @@ class ShareVecEnv(ABC):
         self.close_extras()
         self.closed = True
 
+    # actions should be (roll_out_threads, agents, 1)
     def step(self, actions):
         """
         Step the environments synchronously.

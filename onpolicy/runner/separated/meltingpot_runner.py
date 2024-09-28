@@ -350,10 +350,14 @@ class MeltingpotRunner(Runner):
             eval_temp_actions_env = []
             for agent_id in range(self.num_agents):
                 self.trainer[agent_id].prep_rollout()
+                if eval_masks.ndim == 4:
+                    input_mask = np.squeeze(eval_masks[:, agent_id], axis=-1)
+                else:
+                    input_mask = eval_masks[:, agent_id]
                 eval_action, eval_rnn_state, eval_rnn_cell = self.trainer[agent_id].policy.act(np.array(list(eval_obs[:, agent_id])),
                                                                                                eval_rnn_states[:, agent_id],
                                                                                                eval_rnn_cells[:, agent_id],
-                                                                                               eval_masks[:, agent_id],
+                                                                                               input_mask,
                                                                                                deterministic=True)
 
                 eval_action = eval_action.detach().cpu().numpy()
@@ -547,7 +551,7 @@ class MeltingpotRunner(Runner):
             load_slot_att_model(model, self.all_args)
 
     def save_obs(self, obs, episode):
-        base_path = self.all_args.slot_att_work_path + "data/" + self.all_args.substrate_name + "_" + str(
+        base_path = self.all_args.slot_att_work_path + "agent_data/" + self.all_args.substrate_name + "_" + str(
             episode) + "ep"
         if not os.path.exists(base_path):
             os.makedirs(base_path)
