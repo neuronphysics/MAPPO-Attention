@@ -195,6 +195,7 @@ def main(args):
             else:
                 curr_run = 'run%i' % (max(exst_run_nums) + 1)
         run_dir = run_dir / curr_run
+        all_args.log_dir = run_dir
         if not run_dir.exists():
             os.makedirs(str(run_dir))
 

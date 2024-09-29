@@ -1,3 +1,5 @@
+import os
+
 import torch
 import numpy as np
 from collections import defaultdict
@@ -26,6 +28,7 @@ class SeparatedReplayBuffer(object):
         self._use_valuenorm = args.use_valuenorm
         self._use_proper_time_limits = args.use_proper_time_limits
         self.use_attention = args.use_attention
+        self.args = args
 
         obs_shape = get_shape_from_obs_space(obs_space)
         share_obs_shape = get_shape_from_obs_space(share_obs_space)
@@ -42,7 +45,7 @@ class SeparatedReplayBuffer(object):
         self.rnn_states = np.zeros((self.episode_length + 1, self.n_rollout_threads, self.recurrent_N,
                                     self.rnn_hidden_size), dtype=np.float32)
         self.rnn_cells = np.zeros_like(self.rnn_states)
-        
+
         self.rnn_states_critic = np.zeros_like(self.rnn_states)
         self.rnn_cells_critic = np.zeros_like(self.rnn_states_critic)
 
@@ -67,10 +70,34 @@ class SeparatedReplayBuffer(object):
 
         self.step = 0
 
+    def store_action_and_rnn_state(self, agent_id):
+        dir_path = self.args.log_dir / "MI"
+        if not dir_path.exists():
+            os.makedirs(dir_path)
+
+        file_path = "/agent_" + str(agent_id) + ".pt"
+        if not os.path.exists(str(dir_path) + file_path):
+            data = []
+            torch.save(data, str(dir_path) + file_path)
+
+        # action [ep_len * roll_out, 1], rnn_state [ep_len * roll_out, recurrent, hidden_size]
+        #  action_log_prob [ep_len * roll_out, 1]
+        data_array = torch.load(str(dir_path) + file_path)
+
+        store_dict = {}
+        store_dict['action'] = self.actions.reshape(self.episode_length * self.n_rollout_threads, -1)
+        store_dict['action_log_prob'] = self.action_log_probs.reshape(self.episode_length * self.n_rollout_threads, -1)
+        store_dict['rnn_states'] = self.rnn_states[1:].reshape(self.episode_length * self.n_rollout_threads,
+                                                           self.recurrent_N, -1)
+
+        data_array.append(store_dict)
+        torch.save(data_array, str(dir_path) + file_path)
+
     def update_factor(self, factor):
         self.factor = factor.copy()
 
-    def insert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions, action_log_probs,
+    def insert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions,
+               action_log_probs,
                value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
         self.share_obs[self.step + 1] = share_obs.copy()
         self.obs[self.step + 1] = obs.copy()
@@ -92,7 +119,8 @@ class SeparatedReplayBuffer(object):
 
         self.step = (self.step + 1) % self.episode_length
 
-    def chooseinsert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions, action_log_probs,
+    def chooseinsert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions,
+                     action_log_probs,
                      value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
         self.share_obs[self.step] = share_obs.copy()
         self.obs[self.step] = obs.copy()
@@ -360,7 +388,7 @@ class SeparatedReplayBuffer(object):
         rnn_states_critic = self.rnn_states_critic[:-1].transpose(1, 0, 2, 3).reshape(-1,
                                                                                       *self.rnn_states_critic.shape[2:])
         rnn_cells_critic = self.rnn_cells_critic[:-1].transpose(1, 0, 2, 3).reshape(-1,
-                                                                                      *self.rnn_cells_critic.shape[2:])
+                                                                                    *self.rnn_cells_critic.shape[2:])
 
         if self.available_actions is not None:
             available_actions = _cast(self.available_actions[:-1])
@@ -421,8 +449,10 @@ class SeparatedReplayBuffer(object):
             batch_dim = N
             rnn_states_batch = np.stack(rnn_states_batch).reshape(batch_dim, *self.rnn_states.shape[2:])
             rnn_cells_batch = np.stack(rnn_cells_batch).reshape(batch_dim, *self.rnn_cells.shape[2:])
-            rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(batch_dim, *self.rnn_states_critic.shape[2:])
-            rnn_cells_critic_batch = np.stack(rnn_cells_critic_batch).reshape(batch_dim, *self.rnn_cells_critic.shape[2:])
+            rnn_states_critic_batch = np.stack(rnn_states_critic_batch).reshape(batch_dim,
+                                                                                *self.rnn_states_critic.shape[2:])
+            rnn_cells_critic_batch = np.stack(rnn_cells_critic_batch).reshape(batch_dim,
+                                                                              *self.rnn_cells_critic.shape[2:])
             # Flatten the (L, N, ...) from_numpys to (L * N, ...)
             share_obs_batch = _flatten(L, N, share_obs_batch)
             obs_batch = _flatten(L, N, obs_batch)

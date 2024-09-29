@@ -57,6 +57,10 @@ class MeltingpotRunner(Runner):
 
             print(f'Finished {self.episode_length} steps in {time.time() - step_time} seconds')
 
+            if self.all_args.collect_data_mi < episode < (self.all_args.collect_data_mi + 500):
+                for agent_id in range(self.num_agents):
+                    self.buffer[agent_id].store_action_and_rnn_state(agent_id)
+
             # compute return and update network
             self.compute()
             train_infos = self.train()

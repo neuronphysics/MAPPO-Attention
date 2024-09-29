@@ -108,9 +108,16 @@ def train_qsa(args):
             cross_entropy = out['loss']['cross_entropy']
             consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(train_loader.dataset)
             optimizer.zero_grad()
-            loss = mse_loss + cross_entropy + similarity_loss
+            loss = mse_loss + cross_entropy
+
+            if args.use_orthogonal_loss:
+                loss += similarity_loss
+                writer.add_scalar("train_similarity_loss", similarity_loss, global_step)
+
             if args.use_consistency_loss:
                 loss += consistency_loss
+                writer.add_scalar("train_consistency_loss", consistency_loss, global_step)
+
             loss.backward()
 
             nn.utils.clip_grad_norm_(model.parameters(), args.slot_clip_grade_norm)
@@ -120,8 +127,6 @@ def train_qsa(args):
 
             writer.add_scalar("train_dvae_loss", mse_loss, global_step)
             writer.add_scalar("train_loss", cross_entropy, global_step)
-            writer.add_scalar("train_similarity_loss", similarity_loss, global_step)
-
 
 
         if ep % args.slot_log_fre == 0:
@@ -152,13 +157,19 @@ def train_qsa(args):
                     cross_entropy = out['loss']['cross_entropy']
                     consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(
                         val_loader.dataset)
-                    loss = mse_loss + cross_entropy + similarity_loss
+                    loss = mse_loss + cross_entropy
+
+                    if args.use_orthogonal_loss:
+                        loss += similarity_loss
+                        writer.add_scalar("validate_similarity_loss", similarity_loss, global_step)
+
                     if args.use_consistency_loss:
                         loss += consistency_loss
+                        writer.add_scalar("validate_consistency_loss", consistency_loss, global_step)
 
                     writer.add_scalar("validate_dvae_loss", mse_loss, global_step)
                     writer.add_scalar("validate_loss", cross_entropy, global_step)
-                    writer.add_scalar("validate_similarity_loss", similarity_loss, global_step)
+
 
                     masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
                     writer.add_image("validate masked image", masked_image, global_step=ep)

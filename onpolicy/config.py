@@ -380,6 +380,8 @@ def get_config():
     parser.add_argument("--slot_log_fre", type=int, default=3, )
 
     parser.add_argument("--use_consistency_loss", type=str2bool, default=True)
+    parser.add_argument("--use_orthogonal_loss", type=str2bool, default=False, )
+
     parser.add_argument("--slot_att_work_path", type=str,
                         default="/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/slot_att/", )
     parser.add_argument("--slot_pretrain_batch_size", type=int, default=2, )
@@ -432,6 +434,8 @@ def get_config():
     parser.add_argument('--lambda_c', type=float, default=0.1)
     parser.add_argument('--lr_main', type=float, default=1e-4)
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
-    
+
+    parser.add_argument('--collect_data_mi', type=int, default=1500)
+
 
     return parser
