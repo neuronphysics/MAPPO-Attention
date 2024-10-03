@@ -211,11 +211,7 @@ class R_MAPPO():
 
         self.policy.critic_optimizer.step()
 
-        slot_att_loss = None
-        if self.use_slot_att:
-           slot_att_loss = self.policy.actor.train_slot_att( obs_batch, idx, optimizer=self.policy.slot_att_optimizer, scheduler=self.policy.slot_att_scheduler)
-
-        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss
+        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
 
 
@@ -257,8 +253,14 @@ class R_MAPPO():
                 data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
 
             for sample in data_generator:
-                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss \
+                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
                         = self.ppo_update(idx, sample, update_actor)
+
+                slot_att_loss = None
+                if self.use_slot_att and idx == self.ppo_epoch - 1:
+                    obs_batch = sample[1]
+                    slot_att_loss = self.policy.actor.train_slot_att(obs_batch, idx, optimizer=self.policy.slot_att_optimizer,
+                                                                     scheduler=self.policy.slot_att_scheduler)
                 if self.use_slot_att and slot_att_loss:
                     train_info['slot_att_loss'] += slot_att_loss
 
