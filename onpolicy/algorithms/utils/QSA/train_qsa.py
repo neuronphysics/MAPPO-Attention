@@ -68,7 +68,7 @@ def train_qsa(args):
                                 crop_repeat=args.slot_att_crop_repeat, crop_size=args.crop_size)
     vali_dataset = GlobDataset(world_root=args.slot_att_work_path + "agent_data/" + args.substrate_name + "*ep",
                                phase='train', img_glob="*.pt",
-                               crop_repeat=args.slot_att_crop_repeat, crop_size=args.crop_size)
+                               crop_repeat=1, crop_size=args.crop_size)
     # Check how many files were read
     num_files = len(train_dataset.episodes)
     print(f"Number of files read: {num_files}")
