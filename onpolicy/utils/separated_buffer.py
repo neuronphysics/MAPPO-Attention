@@ -93,9 +93,6 @@ class SeparatedReplayBuffer(object):
         data_array.append(store_dict)
         torch.save(data_array, str(dir_path) + file_path)
 
-    def update_factor(self, factor):
-        self.factor = factor.copy()
-
     def insert(self, share_obs, obs, rnn_states, rnn_cells, rnn_states_critic, rnn_cells_critic, actions,
                action_log_probs,
                value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
