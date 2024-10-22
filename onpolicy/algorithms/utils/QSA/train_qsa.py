@@ -1,5 +1,6 @@
 import argparse
 import os.path
+import random
 
 import torch
 from torch.utils.data import DataLoader
@@ -15,6 +16,7 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 from .model_trans_dec import SLATE
 import math
+from geomloss import SamplesLoss
 
 
 def generate_model(args):
@@ -83,6 +85,9 @@ def train_qsa(args):
     train_loader = DataLoader(train_dataset, sampler=None, **loader_kwargs)
     val_loader = DataLoader(vali_dataset, sampler=None, **loader_kwargs)
 
+    all_agent_data_batch = list(val_loader)
+    OT_solver = SamplesLoss("sinkhorn", p=2, blur=0.05, reach=0.2, scaling=0.9, debias=False, potentials=False)
+
     if not os.path.exists(args.slot_att_work_path + args.substrate_name + "/"):
         os.makedirs(args.slot_att_work_path + args.substrate_name + "/")
 
@@ -118,6 +123,11 @@ def train_qsa(args):
                 loss += consistency_loss
                 writer.add_scalar("train_consistency_loss", consistency_loss, global_step)
 
+            if ep >= int(args.slot_train_ep * args.slot_domain_adapt_factor):
+                domain_loss = domain_adapt(model, OT_solver, all_agent_data_batch, tau, sigma, args.device, out['slots'])
+                loss += domain_loss
+                writer.add_scalar("train_domain_loss", domain_loss, global_step)
+
             loss.backward()
 
             nn.utils.clip_grad_norm_(model.parameters(), args.slot_clip_grade_norm)
@@ -127,7 +137,6 @@ def train_qsa(args):
 
             writer.add_scalar("train_dvae_loss", mse_loss, global_step)
             writer.add_scalar("train_loss", cross_entropy, global_step)
-
 
         if ep % args.slot_log_fre == 0:
             masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
@@ -170,11 +179,25 @@ def train_qsa(args):
                     writer.add_scalar("validate_dvae_loss", mse_loss, global_step)
                     writer.add_scalar("validate_loss", cross_entropy, global_step)
 
-
                     masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
                     writer.add_image("validate masked image", masked_image, global_step=ep)
                     writer.add_image("validate recon", recon_row, global_step=ep)
                     writer.add_image("validate atten masks", combined_mask, global_step=ep)
+
+
+def domain_adapt(model, loss_fn, all_batches, tau, sigma, device, world_slots):
+    random_batch = random.choice(all_batches)
+    output = model(random_batch.to(device), tau=tau, sigma=sigma, is_Train=True, visualize=False)
+    agent_slots = output['slots']
+
+    batch, slot_num, slot_size = agent_slots.shape
+    total_dis = 0
+    for i in range(slot_num):
+        x_i = world_slots[:, i, :]
+        y_i = agent_slots[:, i, :]
+        dis = loss_fn(x_i, y_i)
+        total_dis += dis
+    return total_dis
 
 
 def visualize_img(out, original):
@@ -231,6 +254,7 @@ def cosine_anneal(step, final_step, start_step=0, start_value=1.0, final_value=0
         progress = (step - start_step) / (final_step - start_step)
         value = a * math.cos(math.pi * progress) + b
     return value
+
 
 def plot_tsne(slots):
     slots_flat = slots.view(-1, slots.size(-1))  # (batch_size * num_slots, slot_size)

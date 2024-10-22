@@ -378,6 +378,7 @@ def get_config():
     parser.add_argument("--slot_clip_grade_norm", type=float, default=1.0)
     parser.add_argument("--slot_save_fre", type=int, default=5, )
     parser.add_argument("--slot_log_fre", type=int, default=3, )
+    parser.add_argument("--slot_domain_adapt_factor", type=float, default=0.75)
 
     parser.add_argument("--use_consistency_loss", type=str2bool, default=True)
     parser.add_argument("--use_orthogonal_loss", type=str2bool, default=False, )
