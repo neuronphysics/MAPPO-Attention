@@ -164,12 +164,11 @@ def train_qsa(args):
                     mse_loss = out['loss']['mse']
                     similarity_loss = out['sim_loss']
                     cross_entropy = out['loss']['cross_entropy']
-                    consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(
-                        val_loader.dataset)
+                    consistency_loss = out['loss']['compositional_consistency_loss'].item() #* ep / len( val_loader.dataset)
                     loss = mse_loss + cross_entropy
 
                     if args.use_orthogonal_loss:
-                        loss += similarity_loss
+                        loss += similarity_loss  * args.similarity_loss_weight
                         writer.add_scalar("validate_similarity_loss", similarity_loss, global_step)
 
                     if args.use_consistency_loss:
