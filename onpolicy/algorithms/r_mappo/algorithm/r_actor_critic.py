@@ -283,12 +283,13 @@ class R_Actor(nn.Module):
             optimizer.zero_grad()
             # Forward pass through the slot attention model
             out_tmp = self.slot_attn(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
-            accum_adjustment = len(obs_minibatch) / len(dataloader.dataset)
-            accum_consistency_encoder_loss = (
-                    out_tmp['loss']['compositional_consistency_loss'].item() * accum_adjustment
-            )
+            #accum_adjustment = len(obs_minibatch) / len(dataloader.dataset)
+            accum_consistency_encoder_loss = out_tmp['loss']['compositional_consistency_loss'].item() #* accum_adjustment
+            
             # Compute the loss
-            minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
+            minibatch_loss = out_tmp['loss']['mse']  + out_tmp['loss']['cross_entropy']
+            if self.args.use_orthogonal_loss:
+                minibatch_loss += self.args.similarity_loss_weight * out_tmp['sim_loss']
             if self.args.use_consistency_loss:
                 minibatch_loss += accum_consistency_encoder_loss
             # Normalize the loss to account for accumulation
