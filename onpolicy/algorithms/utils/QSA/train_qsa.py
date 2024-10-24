@@ -68,9 +68,9 @@ def train_qsa(args):
     train_dataset = GlobDataset(world_root=args.slot_att_work_path + "world_data/" + args.substrate_name + "*ep",
                                 phase='train', img_glob="*.pt",
                                 crop_repeat=args.slot_att_crop_repeat, crop_size=args.crop_size)
-    vali_dataset = GlobDataset(world_root=args.slot_att_work_path + "agent_data/" + args.substrate_name + "*ep",
+    vali_dataset = GlobDataset(agent_root=args.slot_att_work_path + "agent_data/" + args.substrate_name + "*ep",
                                phase='train', img_glob="*.pt",
-                               crop_repeat=1, crop_size=args.crop_size)
+                               crop_repeat=1, crop_size=args.crop_size, data_size=train_dataset.data_size)
     # Check how many files were read
     num_files = len(train_dataset.episodes)
     print(f"Number of files read: {num_files}")
@@ -86,7 +86,7 @@ def train_qsa(args):
     val_loader = DataLoader(vali_dataset, sampler=None, **loader_kwargs)
 
     all_agent_data_batch = list(val_loader)
-    OT_solver = SamplesLoss("sinkhorn", p=2, blur=0.05, reach=0.2, scaling=0.9, debias=False, potentials=False)
+    OT_solver = SamplesLoss("sinkhorn", p=2, blur=0.05, reach=15, scaling=0.9, debias=False, potentials=False)
 
     if not os.path.exists(args.slot_att_work_path + args.substrate_name + "/"):
         os.makedirs(args.slot_att_work_path + args.substrate_name + "/")
