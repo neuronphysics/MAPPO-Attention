@@ -69,10 +69,9 @@ class R_Actor(nn.Module):
             # Define the LoRA configuration
             lora_config = LoraConfig(
                 r=16,  # Rank of the low-rank update
-                lora_alpha=16,  # Scaling factor
+                lora_alpha=32,  # Scaling factor
                 lora_dropout=0.1,  # Dropout probability
-                target_modules=["slot_attn.slot_attention.project_q", "slot_attn.mlp.3",
-                                "slot_proj", "out"],  # Target specific layers
+                target_modules=["slot_attn.mlp.3", "slot_proj"],  # Target specific layers
 
                 bias="none"
             )
