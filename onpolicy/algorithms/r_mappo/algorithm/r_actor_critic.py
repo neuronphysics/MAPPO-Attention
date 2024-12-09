@@ -1,8 +1,6 @@
 import math
-
 import torch
 import torch.nn as nn
-
 from onpolicy.algorithms.utils.lstm import LSTMLayer
 from onpolicy.algorithms.utils.util import print_trainable_parameters, init, check, ObsDataset, distributed_setup
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
@@ -70,8 +68,8 @@ class R_Actor(nn.Module):
             lora_config = LoraConfig(
                 r=16,  # Rank of the low-rank update
                 lora_alpha=32,  # Scaling factor
-                lora_dropout=0.1,  # Dropout probability
-                target_modules=["slot_attn.mlp.3", "slot_proj"],  # Target specific layers
+                lora_dropout=0.5,  # Dropout probability
+                target_modules=["slot_attn.slot_attention.project_v", "slot_attn.slot_attention.project_k", "slot_attn.mlp.3", "out"],  # Target specific layers
 
                 bias="none"
             )
