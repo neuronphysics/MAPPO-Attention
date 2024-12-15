@@ -15,7 +15,7 @@ from absl import logging
 from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, BOFTConfig
 
 
 class R_Actor(nn.Module):
@@ -54,6 +54,7 @@ class R_Actor(nn.Module):
         self.use_attention = args.use_attention
         self._attention_module = args.attention_module
         self.use_slot_att = args.use_slot_att
+        self._finetuning_type = args.finetuning_type
 
         self._obs_shape = obs_shape
         self.global_step = 0
@@ -65,16 +66,24 @@ class R_Actor(nn.Module):
             model = generate_model(args)
             print(model.state_dict().keys())
             # Define the LoRA configuration
-            lora_config = LoraConfig(
-                r=16,  # Rank of the low-rank update
-                lora_alpha=32,  # Scaling factor
-                lora_dropout=0.5,  # Dropout probability
-                target_modules=["slot_attn.slot_attention.project_v", "slot_attn.slot_attention.project_k", "slot_attn.mlp.3", "out"],  # Target specific layers
-
-                bias="none"
-            )
-            # Apply LoRA to the selected layers of the SlotAttention module
-            self.slot_attn = get_peft_model(model, lora_config).to(device)
+            if self._finetuning_type =='Lora':
+               config = LoraConfig(
+                                    r=16,  # Rank of the low-rank update
+                                    lora_alpha=32,  # Scaling factor
+                                    lora_dropout=0.5,  # Dropout probability
+                                    target_modules=["slot_attn.slot_attention.project_v", "slot_attn.slot_attention.project_k", "slot_attn.mlp.3", "out"],  # Target specific layers
+                                    bias="none"
+                                    )
+               
+            elif self._finetuning_type =='BOFT':
+               config = BOFTConfig(
+                                    boft_block_size=8,
+                                    boft_n_butterfly_factor=2,
+                                    boft_dropout=0.5,
+                                    target_modules=[ "slot_attn.mlp.3", "out"],
+                                    bias="boft_only",
+                                    )
+            self.slot_attn = get_peft_model(model, config).to(device)
             print_trainable_parameters(self.slot_attn)  # check the fraction of parameters trained
             for n, p in self.slot_attn.model.named_parameters():
                 if 'lora' in n:

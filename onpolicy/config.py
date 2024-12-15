@@ -437,6 +437,6 @@ def get_config():
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
 
     parser.add_argument('--collect_data_mi', type=int, default=1500)
-
-
+    parser.add_argument('--finetuning_type',type=str, default="BOFT",
+                        help='There are two oprions Lora and boft for finetuning the slot attention')
     return parser
