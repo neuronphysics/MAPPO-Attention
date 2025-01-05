@@ -68,12 +68,13 @@ class R_Actor(nn.Module):
             # Define the LoRA configuration
             if self._finetuning_type =='Lora':
                config = LoraConfig(
-                                    r=16,  # Rank of the low-rank update
-                                    lora_alpha=32,  # Scaling factor
-                                    lora_dropout=0.5,  # Dropout probability
-                                    target_modules=["slot_attn.slot_attention.project_v", "slot_attn.slot_attention.project_k", "slot_attn.mlp.3", "out"],  # Target specific layers
-                                    bias="none"
-                                    )
+                                   r=16,  # Rank of the low-rank update
+                                   lora_alpha=32,  # Scaling factor
+                                   lora_dropout=0.5,  # Dropout probability
+                                   #target_modules=["slot_attn.slot_attention.project_v", "slot_attn.slot_attention.project_k", "slot_attn.mlp.3", "out"],  # Target specific layers
+                                   target_modules=["slot_attn.slot_attention.project_q", "slot_attn.mlp.3","slot_proj", "out"],
+                                   bias="none"
+                                  )
                
             elif self._finetuning_type =='BOFT':
                config = BOFTConfig(

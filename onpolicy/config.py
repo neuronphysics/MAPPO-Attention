@@ -435,8 +435,12 @@ def get_config():
     parser.add_argument('--lambda_c', type=float, default=0.1)
     parser.add_argument('--lr_main', type=float, default=1e-4)
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
-
-    parser.add_argument('--collect_data_mi', type=int, default=1500)
-    parser.add_argument('--finetuning_type',type=str, default="BOFT",
+    parser.add_argument("--collect_mutual_information", type=str2bool, default=False,
+                    help="Whether to collect mutual information data during training")
+    parser.add_argument("--mi_collection_start", type=int, default=4500,
+                    help="Episode number to start collecting mutual information data")
+    parser.add_argument("--mi_collection_interval", type=int, default=200,
+                    help="Number of episodes to collect mutual information data for")
+    parser.add_argument('--finetuning_type',type=str, default="Lora",
                         help='There are two oprions Lora and boft for finetuning the slot attention')
     return parser
