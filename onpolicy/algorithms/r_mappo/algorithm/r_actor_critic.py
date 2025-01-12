@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from onpolicy.algorithms.utils.lstm import LSTMLayer
-from onpolicy.algorithms.utils.util import print_trainable_parameters, init, check, ObsDataset, distributed_setup
+from onpolicy.algorithms.utils.util import print_trainable_parameters, init, check, ObsDataset, selectively_unfreeze_layers
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
 from onpolicy.algorithms.utils.modularity import SCOFF
 from onpolicy.algorithms.utils.mlp import MLPBase
@@ -66,22 +66,28 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             model = generate_model(args)
             print(model.state_dict().keys())
-            # Define the LoRA configuration
-            lora_config = LoraConfig(
-                r=16,  # Rank of the low-rank update
-                lora_alpha=16,  # Scaling factor
-                lora_dropout=0.1,  # Dropout probability
-                target_modules=["slot_attn.slot_attention.project_q", "slot_attn.mlp.1", "slot_attn.mlp.3",
-                                "slot_proj", "out"],  # Target specific layers
 
-                bias="none"
-            )
-            # Apply LoRA to the selected layers of the SlotAttention module
-            self.slot_attn = get_peft_model(model, lora_config).to(device)
-            print_trainable_parameters(self.slot_attn)  # check the fraction of parameters trained
-            for n, p in self.slot_attn.model.named_parameters():
-                if 'lora' in n:
-                    print(f"New parameter {n:<13} | {p.numel():>5} parameters | updated")
+            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.mlp.1", "slot_attn.mlp.3",
+                                    "slot_proj", "out"]
+            if args.fine_tuning_type =='Lora':
+                # Define the LoRA configuration
+                lora_config = LoraConfig(
+                    r=16,  # Rank of the low-rank update
+                    lora_alpha=16,  # Scaling factor
+                    lora_dropout=0.1,  # Dropout probability
+                    target_modules=list_modules,  # Target specific layers
+
+                    bias="none"
+                )
+                # Apply LoRA to the selected layers of the SlotAttention module
+                self.slot_attn = get_peft_model(model, lora_config).to(device)
+                print_trainable_parameters(self.slot_attn)  # check the fraction of parameters trained
+                for n, p in self.slot_attn.model.named_parameters():
+                    if 'lora' in n:
+                        print(f"New parameter {n:<13} | {p.numel():>5} parameters | updated")
+            elif args.fine_tuning_type == "Partial":
+                selectively_unfreeze_layers(model, list_modules)
+                self.slot_attn =  model.to(device)
 
             self.tau = args.tau_start
             self.sigma = args.sigma_start
