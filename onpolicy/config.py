@@ -435,7 +435,7 @@ def get_config():
     parser.add_argument('--lr_main', type=float, default=1e-4)
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
 
-    parser.add_argument('--collect_data_mi', type=int, default=5)
+    parser.add_argument('--collect_data_mi', type=int, default=50000)
     parser.add_argument('--fine_tuning_type', type=str, default="Lora")
 
     return parser

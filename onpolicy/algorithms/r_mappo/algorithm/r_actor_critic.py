@@ -67,8 +67,8 @@ class R_Actor(nn.Module):
             model = generate_model(args)
             print(model.state_dict().keys())
 
-            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.mlp.1", "slot_attn.mlp.3",
-                                    "slot_proj", "out"]
+            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "dvae.encoder.0", "slot_proj", "out"]
+
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
