@@ -157,8 +157,25 @@ def main(args):
         torch.set_num_threads(all_args.n_training_threads)
 
     # run dir
-    run_dir = Path(os.path.split(os.path.dirname(os.path.abspath(__file__)))[
+    base_run_dir = Path(os.path.split(os.path.dirname(os.path.abspath(__file__)))[
                        0] + "/results") / all_args.env_name / all_args.scenario_name / all_args.substrate_name / all_args.algorithm_name / all_args.experiment_name
+    
+
+    # Create specific run directory (both for wandb and non-wandb cases)
+    # Create unique run directory regardless of wandb usage
+    if not base_run_dir.exists():
+        curr_run = 'run1'
+    else:
+        exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in base_run_dir.iterdir() 
+                        if str(folder.name).startswith('run')]
+        if len(exst_run_nums) == 0:
+            curr_run = 'run1'
+        else:
+            curr_run = 'run%i' % (max(exst_run_nums) + 1)
+            
+    run_dir = base_run_dir / curr_run
+    all_args.log_dir = run_dir  # Set log_dir regardless of wandb usage
+    
     if not run_dir.exists():
         os.makedirs(str(run_dir))
 
@@ -175,6 +192,7 @@ def main(args):
                          dir=str(run_dir),
                          job_type="training",
                          reinit=True)
+        
         if all_args.use_sweep_wandb_hyper_search:
             all_args.lr = wandb.config.lr
             all_args.critic_lr = wandb.config.critic_lr
@@ -184,20 +202,6 @@ def main(args):
             all_args.max_grad_norm = wandb.config.max_grad_norm
             all_args.gain = wandb.config.gain
             
-    else:
-        if not run_dir.exists():
-            curr_run = 'run1'
-        else:
-            exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in run_dir.iterdir() if
-                             str(folder.name).startswith('run')]
-            if len(exst_run_nums) == 0:
-                curr_run = 'run1'
-            else:
-                curr_run = 'run%i' % (max(exst_run_nums) + 1)
-        run_dir = run_dir / curr_run
-        all_args.log_dir = run_dir
-        if not run_dir.exists():
-            os.makedirs(str(run_dir))
 
     setproctitle.setproctitle(str(all_args.algorithm_name) + "-" + \
                               str(all_args.env_name) + "-" + str(all_args.experiment_name) + "@" + str(
