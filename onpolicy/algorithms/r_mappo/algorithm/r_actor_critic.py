@@ -17,7 +17,7 @@ from absl import logging
 from onpolicy.algorithms.utils.QSA.train_qsa import generate_model, cosine_anneal
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, TaskType
 
 
 class R_Actor(nn.Module):
@@ -67,17 +67,18 @@ class R_Actor(nn.Module):
             model = generate_model(args)
             print(model.state_dict().keys())
 
-            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "dvae.encoder.0", "slot_proj", "out"]
+            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "slot_attn.slot_attention.project_v", "slot_proj", "out"]
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
                     r=16,  # Rank of the low-rank update
-                    lora_alpha=16,  # Scaling factor
+                    lora_alpha=32,  # Scaling factor
                     lora_dropout=0.1,  # Dropout probability
                     target_modules=list_modules,  # Target specific layers
-
-                    bias="none"
+                    bias="none",
+                    modules_to_save=None,    # Don't save any modules fully
+                    task_type= TaskType.FEATURE_EXTRACTION,  # Optimized for feature extraction
                 )
                 # Apply LoRA to the selected layers of the SlotAttention module
                 self.slot_attn = get_peft_model(model, lora_config).to(device)
@@ -198,24 +199,37 @@ class R_Actor(nn.Module):
             active_masks = check(active_masks).to(**self.tpdv)
 
         if self.use_slot_att:
+            # Process in chunks to avoid OOM
+            # slot att model takes (batch, 3, H, W) and returns a dict
+            batch_size = obs.size(0)
+            chunk_size = self.args.slot_pretrain_batch_size
+            features_list = []
+            total_processed = 0
+        
+            # Use torch.cuda.amp for mixed precision training
+            with torch.cuda.amp.autocast():
+                for i in range(0, batch_size, chunk_size):
+                    end_idx = min(i + chunk_size, batch_size)  # Ensure we don't exceed batch size
+                    chunk = obs[i:end_idx]
+                    chunk_batch_size = chunk.size(0)  # Get actual size of current chunk
+                
+                    with torch.no_grad():
+                        chunk_features = self.slot_attn(
+                                        chunk.permute(0, 3, 1, 2),
+                                        tau=self.tau,
+                                        sigma=self.sigma
+                        )["slots"]
+                        features_list.append(chunk_features)
+                    
+                    total_processed += chunk_batch_size
+                
+                # Verify we processed the entire batch
+                assert total_processed == batch_size, f"Processed {total_processed} samples but batch size is {batch_size}"
+                                    
+                # Concatenate all chunks
+                features = torch.cat(features_list, dim=0)
+                actor_features = features.reshape(batch_size, -1)
 
-            with torch.no_grad():
-                # slot att model takes (batch, 3, H, W) and returns a dict
-                batch, _, _, _ = obs.shape
-                torch.cuda.empty_cache()  # Free up GPU memory
-                features = torch.cat([
-                    self.slot_attn(
-                        obs_minibatch.permute(0, 3, 1, 2),
-                        tau=self.tau, sigma=self.sigma
-                    )["slots"]
-                    for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
-                ])
-                # flatten
-                # "features" shape: [1000, 6, 50]
-                actor_features = features.flatten(start_dim=1)
-
-                # "actor_features" shape [1000, 300]
-                actor_features = actor_features.reshape(batch, -1)
         else:
             actor_features = self.base(obs)
 
@@ -276,8 +290,10 @@ class R_Actor(nn.Module):
 
         # Create a DataLoader with the DistributedSampler
         dataloader = torch.utils.data.DataLoader(obs_dataset,
-                                                 batch_size=self.args.slot_pretrain_batch_size // self.accumulation_steps,
-                                                 num_workers=0  # Adjust based on your system
+                                                batch_size=self.args.slot_pretrain_batch_size // self.accumulation_steps,
+                                                num_workers=4,
+                                                pin_memory=True,
+                                                persistent_workers=True
                                                  )
 
         slot_att_total_loss = 0
