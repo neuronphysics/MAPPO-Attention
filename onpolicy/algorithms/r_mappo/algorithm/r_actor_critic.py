@@ -73,16 +73,15 @@ class R_Actor(nn.Module):
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
                     r=16,  # Rank of the low-rank update
-                    lora_alpha=32,  # Scaling factor
+                    lora_alpha=16,  # Scaling factor
                     lora_dropout=0.1,  # Dropout probability
                     target_modules=list_modules,  # Target specific layers
-                    bias="none",
-                    modules_to_save=None,    # Don't save any modules fully
-                    task_type= TaskType.FEATURE_EXTRACTION,  # Optimized for feature extraction
+                    bias="none"
                 )
                 # Apply LoRA to the selected layers of the SlotAttention module
                 self.slot_attn = get_peft_model(model, lora_config).to(device)
                 print_trainable_parameters(self.slot_attn)  # check the fraction of parameters trained
+                #self.slot_attn.print_trainable_parameters()
                 for n, p in self.slot_attn.model.named_parameters():
                     if 'lora' in n:
                         print(f"New parameter {n:<13} | {p.numel():>5} parameters | updated")
@@ -205,9 +204,9 @@ class R_Actor(nn.Module):
             chunk_size = self.args.slot_pretrain_batch_size
             features_list = []
             total_processed = 0
-        
+            device_type= "cuda" if next(self.slot_attn.parameters()).is_cuda else "cpu"
             # Use torch.cuda.amp for mixed precision training
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast(device_type = device_type, dtype=torch.float32):
                 for i in range(0, batch_size, chunk_size):
                     end_idx = min(i + chunk_size, batch_size)  # Ensure we don't exceed batch size
                     chunk = obs[i:end_idx]
@@ -291,9 +290,7 @@ class R_Actor(nn.Module):
         # Create a DataLoader with the DistributedSampler
         dataloader = torch.utils.data.DataLoader(obs_dataset,
                                                 batch_size=self.args.slot_pretrain_batch_size // self.accumulation_steps,
-                                                num_workers=4,
-                                                pin_memory=True,
-                                                persistent_workers=True
+                                                num_workers=0
                                                  )
 
         slot_att_total_loss = 0
