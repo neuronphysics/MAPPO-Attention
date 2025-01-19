@@ -32,7 +32,12 @@ class SLATE(nn.Module):
             args.num_iter, num_slot, args.feature_size,
             slot_dim, args.mlp_size,
             (args.crop_size, args.crop_size), args.truncate,
-            args.init_method, args.drop_path)
+            args.init_method, args.drop_path, 
+            temperature=args.gumbel_temperature,
+            min_temperature=args.gumbel_min_temperature,
+            temperature_decay=args.gumbel_temperature_decay,
+            hard=args.slot_hard_attention,
+            beta=args.slot_attention_beta)
 
         self.dictionary = OneHotDictionary(args.vocab_size + 1, args.d_model)
         self.slot_proj = linear(slot_dim, args.d_model, bias=False)

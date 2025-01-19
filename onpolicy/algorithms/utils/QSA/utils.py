@@ -9,13 +9,42 @@ from copy import deepcopy
 import torch.nn as nn
 import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
-
+from torch.autograd import Variable
 from typing import Tuple
 Tensor = TypeVar("Tensor")
 T = TypeVar("T")
 TK = TypeVar("TK")
 TV = TypeVar("TV")
 
+
+def sample_gumbel(shape, eps=1e-20):
+    U = torch.rand(shape).cuda()
+    return -Variable(torch.log(-torch.log(U + eps) + eps))
+
+def gumbel_softmax_sample(logits, temperature, beta=0.5):
+    y = logits + beta*sample_gumbel(logits.size())
+    return F.softmax(y / temperature, dim=-1)
+
+def st_gumbel_softmax(logits, temperature, beta):
+    """
+    input: [*, n_class]
+    return: [*, n_class] an one-hot vector
+    """
+    y = gumbel_softmax_sample(logits, temperature, beta)
+    shape = y.size()
+    _, ind = y.max(dim=-1)
+    y_hard = torch.zeros_like(y).view(-1, shape[-1])
+    y_hard.scatter_(1, ind.view(-1, 1), 1)
+    y_hard = y_hard.view(*shape)
+    return (y_hard - y).detach() + y
+
+def gumbel_softmax(logits, temperature, beta):
+    """
+    input: [*, n_class]
+    return: [*, n_class] an one-hot vector
+    """
+    y = gumbel_softmax_sample(logits, temperature, beta)
+    return y
 
 def build_grid(resolution):
     ranges = [torch.linspace(0.0, 1.0, steps=res) for res in resolution]

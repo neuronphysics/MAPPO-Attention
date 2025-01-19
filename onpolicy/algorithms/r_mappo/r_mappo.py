@@ -287,8 +287,13 @@ class R_MAPPO():
 
     def prep_training(self):
         self.policy.actor.train()
+        if self.policy.actor.use_slot_att:
+           self.policy.actor.slot_attn.train()
+
         self.policy.critic.train()
 
     def prep_rollout(self):
         self.policy.actor.eval()
+        if self.policy.actor.use_slot_att:
+            self.policy.actor.slot_attn.eval()
         self.policy.critic.eval()

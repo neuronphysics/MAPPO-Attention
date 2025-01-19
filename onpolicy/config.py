@@ -378,6 +378,11 @@ def get_config():
     parser.add_argument("--slot_clip_grade_norm", type=float, default=1.0)
     parser.add_argument("--slot_save_fre", type=int, default=5, )
     parser.add_argument("--slot_log_fre", type=int, default=3, )
+    parser.add_argument("--gumbel_temperature", type=float, default=1.0, )
+    parser.add_argument("--gumbel_min_temperature", type=float, default=0.1, )
+    parser.add_argument("--gumbel_temperature_decay", type=float, default=0.9999, )
+    parser.add_argument("--slot_hard_attention", type=str2bool, default=True, )
+    parser.add_argument("--slot_attention_beta", type=float, default=0.5, )
 
     parser.add_argument("--use_consistency_loss", type=str2bool, default=True)
     parser.add_argument("--use_orthogonal_loss", type=str2bool, default=False, )

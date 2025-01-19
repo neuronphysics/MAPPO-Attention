@@ -73,12 +73,10 @@ class R_Actor(nn.Module):
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
                     r=16,  # Rank of the low-rank update
-                    lora_alpha=32,  # Scaling factor
+                    lora_alpha=16,  # Scaling factor
                     lora_dropout=0.1,  # Dropout probability
                     target_modules=list_modules,  # Target specific layers
-                    bias="none",
-                    modules_to_save=None,    # Don't save any modules fully
-                    task_type= TaskType.FEATURE_EXTRACTION,  # Optimized for feature extraction
+                    bias="none"
                 )
                 # Apply LoRA to the selected layers of the SlotAttention module
                 self.slot_attn = get_peft_model(model, lora_config).to(device)
@@ -201,13 +199,14 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             # Process in chunks to avoid OOM
             # slot att model takes (batch, 3, H, W) and returns a dict
+            self.slot_attn.eval()  # Added this
             batch_size = obs.size(0)
             chunk_size = self.args.slot_pretrain_batch_size
             features_list = []
             total_processed = 0
-        
+            device_type = 'cuda' if next(self.slot_attn.parameters()).is_cuda else 'cpu'
             # Use torch.cuda.amp for mixed precision training
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast(device_type=device_type, dtype=torch.float32):
                 for i in range(0, batch_size, chunk_size):
                     end_idx = min(i + chunk_size, batch_size)  # Ensure we don't exceed batch size
                     chunk = obs[i:end_idx]
@@ -271,6 +270,7 @@ class R_Actor(nn.Module):
         else:
               rank, world_size, local_rank, distributed_device = dist.get_rank(), dist.get_world_size(), dist.get_local_rank(), torch.device(f"cuda:{local_rank}")
         """
+        self.slot_attn.train()  # Added this to train the slot attention module
         self.global_step = self.args.ep_counter.get_cur_ep() * self.args.ppo_epoch + cur_ppo_idx
 
         self.tau = cosine_anneal(self.global_step, self.args.tau_steps, start_value=self.args.tau_start,
@@ -291,9 +291,7 @@ class R_Actor(nn.Module):
         # Create a DataLoader with the DistributedSampler
         dataloader = torch.utils.data.DataLoader(obs_dataset,
                                                 batch_size=self.args.slot_pretrain_batch_size // self.accumulation_steps,
-                                                num_workers=4,
-                                                pin_memory=True,
-                                                persistent_workers=True
+                                                num_workers=0
                                                  )
 
         slot_att_total_loss = 0
