@@ -67,7 +67,7 @@ class R_Actor(nn.Module):
             model = generate_model(args)
             print(model.state_dict().keys())
 
-            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "slot_attn.slot_attention.project_v", "slot_proj", "out"]
+            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "slot_attn.slot_attention.project_v", "slot_attn.mlp.3", "slot_proj", "out"]
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
@@ -76,6 +76,7 @@ class R_Actor(nn.Module):
                     lora_alpha=16,  # Scaling factor
                     lora_dropout=0.1,  # Dropout probability
                     target_modules=list_modules,  # Target specific layers
+                    init_lora_weights="gaussian",
                     bias="none"
                 )
                 # Apply LoRA to the selected layers of the SlotAttention module

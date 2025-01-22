@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
-from onpolicy.algorithms.utils.util import check
+from onpolicy.algorithms.utils.util import check, cal_dormant_ratio
 from torch.utils.checkpoint import checkpoint
 from onpolicy.algorithms.utils.util import distributed_setup, print_peak_memory
 import torch.distributed as dist
@@ -151,6 +151,8 @@ class R_MAPPO():
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
         obs_batch = check(obs_batch).to(**self.tpdv)
 
+        l2_loss = 0
+        
         # Reshape to do in a single forward pass for all steps
         values, action_log_probs, dist_entropy = self.policy.evaluate_actions(share_obs_batch,
                                                                               obs_batch,
@@ -180,14 +182,30 @@ class R_MAPPO():
 
         self.policy.actor_optimizer.zero_grad()
 
-        if update_actor:
-            total_loss = (policy_loss - dist_entropy * self.entropy_coef)
-            total_loss.backward()
-        if self.use_attention:
-            actor_parameters = [param for name, param in self.policy.actor.named_parameters() if 'slot_att' not in name]
+        if self.args.use_slot_att:
+            l2_regularizer= self.args.weight_l2_regularizer
+            actor_parameters = [ param for name, param in self.policy.actor.named_parameters() 
+                   if not hasattr(self.policy.actor, 'slot_attn') or not name.startswith('slot_attn.')]
+            if self.args.fine_tuning_type == "Lora":
+               tuned_params = [p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n]
+               for name, layer in self.policy.actor.slot_attn.named_modules():
+                   if 'lora' in name and hasattr(layer, 'weight'):
+                      l2_loss += torch.norm(layer.weight, p=2)
+            else:
+               tuned_params = [p for p in self.policy.actor.slot_attn.parameters() if p.requires_grad]
+               for name, layer in self.policy.actor.slot_attn.named_modules():
+                   if hasattr(layer, 'weight') and layer.weight.requires_grad:
+                      l2_loss += torch.norm(layer.weight, p=2)
+
+            policy_loss += l2_regularizer *l2_loss
+            actor_parameters.extend(tuned_params)
         else:
             actor_parameters =  self.policy.actor.parameters()
 
+        if update_actor:
+            total_loss = (policy_loss - dist_entropy * self.entropy_coef)
+            total_loss.backward()
+       
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
         else:
@@ -211,14 +229,7 @@ class R_MAPPO():
 
         self.policy.critic_optimizer.step()
         
-        if self.use_slot_att:
-            slot_att_loss = self.policy.actor.train_slot_att(obs_batch, idx, optimizer=self.policy.slot_att_optimizer,
-                                                             scheduler=self.policy.slot_att_scheduler)
-
-
-            return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss
-        else:
-            return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
+        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
 
 
@@ -248,6 +259,7 @@ class R_MAPPO():
         train_info['actor_grad_norm'] = 0
         train_info['critic_grad_norm'] = 0
         train_info['ratio'] = 0
+        train_info['dormant_ratio_actor'] = 0
         if self.use_slot_att:
            train_info['slot_att_loss']= 0
 
@@ -260,13 +272,31 @@ class R_MAPPO():
                 data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
 
             for sample in data_generator:
-                if self.use_slot_att:
-                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss \
+                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
                         = self.ppo_update(idx, sample, update_actor)
+
+                slot_att_loss = None
+                if self.use_slot_att and idx == self.ppo_epoch - 1:
+                    obs_batch = sample[1]
+                    slot_att_loss = self.policy.actor.train_slot_att(obs_batch, idx, optimizer=self.policy.slot_att_optimizer,
+                                                                     scheduler=self.policy.slot_att_scheduler)
+                if self.use_slot_att and slot_att_loss:
                     train_info['slot_att_loss'] += slot_att_loss
-                else:
-                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
-                        = self.ppo_update(idx, sample, update_actor)
+
+                if (idx == self.ppo_epoch - 1) and (self.total_updates % 100 == 0):
+                   obs_batch = sample[1]
+                   rnn_states_batch = sample[2]
+                   rnn_cells_batch = sample[3]
+                   masks_batch = sample[9]
+                
+                   dormant_ratio_actor = cal_dormant_ratio(
+                                                          self.policy.actor,
+                                                          obs_batch,
+                                                          rnn_states_batch,
+                                                          rnn_cells_batch,
+                                                          masks_batch
+                                                          )
+                   train_info['dormant_ratio_actor_net'] += dormant_ratio_actor
 
                 train_info['value_loss'] += value_loss.item()
                 train_info['policy_loss'] += policy_loss.item()
