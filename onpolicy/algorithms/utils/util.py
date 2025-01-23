@@ -45,11 +45,16 @@ class DormantNeuronTracker:
             if isinstance(module, (nn.Linear, nn.Conv2d, nn.Embedding, nn.LayerNorm)):
                 # Count neurons based on the number of output features (weight.shape[0])
                 if hasattr(module, "weight") and module.weight is not None:
-                    total_count += module.weight.shape[0]
+                    is_trainable = module.weight.requires_grad
+                    has_lora = any('lora' in n for n, p in module.named_parameters())
+                    
+                    if is_trainable or has_lora:
+                       total_count += module.weight.shape[0]
+                       
         self.total_neurons["activation"] = total_count
         self.total_neuron = total_count
         print(f"Initialized Total Neurons: {total_count}")
-        del total_count 
+        del total_count, is_trainable, has_lora 
 
     def register_activation_hooks(self):
         """
@@ -58,13 +63,17 @@ class DormantNeuronTracker:
         for name, module in self.model.named_modules():
             # Ensure relevant modules like Linear, Conv2d, Embedding, and LayerNorm are covered
             if isinstance(module, (nn.Linear, nn.Conv2d, nn.Embedding, nn.LayerNorm)):
-                module.register_forward_hook(self._create_activation_hook(name))
+                if hasattr(module, "weight") and (module.weight.requires_grad or any('lora' in n for n, p in module.named_parameters())):
+                   module.register_forward_hook(self._create_activation_hook(name))
 
     def _create_activation_hook(self, layer_name):
         """
         Internal method to create a hook for tracking activations.
         """
         def hook(module, input, output):
+            # Skip if layer is frozen and not LoRA-tuned
+            if not module.weight.requires_grad and not any('lora' in n for n, p in module.named_parameters()):
+                return
             with torch.no_grad():
                 if isinstance(output, tuple):
                     output = output[0]

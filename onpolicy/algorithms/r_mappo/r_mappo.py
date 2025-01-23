@@ -261,7 +261,7 @@ class R_MAPPO():
         train_info['actor_grad_norm'] = 0
         train_info['critic_grad_norm'] = 0
         train_info['ratio'] = 0
-        train_info['dormant_ratio_actor'] = 0
+        train_info['dormant_ratio_actor_net'] = 0
         if self.use_slot_att:
            train_info['slot_att_loss']= 0
 
@@ -285,7 +285,7 @@ class R_MAPPO():
                 if self.use_slot_att and slot_att_loss:
                     train_info['slot_att_loss'] += slot_att_loss
 
-                if (idx == self.ppo_epoch - 1) and (self.total_updates % 100 == 0):
+                if (idx == self.ppo_epoch - 1) and (self.total_updates == self.args.episode_length - 1):
 
                     train_info['dormant_ratio_actor_net'] += self.dormant_tracker.calculate_dormant_ratio("activation")
 
