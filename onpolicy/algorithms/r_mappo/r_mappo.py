@@ -3,9 +3,8 @@ import torch
 import torch.nn as nn
 from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
-from onpolicy.algorithms.utils.util import check, cal_dormant_ratio
+from onpolicy.algorithms.utils.util import check, DormantNeuronTracker
 from torch.utils.checkpoint import checkpoint
-from onpolicy.algorithms.utils.util import distributed_setup, print_peak_memory
 import torch.distributed as dist
 class R_MAPPO():
     """
@@ -52,7 +51,10 @@ class R_MAPPO():
         self._use_value_active_masks = args.use_value_active_masks
         self._use_policy_active_masks = args.use_policy_active_masks
         self.use_slot_att = args.use_slot_att
-
+        #
+        self.dormant_tracker = DormantNeuronTracker(model=self.policy.actor)
+        self.dormant_tracker.initialize_total_neurons()
+        self.dormant_tracker.register_activation_hooks()    
         if self.use_attention == True:
             self._use_naive_recurrent_policy = False
             self._use_recurrent_policy = False
@@ -284,19 +286,8 @@ class R_MAPPO():
                     train_info['slot_att_loss'] += slot_att_loss
 
                 if (idx == self.ppo_epoch - 1) and (self.total_updates % 100 == 0):
-                   obs_batch = sample[1]
-                   rnn_states_batch = sample[2]
-                   rnn_cells_batch = sample[3]
-                   masks_batch = sample[9]
-                
-                   dormant_ratio_actor = cal_dormant_ratio(
-                                                          self.policy.actor,
-                                                          obs_batch,
-                                                          rnn_states_batch,
-                                                          rnn_cells_batch,
-                                                          masks_batch
-                                                          )
-                   train_info['dormant_ratio_actor_net'] += dormant_ratio_actor
+
+                    train_info['dormant_ratio_actor_net'] += self.dormant_tracker.calculate_dormant_ratio("activation")
 
                 train_info['value_loss'] += value_loss.item()
                 train_info['policy_loss'] += policy_loss.item()
@@ -312,6 +303,8 @@ class R_MAPPO():
             
         #update entropy coefficient
         self.update_entropy_coef()
+        torch.cuda.empty_cache()
+
         self.total_updates += 1
         return train_info
 

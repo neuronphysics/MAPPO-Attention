@@ -9,49 +9,139 @@ from datetime import timedelta
 from torch.optim.lr_scheduler import _LRScheduler
 from torch.utils.data import Dataset
 import torch.distributed as dist
+import json
+from collections import defaultdict
 
-class LinearOutputHook:
-    def __init__(self):
-        self.outputs = []
+class DormantNeuronTracker:
+    def __init__(self, model, threshold=0.01):
+        """
+        Initialize the tracker for dormant neurons.
+        Args:
+            model (nn.Module): CLIP model instance.
+            threshold (float): Threshold to define dormant neurons (default: 0.01).
+        """
+        self.model = model
+        self.threshold = threshold
+        self.dormant_neurons = {"activation": {}}
+        self.dormant_neurons_weight = defaultdict(list)
+        self.total_neurons = {"activation": 0}
+        self.total_neuron = 0
+        self.prev_weights = None
+        self.current_weights = None
+    def clear_activation_data(self):
+        """
+        Clear all activation-based dormant neuron tracking data.
+        """
+        self.dormant_neurons["activation"].clear()
+        self.total_neurons["activation"] = 0
 
-    def __call__(self, module, module_in, module_out):
-        self.outputs.append(module_out)
+    ### Activation-Based Tracking ###
+    def initialize_total_neurons(self):
+        """
+        Compute and store the total number of neurons for all layers being tracked.
+        """
+        total_count = 0
+        for name, module in self.model.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d, nn.Embedding, nn.LayerNorm)):
+                # Count neurons based on the number of output features (weight.shape[0])
+                if hasattr(module, "weight") and module.weight is not None:
+                    total_count += module.weight.shape[0]
+        self.total_neurons["activation"] = total_count
+        self.total_neuron = total_count
+        print(f"Initialized Total Neurons: {total_count}")
+        del total_count 
 
-def cal_dormant_ratio(model, *inputs, percentage=0.025):
-    hooks = []
-    hook_handlers = []
-    total_neurons = 0
-    dormant_neurons = 0
+    def register_activation_hooks(self):
+        """
+        Register hooks to capture activations across all layers, including embeddings.
+        """
+        for name, module in self.model.named_modules():
+            # Ensure relevant modules like Linear, Conv2d, Embedding, and LayerNorm are covered
+            if isinstance(module, (nn.Linear, nn.Conv2d, nn.Embedding, nn.LayerNorm)):
+                module.register_forward_hook(self._create_activation_hook(name))
 
-    for _, module in model.named_modules():
-        if isinstance(module, nn.Linear):
-            hook = LinearOutputHook()
-            hooks.append(hook)
-            hook_handlers.append(module.register_forward_hook(hook))
+    def _create_activation_hook(self, layer_name):
+        """
+        Internal method to create a hook for tracking activations.
+        """
+        def hook(module, input, output):
+            with torch.no_grad():
+                if isinstance(output, tuple):
+                    output = output[0]
+                mean_activation = output.mean(dim=[0, 1])  # Batch and spatial dimensions
+                dormant_indices = (mean_activation < self.threshold).nonzero(as_tuple=True)[0].tolist()
+                self.dormant_neurons["activation"][layer_name] = dormant_indices
+                # Clean up
+                del mean_activation, dormant_indices
+                torch.cuda.empty_cache()
+        return hook
 
-    with torch.no_grad():
-        model(*inputs)
+    ### Unified Helper Functions ###
+    def calculate_dormant_ratio(self, mode):
+        """
+        Calculate the ratio of dormant neurons based on the tracking mode.
+        Args:
+            mode (str): Either "activation" or "weight_update".
+        """
+        if mode not in self.dormant_neurons:
+            raise ValueError(f"Invalid mode: {mode}. Choose 'activation' or 'weight_update'.")
+        dormant_count = 0
+        if mode == "weight_update":
+            for name, indices in self.dormant_neurons_weight.items():
+                # `indices` are the dormant neuron indices for the given layer
+                dormant_count += len(indices)  # Count dormant neurons
+                total_count = self.total_neuron
+                print(f"Dormant Count: {dormant_count}, Total Neuron Count: {total_count}")
+                return dormant_count / total_count if total_count > 0 else 0
+        else:
+            dormant_count = sum(len(indices) for indices in self.dormant_neurons[mode].values())
+            total_count = self.total_neuron
+            print(f"Dormant Count: {dormant_count}, Total Neuron Count: {total_count}")
+            return dormant_count / total_count if total_count > 0 else 0
 
-    for module, hook in zip(
-        (module
-         for module in model.modules() if isinstance(module, nn.Linear)),
-            hooks):
-        with torch.no_grad():
-            for output_data in hook.outputs:
-                mean_output = output_data.abs().mean(0)
-                avg_neuron_output = mean_output.mean()
-                dormant_indices = (mean_output < avg_neuron_output *
-                                   percentage).nonzero(as_tuple=True)[0]
-                total_neurons += module.weight.shape[0]
-                dormant_neurons += len(dormant_indices)         
+    def save(self, path, mode):
+        """
+        Save the tracked dormant neurons to a JSON file.
+        Args:
+            path (str): File path to save the JSON data.
+            mode (str): Either "activation" or "weight_update".
+        """
+        if mode not in self.dormant_neurons:
+            raise ValueError(f"Invalid mode: {mode}. Choose 'activation' or 'weight_update'.")
 
-    for hook in hooks:
-        hook.outputs.clear()
+        with open(path, "w") as f:
+            json.dump(self.dormant_neurons[mode], f, indent=4)
 
-    for hook_handler in hook_handlers:
-        hook_handler.remove()
+    def load(self, path, mode):
+        """
+        Load dormant neuron data from a JSON file.
+        Args:
+            path (str): File path to load the JSON data.
+            mode (str): Either "activation" or "weight_update".
+        """
+        if mode not in self.dormant_neurons:
+            raise ValueError(f"Invalid mode: {mode}. Choose 'activation' or 'weight_update'.")
 
-    return dormant_neurons / total_neurons
+        with open(path, "r") as f:
+            self.dormant_neurons[mode] = json.load(f)
+
+    ### Verification and Debugging ###
+    def verify_all_hooks(self):
+        """
+        Verify if all relevant layers have hooks registered.
+        """
+        registered_layers = list(self.dormant_neurons["activation"].keys())
+        print(f"Total layers with activation hooks: {len(registered_layers)}")
+        print(f"Sample layers: {registered_layers[:10]}")
+
+    def print_model_structure(self):
+        """
+        Print the model structure for debugging and verification purposes.
+        """
+        print("Listing all layers in the model:")
+        for name, module in self.model.named_modules():
+            print(f"{name}: {module}")
+
 
 
 
