@@ -152,7 +152,7 @@ class R_MAPPO():
         obs_batch = check(obs_batch).to(**self.tpdv)
 
         l2_loss = 0
-        
+        torch.cuda.empty_cache()
         # Reshape to do in a single forward pass for all steps
         values, action_log_probs, dist_entropy = self.policy.evaluate_actions(share_obs_batch,
                                                                               obs_batch,

@@ -64,17 +64,18 @@ class R_Actor(nn.Module):
         self.base = base(args, obs_shape)
 
         if self.use_slot_att:
+            self.slot_att_layer_norm = nn.LayerNorm(self.hidden_size)
             model = generate_model(args)
             print(model.state_dict().keys())
 
-            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "slot_attn.slot_attention.project_v", "slot_attn.mlp.3", "slot_proj", "out"]
+            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "slot_attn.slot_attention.project_v", "slot_attn.slot_attention.mlp.2", "slot_proj"]
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
                     r=16,  # Rank of the low-rank update
                     lora_alpha=16,  # Scaling factor
-                    lora_dropout=0.1,  # Dropout probability
+                    lora_dropout=0.5,  # Dropout probability
                     target_modules=list_modules,  # Target specific layers
                     init_lora_weights="gaussian",
                     bias="none"
@@ -139,11 +140,14 @@ class R_Actor(nn.Module):
 
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
+            torch.cuda.empty_cache()
             batch, _, _, _ = obs.shape
 
             # your slot attention or other GPU-intensive tasks
             actor_features = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
                                             visualize=False)['slots'].reshape(batch, -1)
+            
+            actor_features = self.slot_att_layer_norm(actor_features)
 
         else:
             actor_features = self.base(obs)
@@ -201,35 +205,24 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             # Process in chunks to avoid OOM
             # slot att model takes (batch, 3, H, W) and returns a dict
-            batch_size = obs.size(0)
-            chunk_size = self.args.slot_pretrain_batch_size
-            features_list = []
-            total_processed = 0
-            device_type= "cuda" if next(self.slot_attn.parameters()).is_cuda else "cpu"
-            # Use torch.cuda.amp for mixed precision training
-            with torch.amp.autocast(device_type = device_type, dtype=torch.float32):
-                for i in range(0, batch_size, chunk_size):
-                    end_idx = min(i + chunk_size, batch_size)  # Ensure we don't exceed batch size
-                    chunk = obs[i:end_idx]
-                    chunk_batch_size = chunk.size(0)  # Get actual size of current chunk
-                
-                    with torch.no_grad():
-                        chunk_features = self.slot_attn(
-                                        chunk.permute(0, 3, 1, 2),
-                                        tau=self.tau,
-                                        sigma=self.sigma
-                        )["slots"]
-                        features_list.append(chunk_features)
-                    
-                    total_processed += chunk_batch_size
-                
-                # Verify we processed the entire batch
-                assert total_processed == batch_size, f"Processed {total_processed} samples but batch size is {batch_size}"
-                                    
-                # Concatenate all chunks
-                features = torch.cat(features_list, dim=0)
-                actor_features = features.reshape(batch_size, -1)
+            # slot att model takes (batch, 3, H, W) and returns a dict
+            batch, _, _, _ = obs.shape
+            torch.cuda.empty_cache()  # Free up GPU memory
+            features = torch.cat([
+                    self.slot_attn(
+                        obs_minibatch.permute(0, 3, 1, 2),
+                        tau=self.tau, sigma=self.sigma
+                    )["slots"]
+                    for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
+            ])
+            # flatten
+            # "features" shape: [1000, 6, 50]
+            actor_features = features.flatten(start_dim=1)
 
+            # "actor_features" shape [1000, 300]
+            actor_features = actor_features.reshape(batch, -1)
+            actor_features = self.slot_att_layer_norm(actor_features)
+            torch.cuda.empty_cache()
         else:
             actor_features = self.base(obs)
 

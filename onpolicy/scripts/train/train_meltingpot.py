@@ -15,7 +15,7 @@ import gc
 import time
 import cProfile
 import json
-
+torch.backends.cudnn.benchmark = True
 """Train script for Meltingpot."""
 
 
