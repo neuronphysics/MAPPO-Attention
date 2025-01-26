@@ -163,7 +163,6 @@ class R_Actor(nn.Module):
 
         # expect actor_feature (batch, input_size) rnn_state (1, batch, hidden_size)
         actor_features, rnn_states = output[:2]
-        del output  # Delete output after extracting needed values
 
         if self.use_attention and self.rnn_attention_module == "LSTM":
             rnn_cells = output[-1]
@@ -174,6 +173,7 @@ class R_Actor(nn.Module):
             rnn_states = rnn_states.permute(1, 0, 2)
 
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
+        del output  # Delete output after extracting needed values
 
         return actions, action_log_probs, rnn_states, rnn_cells
 
@@ -207,25 +207,26 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             # Process in chunks to avoid OOM
             # slot att model takes (batch, 3, H, W) and returns a dict
-            # slot att model takes (batch, 3, H, W) and returns a dict
-            batch, _, _, _ = obs.shape
             torch.cuda.empty_cache()  # Free up GPU memory
-            features = torch.cat([
-                    self.slot_attn(
-                        obs_minibatch.permute(0, 3, 1, 2),
-                        tau=self.tau, sigma=self.sigma
-                    )["slots"]
-                    for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
-            ])
-            # flatten
-            # "features" shape: [1000, 6, 50]
-            actor_features = features.flatten(start_dim=1)
+            with torch.no_grad():
+                batch, _, _, _ = obs.shape
+            
+                features = torch.cat([
+                       self.slot_attn(
+                           obs_minibatch.permute(0, 3, 1, 2),
+                           tau=self.tau, sigma=self.sigma
+                       )["slots"]
+                       for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
+                ])
+                # flatten
+                # "features" shape: [1000, 6, 50]
+                actor_features = features.flatten(start_dim=1)
 
-            # "actor_features" shape [1000, 300]
-            actor_features = actor_features.reshape(batch, -1)
-            actor_features = self.slot_att_layer_norm(actor_features)
-            torch.cuda.empty_cache()
-            del features  # Add this
+                # "actor_features" shape [1000, 300]
+                actor_features = actor_features.reshape(batch, -1)
+                actor_features = self.slot_att_layer_norm(actor_features)
+                torch.cuda.empty_cache()
+                del features  # Add this
         else:
             actor_features = self.base(obs)
 
@@ -241,7 +242,7 @@ class R_Actor(nn.Module):
                     output = (x, h)
 
         actor_features, rnn_states = output[:2]
-        del output  # Delete output after extracting needed values
+       
 
         if self.algo == "hatrpo":
             action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(
@@ -258,7 +259,7 @@ class R_Actor(nn.Module):
                                                                        active_masks=
                                                                        active_masks if self._use_policy_active_masks
                                                                        else None)
-        del actor_features
+        del actor_features, output
         torch.cuda.empty_cache()
         return action_log_probs, dist_entropy
 
@@ -306,7 +307,9 @@ class R_Actor(nn.Module):
                     out_tmp['loss']['compositional_consistency_loss'].item() * accum_adjustment
             )
             # Compute the loss
-            minibatch_loss = out_tmp['loss']['mse'] + out_tmp['sim_loss'] + out_tmp['loss']['cross_entropy']
+            minibatch_loss = out_tmp['loss']['mse'] +  out_tmp['loss']['cross_entropy']
+            if self.args.use_orthogonal_loss:
+                minibatch_loss += out_tmp['sim_loss'] 
             if self.args.use_consistency_loss:
                 minibatch_loss += accum_consistency_encoder_loss
             # Normalize the loss to account for accumulation
