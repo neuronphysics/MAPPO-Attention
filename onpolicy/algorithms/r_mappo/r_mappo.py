@@ -198,11 +198,11 @@ class R_MAPPO():
        
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
-            if self.args.fine_tuning_type == "Lora" and self.args.use_slot_att:
-               
-                nn.utils.clip_grad_norm_( [p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n], self.max_grad_norm * 0.01)
-            else:
-                 nn.utils.clip_grad_norm_( [p for p in self.policy.actor.slot_attn.parameters() if p.requires_grad], self.max_grad_norm * 0.01)
+            if self.args.use_slot_att:
+               if self.args.fine_tuning_type == "Lora":
+                   nn.utils.clip_grad_norm_( [p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n], self.max_grad_norm * 0.01)
+               else:
+                   nn.utils.clip_grad_norm_( [p for p in self.policy.actor.slot_attn.parameters() if p.requires_grad], self.max_grad_norm * 0.01)
         else:
             actor_grad_norm = get_gard_norm(actor_parameters)
 
