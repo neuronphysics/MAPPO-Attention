@@ -198,7 +198,7 @@ class R_MAPPO():
        
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
-            if self.args.fine_tuning_type == "Lora":
+            if self.args.fine_tuning_type == "Lora" and self.args.use_slot_att:
                
                 nn.utils.clip_grad_norm_( [p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n], self.max_grad_norm * 0.01)
             else:
