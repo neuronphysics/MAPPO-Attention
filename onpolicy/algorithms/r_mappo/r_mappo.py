@@ -153,7 +153,6 @@ class R_MAPPO():
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
         obs_batch = check(obs_batch).to(**self.tpdv)
 
-        l2_loss = 0
         torch.cuda.empty_cache()
         # Reshape to do in a single forward pass for all steps
         values, action_log_probs, dist_entropy = self.policy.evaluate_actions(share_obs_batch,
@@ -183,36 +182,27 @@ class R_MAPPO():
         policy_loss = policy_action_loss
 
         self.policy.actor_optimizer.zero_grad()
+        if update_actor:
+            total_loss = (policy_loss - dist_entropy * self.entropy_coef)
+            total_loss.backward()
 
         if self.args.use_slot_att:
-            l2_regularizer= self.args.weight_l2_regularizer
             actor_parameters = [ param for name, param in self.policy.actor.named_parameters() 
                    if not hasattr(self.policy.actor, 'slot_attn') or not name.startswith('slot_attn.')]
-            if self.args.fine_tuning_type == "Lora":
-               tuned_params = [p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n]
-               for name, layer in self.policy.actor.slot_attn.named_modules():
-                   if 'lora' in name and hasattr(layer, 'weight'):
-                      l2_loss += torch.norm(layer.weight, p=2)
-            else:
-               tuned_params = [p for p in self.policy.actor.slot_attn.parameters() if p.requires_grad]
-               for name, layer in self.policy.actor.slot_attn.named_modules():
-                   if hasattr(layer, 'weight') and layer.weight.requires_grad:
-                      l2_loss += torch.norm(layer.weight, p=2)
-
-            policy_loss += l2_regularizer *l2_loss
-            actor_parameters.extend(tuned_params)
-            del tuned_params
-            del l2_loss  # We can also delete l2_loss since it's been added to policy_loss
+            
             torch.cuda.empty_cache()  # Clean up GPU memory
         else:
             actor_parameters =  self.policy.actor.parameters()
 
-        if update_actor:
-            total_loss = (policy_loss - dist_entropy * self.entropy_coef)
-            total_loss.backward()
+
        
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
+            if self.args.fine_tuning_type == "Lora":
+               
+                nn.utils.clip_grad_norm_( [p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n], self.max_grad_norm * 0.01)
+            else:
+                 nn.utils.clip_grad_norm_( [p for p in self.policy.actor.slot_attn.parameters() if p.requires_grad], self.max_grad_norm * 0.01)
         else:
             actor_grad_norm = get_gard_norm(actor_parameters)
 
@@ -233,7 +223,7 @@ class R_MAPPO():
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
 
         self.policy.critic_optimizer.step()
-        
+        del actor_parameters
         return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
 

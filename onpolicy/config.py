@@ -437,5 +437,4 @@ def get_config():
 
     parser.add_argument('--collect_data_mi', type=int, default=50000)
     parser.add_argument('--fine_tuning_type', type=str, default="Lora")
-    parser.add_argument ('--weight_l2_regularizer', type=float, default=0.1)
     return parser
