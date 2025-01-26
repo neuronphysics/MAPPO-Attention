@@ -201,6 +201,9 @@ class R_MAPPO():
 
             policy_loss += l2_regularizer *l2_loss
             actor_parameters.extend(tuned_params)
+            del tuned_params
+            del l2_loss  # We can also delete l2_loss since it's been added to policy_loss
+            torch.cuda.empty_cache()  # Clean up GPU memory
         else:
             actor_parameters =  self.policy.actor.parameters()
 
@@ -243,6 +246,9 @@ class R_MAPPO():
 
         :return train_info: (dict) contains information regarding training update (e.g. loss, grad norms, etc).
         """
+        if hasattr(torch.cuda, 'memory_reserved'):
+           torch.cuda.memory_reserved(0)  # Clear memory reserves
+
         if self._use_popart or self._use_valuenorm:
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(buffer.value_preds[:-1])
         else:
@@ -285,7 +291,7 @@ class R_MAPPO():
                 if self.use_slot_att and slot_att_loss:
                     train_info['slot_att_loss'] += slot_att_loss
 
-                if (idx == self.ppo_epoch - 1) and (self.total_updates == self.args.episode_length - 1):
+                if (idx == self.ppo_epoch - 1) and (self.total_updates % 100 == 0):
 
                     train_info['dormant_ratio_actor_net'] += self.dormant_tracker.calculate_dormant_ratio("activation")
 

@@ -68,14 +68,14 @@ class R_Actor(nn.Module):
             model = generate_model(args)
             print(model.state_dict().keys())
 
-            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "slot_attn.slot_attention.project_v", "tf_dec.blocks.3.encoder_decoder_attn.proj_o", "slot_attn.slot_attention.mlp.2", "slot_proj"]
+            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "slot_attn.slot_attention.project_v", "slot_attn.slot_attention.mlp.2", "slot_proj"]
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
-                    r=16,  # Rank of the low-rank update
-                    lora_alpha=16,  # Scaling factor
-                    lora_dropout=0.5,  # Dropout probability
+                    r=8,  # Rank of the low-rank update
+                    lora_alpha=8,  # Scaling factor
+                    lora_dropout=0.2,  # Dropout probability
                     target_modules=list_modules,  # Target specific layers
                     init_lora_weights="gaussian",
                     bias="none"
@@ -163,6 +163,8 @@ class R_Actor(nn.Module):
 
         # expect actor_feature (batch, input_size) rnn_state (1, batch, hidden_size)
         actor_features, rnn_states = output[:2]
+        del output  # Delete output after extracting needed values
+
         if self.use_attention and self.rnn_attention_module == "LSTM":
             rnn_cells = output[-1]
         else:
@@ -223,6 +225,7 @@ class R_Actor(nn.Module):
             actor_features = actor_features.reshape(batch, -1)
             actor_features = self.slot_att_layer_norm(actor_features)
             torch.cuda.empty_cache()
+            del features  # Add this
         else:
             actor_features = self.base(obs)
 
@@ -238,6 +241,7 @@ class R_Actor(nn.Module):
                     output = (x, h)
 
         actor_features, rnn_states = output[:2]
+        del output  # Delete output after extracting needed values
 
         if self.algo == "hatrpo":
             action_log_probs, dist_entropy, action_mu, action_std, all_probs = self.act.evaluate_actions_trpo(
@@ -254,7 +258,8 @@ class R_Actor(nn.Module):
                                                                        active_masks=
                                                                        active_masks if self._use_policy_active_masks
                                                                        else None)
-
+        del actor_features
+        torch.cuda.empty_cache()
         return action_log_probs, dist_entropy
 
     def train_slot_att(self, obs, cur_ppo_idx, optimizer, scheduler):
@@ -317,7 +322,7 @@ class R_Actor(nn.Module):
             scheduler.step(self.global_step)
             slot_att_total_loss += minibatch_loss.detach().item()
             # Accumulate the loss            
-
+        torch.cuda.empty_cache()
         return slot_att_total_loss  # Scale the loss back up for reporting
 
 
