@@ -13,7 +13,7 @@ import json
 from collections import defaultdict
 
 class DormantNeuronTracker:
-    def __init__(self, model, threshold=0.01):
+    def __init__(self, model, threshold=0.001):
         """
         Initialize the tracker for dormant neurons.
         Args:
@@ -77,12 +77,15 @@ class DormantNeuronTracker:
             with torch.no_grad():
                 if isinstance(output, tuple):
                     output = output[0]
-                mean_activation = output.mean(dim=[0, 1])  # Batch and spatial dimensions
+                if isinstance(module, nn.Conv2d):
+                   mean_activation = output.mean(dim=[0, 2, 3])  # Batch and spatial dimensions
+                else:
+                   mean_activation = output.mean(dim=0)  
                 dormant_indices = (mean_activation < self.threshold).nonzero(as_tuple=True)[0].tolist()
                 self.dormant_neurons["activation"][layer_name] = dormant_indices
                 # Clean up
                 del mean_activation, dormant_indices
-                torch.cuda.empty_cache()
+                
         return hook
 
     ### Unified Helper Functions ###
@@ -96,13 +99,14 @@ class DormantNeuronTracker:
             raise ValueError(f"Invalid mode: {mode}. Choose 'activation' or 'weight_update'.")
         dormant_count = 0
         if mode == "weight_update":
+            dormant_count = 0
             for name, indices in self.dormant_neurons_weight.items():
                 # `indices` are the dormant neuron indices for the given layer
                 dormant_count += len(indices)  # Count dormant neurons
-                total_count = self.total_neuron
-                print(f"Dormant Count: {dormant_count}, Total Neuron Count: {total_count}")
-                return dormant_count / total_count if total_count > 0 else 0
-        else:
+            total_count = self.total_neuron
+            print(f"Dormant Count: {dormant_count}, Total Neuron Count: {total_count}")
+            return dormant_count / total_count if total_count > 0 else 0
+        else:# mode == "activation"
             dormant_count = sum(len(indices) for indices in self.dormant_neurons[mode].values())
             total_count = self.total_neuron
             print(f"Dormant Count: {dormant_count}, Total Neuron Count: {total_count}")
@@ -152,6 +156,20 @@ class DormantNeuronTracker:
             print(f"{name}: {module}")
 
 
+@torch.no_grad()
+def _lecun_normal_reinit(layer: nn.Linear | nn.Conv2d, mask: torch.Tensor) -> None:
+    """Partially re-initializes the bias of a layer according to the Lecun normal scheme."""
+
+    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
+
+    # This implementation follows the jax one
+    # https://github.com/google/jax/blob/366a16f8ba59fe1ab59acede7efd160174134e01/jax/_src/nn/initializers.py#L260
+    variance = 1.0 / fan_in
+    stddev = math.sqrt(variance) / 0.87962566103423978
+    layer.weight[mask] = nn.init._no_grad_trunc_normal_(layer.weight[mask], mean=0.0, std=1.0, a=-2.0, b=2.0)
+    layer.weight[mask] *= stddev
+    if layer.bias is not None:
+        layer.bias.data[mask] = 0.0
 
 
 def print_trainable_parameters(model):
