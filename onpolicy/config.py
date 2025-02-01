@@ -437,14 +437,4 @@ def get_config():
 
     parser.add_argument('--collect_data_mi', type=int, default=50000)
     parser.add_argument('--fine_tuning_type', type=str, default="Lora")
-    ###
-    parser.add_argument("--optimizer_type", type=str, default="Adam",
-                       choices=["Adam", "AdObGD"],
-                       help="Type of optimizer to use")
-    # AdObGD specific arguments
-    parser.add_argument("--kappa", type=float, default=2.0,
-                       help="Overshooting bound scaling factor for AdObGD")
-    parser.add_argument("--beta2", type=float, default=0.999,
-                       help="Second moment decay rate for AdObGD")
-    
     return parser
