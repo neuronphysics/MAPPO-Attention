@@ -156,22 +156,293 @@ class DormantNeuronTracker:
             print(f"{name}: {module}")
 
 
-@torch.no_grad()
-def _lecun_normal_reinit(layer: nn.Linear | nn.Conv2d, mask: torch.Tensor) -> None:
-    """Partially re-initializes the bias of a layer according to the Lecun normal scheme."""
+class ObGD(torch.optim.Optimizer):
+    def __init__(self, params, lr=1.0, gamma=0.99, lamda=0.8, kappa=2.0):
+        defaults = dict(lr=lr, gamma=gamma, lamda=lamda, kappa=kappa)
+        super(ObGD, self).__init__(params, defaults)
+    def step(self, delta, reset=False):
+        z_sum = 0.0
+        for group in self.param_groups:
+            for p in group["params"]:
+                state = self.state[p]
+                if len(state) == 0:
+                    state["eligibility_trace"] = torch.zeros_like(p.data)
+                e = state["eligibility_trace"]
+                e.mul_(group["gamma"] * group["lamda"]).add_(p.grad, alpha=1.0)
+                z_sum += e.abs().sum().item()
 
-    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
+        delta_bar = max(abs(delta), 1.0)
+        dot_product = delta_bar * z_sum * group["lr"] * group["kappa"]
+        if dot_product > 1:
+            step_size = group["lr"] / dot_product
+        else:
+            step_size = group["lr"]
 
-    # This implementation follows the jax one
-    # https://github.com/google/jax/blob/366a16f8ba59fe1ab59acede7efd160174134e01/jax/_src/nn/initializers.py#L260
-    variance = 1.0 / fan_in
-    stddev = math.sqrt(variance) / 0.87962566103423978
-    layer.weight[mask] = nn.init._no_grad_trunc_normal_(layer.weight[mask], mean=0.0, std=1.0, a=-2.0, b=2.0)
-    layer.weight[mask] *= stddev
-    if layer.bias is not None:
-        layer.bias.data[mask] = 0.0
+        for group in self.param_groups:
+            for p in group["params"]:
+                state = self.state[p]
+                e = state["eligibility_trace"]
+                p.data.add_(delta * e, alpha=-step_size)
+                if reset:
+                    e.zero_()
 
+class AdaptiveObGD(torch.optim.Optimizer):
+    def __init__(self, params, lr=1.0, gamma=0.99, lamda=0.8, kappa=2.0, beta2=0.999, eps=1e-8):
+        defaults = dict(lr=lr, gamma=gamma, lamda=lamda, kappa=kappa, beta2=beta2, eps=eps)
+        self.counter = 0
+        super(AdaptiveObGD, self).__init__(params, defaults)
+    def step(self, delta, reset=False):
+        z_sum = 0.0
+        self.counter += 1
+        for group in self.param_groups:
+            for p in group["params"]:
+                state = self.state[p]
+                if len(state) == 0:
+                    state["eligibility_trace"] = torch.zeros_like(p.data)
+                    state["v"] = torch.zeros_like(p.data)
+                e, v = state["eligibility_trace"], state["v"]
+                e.mul_(group["gamma"] * group["lamda"]).add_(p.grad, alpha=1.0)
 
+                v.mul_(group["beta2"]).addcmul_(delta*e, delta*e, value=1.0 - group["beta2"])
+                v_hat = v / (1.0 - group["beta2"] ** self.counter)
+                z_sum += (e / (v_hat + group["eps"]).sqrt()).abs().sum().item()
+
+        delta_bar = max(abs(delta), 1.0)
+        dot_product = delta_bar * z_sum * group["lr"] * group["kappa"]
+        if dot_product > 1:
+            step_size = group["lr"] / dot_product
+        else:
+            step_size = group["lr"]
+
+        for group in self.param_groups:
+            for p in group["params"]:
+                state = self.state[p]
+                v, e = state["v"], state["eligibility_trace"]
+                v_hat = v / (1.0 - group["beta2"] ** self.counter)
+                p.data.addcdiv_(delta * e, (v_hat + group["eps"]).sqrt(), value=-step_size)
+                if reset:
+                    e.zero_()
+
+class AdObGD(torch.optim.Optimizer):
+    """
+    Adaptive Overshooting-bounded Gradient Descent (AdObGD) optimizer.
+    
+    This optimizer combines three key ideas:
+    1. Overshooting prevention through adaptive stepsize bounds
+    2. Eligibility traces for temporal credit assignment
+    3. Adam-style adaptive learning rates using trace information
+    
+    The optimizer prevents parameter updates from overshooting by:
+    - Computing effective stepsizes based on eligibility traces
+    - Applying adaptive bounds based on TD errors
+    - Using second-moment estimation for parameter-wise scaling
+    """
+    def __init__(
+        self, 
+        params, 
+        lr=1.0,
+        gamma=0.99,
+        lamda=0.8,
+        kappa=2.0,
+        beta2=0.999,
+        eps=1e-8,
+        max_grad_norm=None,
+        monitor_stats=False,
+        min_stepsize=1e-7  # New parameter for numerical stability
+    ):
+        self.max_grad_norm = max_grad_norm
+        self.min_stepsize = min_stepsize
+        
+        defaults = dict(
+            lr=lr,
+            gamma=gamma,
+            lamda=lamda,
+            kappa=kappa,
+            beta2=beta2,
+            eps=eps
+        )
+        
+        super(AdObGD, self).__init__(params, defaults)
+        
+        self.monitor_stats = monitor_stats
+        if monitor_stats:
+            self.step_stats = {
+                'trace_resets': 0,
+                'effective_stepsize': [],
+                'actual_stepsize': [],
+                'trace_norms': [],
+                'gradient_norms': [],
+                'skipped_updates': 0  # Track skipped updates
+            }
+
+    def _validate_error(self, error):
+        """
+        Validate the error term for correctness.
+        
+        Args:
+            error: The error term (TD error or policy gradient error)
+            
+        Raises:
+            ValueError: If error is None or non-scalar
+            TypeError: If error is not a number or tensor
+        """
+        if error is None:
+            raise ValueError("Error value must be provided")
+            
+        if torch.is_tensor(error):
+            if error.numel() != 1:
+                raise ValueError("Error tensor must be scalar")
+            error = error.detach().item()
+        elif not isinstance(error, (float, int)):
+            raise TypeError("Error must be a number or scalar tensor")
+            
+        return float(error)
+
+    def compute_effective_stepsize(self, grad, state, group):
+        """
+        Compute effective stepsize with numerical stability checks.
+        
+        Args:
+            grad: Parameter gradient
+            state: Parameter state dictionary
+            group: Parameter group containing hyperparameters
+            
+        Returns:
+            float: Computed effective stepsize or 0 if update should be skipped
+        """
+        if 'eligibility_trace' in state:
+            param_norm = state['eligibility_trace'].abs().sum().item()
+        else:
+            param_norm = grad.abs().sum().item()
+            
+        # Check for numerical stability
+        if param_norm < self.min_stepsize:
+            if self.monitor_stats:
+                self.step_stats['skipped_updates'] += 1
+            return 0.0
+            
+        effective_stepsize = group['lr'] * group['kappa'] * param_norm
+        
+        if self.monitor_stats:
+            self.step_stats['effective_stepsize'].append(effective_stepsize)
+            
+        return effective_stepsize
+
+    @torch.no_grad()
+    def step(self, error=None, reset_trace=False):
+        """
+        Perform a single optimization step with enhanced stability.
+        """
+        # Validate and process error term
+        error_value = self._validate_error(error)
+        
+        # Global gradient clipping
+        if self.max_grad_norm is not None:
+            all_params = []
+            for group in self.param_groups:
+                all_params.extend(p for p in group['params'] if p.grad is not None)
+            if all_params:
+                total_norm = torch.nn.utils.clip_grad_norm_(
+                    all_params, 
+                    self.max_grad_norm
+                )
+                if self.monitor_stats:
+                    self.step_stats['gradient_norms'].append(total_norm.item())
+
+        for group in self.param_groups:
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                    
+                grad = p.grad
+                state = self.state[p]
+
+                # Initialize state if needed
+                if len(state) == 0:
+                    state['eligibility_trace'] = torch.zeros_like(p.data)
+                    state['squared_avg'] = torch.zeros_like(p.data)
+                    state['step_count'] = 0
+
+                state['step_count'] += 1
+
+                # Update eligibility trace
+                state['eligibility_trace'].mul_(
+                    group['gamma'] * group['lamda']
+                ).add_(grad)
+                
+                if self.monitor_stats:
+                    self.step_stats['trace_norms'].append(
+                        state['eligibility_trace'].norm().item()
+                    )
+                
+                # Compute stepsize with stability checks
+                effective_stepsize = self.compute_effective_stepsize(
+                    grad, state, group
+                )
+                
+                # Skip update if effective stepsize is too small
+                if effective_stepsize == 0:
+                    continue
+                    
+                # Compute bounded stepsize
+                delta_bar = max(abs(error_value), 1.0)
+                M = delta_bar * effective_stepsize
+                step_size = min(group['lr'] / M, group['lr'])
+                
+                if self.monitor_stats:
+                    self.step_stats['actual_stepsize'].append(step_size)
+
+                # Update squared average with proper bias correction
+                beta2 = group['beta2']
+                state['squared_avg'].mul_(beta2).addcmul_(
+                    state['eligibility_trace'], 
+                    state['eligibility_trace'],
+                    value=1 - beta2
+                )
+                
+                bias_correction = 1 - beta2 ** state['step_count']
+                v_hat = state['squared_avg'] / bias_correction
+
+                # Apply parameter update with enhanced numerical stability
+                denom = v_hat.sqrt().add_(group['eps'])
+                p.data.addcdiv_(
+                    state['eligibility_trace'],
+                    denom,
+                    value=-step_size * error_value
+                )
+                
+                if reset_trace:
+                    for group in self.param_groups:
+                        for p in group['params']:
+                            if 'eligibility_trace' in self.state[p]:
+                               self.state[p]['eligibility_trace'].zero_()
+                    
+                               if self.monitor_stats:
+                                  self.step_stats['trace_resets'] += 1
+
+        return None
+    
+    def get_monitoring_summary(self):
+        """
+        Get a detailed summary of optimization statistics.
+        
+        Returns:
+            dict: Summary statistics including means, std devs, and counts
+        """
+        if not self.monitor_stats:
+            raise RuntimeError("Statistics monitoring is not enabled")
+            
+        stats = {}
+        for key, values in self.step_stats.items():
+            if isinstance(values, list) and values:
+                stats[f"{key}_mean"] = np.mean(values)
+                stats[f"{key}_std"] = np.std(values)
+                stats[f"{key}_count"] = len(values)
+            else:
+                stats[key] = values
+                
+        return stats
+    
 def print_trainable_parameters(model):
     """
     Prints the number of trainable parameters in the model.

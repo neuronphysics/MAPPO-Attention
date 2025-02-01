@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
-from onpolicy.algorithms.utils.util import check, DormantNeuronTracker
+from onpolicy.algorithms.utils.util import check, DormantNeuronTracker, AdObGD
 from torch.utils.checkpoint import checkpoint
 import torch.distributed as dist
 class R_MAPPO():
@@ -152,6 +152,8 @@ class R_MAPPO():
         return_batch = check(return_batch).to(**self.tpdv)
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
         obs_batch = check(obs_batch).to(**self.tpdv)
+        # In MAPPO, masks are typically 0 at episode boundaries and 1 otherwise
+        episode_done = (1.0 - masks_batch).bool()
 
         torch.cuda.empty_cache()
         # Reshape to do in a single forward pass for all steps
@@ -181,29 +183,34 @@ class R_MAPPO():
 
         policy_loss = policy_action_loss
 
-        self.policy.actor_optimizer.zero_grad()
+        
         if update_actor:
-            total_loss = (policy_loss - dist_entropy * self.entropy_coef)
-            total_loss.backward()
+            self.policy.actor_optimizer.zero_grad()
+            actor_loss = (policy_loss - dist_entropy * self.entropy_coef)
 
-        if self.args.use_slot_att:
-            actor_parameters = [ param for name, param in self.policy.actor.named_parameters() 
-                   if not hasattr(self.policy.actor, 'slot_attn') or not name.startswith('slot_attn.')]
-            
-            torch.cuda.empty_cache()  # Clean up GPU memory
-        else:
-            actor_parameters =  self.policy.actor.parameters()
-
-
+            if isinstance(self.policy.actor_optimizer, AdObGD):
+                # For AdObGD, use importance weight statistics as error signal
+                # Reset if any sequence in batch ended
+                error_signal = imp_weights.mean().item()
+                actor_loss.backward()
+                actor_grad_norm = self.policy.actor_optimizer.step(
+                    error=error_signal,
+                    reset_trace=(
+                    self.policy._use_recurrent_policy and 
+                    episode_done.any() )
+                )
+            else:
+                # Standard Adam update
+                actor_loss.backward()
+                if self._use_max_grad_norm:
+                    actor_grad_norm = nn.utils.clip_grad_norm_(
+                        self.policy.actor.parameters(),
+                        self.max_grad_norm
+                    )
+                self.policy.actor_optimizer.step()
        
-        if self._use_max_grad_norm:
-            actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
-            if self.args.use_slot_att:
-               if self.args.fine_tuning_type == "Lora":
-                   nn.utils.clip_grad_norm_( [p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n], self.max_grad_norm * 0.01)
-               else:
-                   nn.utils.clip_grad_norm_( [p for p in self.policy.actor.slot_attn.parameters() if p.requires_grad], self.max_grad_norm * 0.01)
-        else:
+        if not self._use_max_grad_norm and isinstance(self.policy.actor_optimizer, torch.optim.Adam):
+            
             actor_grad_norm = get_gard_norm(actor_parameters)
 
         self.policy.actor_optimizer.step()

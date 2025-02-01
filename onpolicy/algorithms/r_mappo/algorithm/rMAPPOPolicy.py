@@ -2,7 +2,7 @@ import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
-
+from onpolicy.algorithms.utils.util import AdObGD
 
 class R_MAPPOPolicy:
     """
@@ -32,12 +32,30 @@ class R_MAPPOPolicy:
 
         # actor_parameters = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
         # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
-
-        actor_params = list(self.actor.base.parameters()) + list(self.actor.rnn.parameters()) + list(
-            self.actor.act.parameters())
-        self.actor_optimizer = torch.optim.Adam(actor_params,
-                                                lr=self.lr, eps=self.opti_eps,
-                                                weight_decay=self.weight_decay)
+        if not self.use_slot_att:
+            actor_params = list(self.actor.base.parameters()) + list(self.actor.rnn.parameters()) + list(
+                 self.actor.act.parameters())
+        else:
+            if args.fine_tuning_type=="Lora":
+                actor_params = list(self.actor.base.parameters()) + list(self.actor.rnn.parameters())+list(p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n)
+            else:
+                actor_params = list(self.actor.base.parameters()) + list(self.actor.rnn.parameters())+list(p for p in self.policy.actor.slot_attn.parameters() if p.requires_grad)
+        if args.optimizer_type=="Adam":
+            self.actor_optimizer = torch.optim.Adam(actor_params,
+                                                    lr=self.lr, eps=self.opti_eps,
+                                                    weight_decay=self.weight_decay)
+        else:
+            self.actor_optimizer = AdObGD(
+                actor_params,
+                lr=self.lr,
+                gamma=args.gamma,
+                lamda=args.gae_lambda,
+                kappa=args.kappa,
+                beta2=args.beta2,
+                eps=self.opti_eps,
+                max_grad_norm=args.max_grad_norm,
+                monitor_stats=True
+            )
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
                                                  lr=self.critic_lr,
                                                  eps=self.opti_eps,
