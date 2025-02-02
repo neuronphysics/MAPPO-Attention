@@ -156,20 +156,6 @@ class DormantNeuronTracker:
             print(f"{name}: {module}")
 
 
-@torch.no_grad()
-def _lecun_normal_reinit(layer: nn.Linear | nn.Conv2d, mask: torch.Tensor) -> None:
-    """Partially re-initializes the bias of a layer according to the Lecun normal scheme."""
-
-    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
-
-    # This implementation follows the jax one
-    # https://github.com/google/jax/blob/366a16f8ba59fe1ab59acede7efd160174134e01/jax/_src/nn/initializers.py#L260
-    variance = 1.0 / fan_in
-    stddev = math.sqrt(variance) / 0.87962566103423978
-    layer.weight[mask] = nn.init._no_grad_trunc_normal_(layer.weight[mask], mean=0.0, std=1.0, a=-2.0, b=2.0)
-    layer.weight[mask] *= stddev
-    if layer.bias is not None:
-        layer.bias.data[mask] = 0.0
 
 
 def print_trainable_parameters(model):
