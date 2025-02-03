@@ -183,26 +183,21 @@ class R_MAPPO():
 
         self.policy.actor_optimizer.zero_grad()
         if update_actor:
+            
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
+
+            if self.use_slot_att:
+                slot_att_loss= (self.policy.actor.slot_orthoganility_loss + self.policy.actor.slot_consistency_loss)
+                total_loss += slot_att_loss
             total_loss.backward()
 
-        if self.args.use_slot_att:
-            actor_parameters = [ param for name, param in self.policy.actor.named_parameters() 
-                   if not hasattr(self.policy.actor, 'slot_attn') or not name.startswith('slot_attn.')]
-            
-            torch.cuda.empty_cache()  # Clean up GPU memory
-        else:
-            actor_parameters =  self.policy.actor.parameters()
+        actor_parameters =  self.policy.actor.parameters()
 
 
        
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
-            if self.args.use_slot_att:
-               if self.args.fine_tuning_type == "Lora":
-                   nn.utils.clip_grad_norm_( [p for n, p in self.policy.actor.slot_attn.named_parameters() if 'lora' in n], self.max_grad_norm * 0.01)
-               else:
-                   nn.utils.clip_grad_norm_( [p for p in self.policy.actor.slot_attn.parameters() if p.requires_grad], self.max_grad_norm * 0.01)
+            
         else:
             actor_grad_norm = get_gard_norm(actor_parameters)
 
@@ -223,9 +218,11 @@ class R_MAPPO():
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
 
         self.policy.critic_optimizer.step()
-        del actor_parameters
-        return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
-
+        if not self.use_slot_att:
+           del actor_parameters
+           return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
+        else:
+           return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss
 
 
     def train(self, buffer, update_actor=True):
@@ -270,18 +267,17 @@ class R_MAPPO():
                 data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
 
             for sample in data_generator:
-                value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
+                if not self.use_slot_att:
+                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
                         = self.ppo_update(idx, sample, update_actor)
+                else:   
 
-                slot_att_loss = None
-                if self.use_slot_att and idx == self.ppo_epoch - 1:
-                    obs_batch = sample[1]
-                    slot_att_loss = self.policy.actor.train_slot_att(obs_batch, idx, optimizer=self.policy.slot_att_optimizer,
-                                                                     scheduler=self.policy.slot_att_scheduler)
-                if self.use_slot_att and slot_att_loss:
+                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss \
+                        = self.ppo_update(idx, sample, update_actor)
                     train_info['slot_att_loss'] += slot_att_loss
 
-                if (idx == self.ppo_epoch - 1) and (self.total_updates % 100 == 0):
+
+                if self.total_updates % 100 == 0:
 
                     train_info['dormant_ratio_actor_net'] += self.dormant_tracker.calculate_dormant_ratio("activation")
 

@@ -144,9 +144,12 @@ class R_Actor(nn.Module):
             batch, _, _, _ = obs.shape
 
             # your slot attention or other GPU-intensive tasks
-            actor_features = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train=False,
-                                            visualize=False)['slots'].reshape(batch, -1)
+            slot_outputs = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train= True,
+                                            visualize=False)
             
+            self.slot_consistency_loss = slot_outputs['loss']['compositional_consistency_loss'].item()
+            self.slot_orthoganility_loss = slot_outputs['sim_loss']
+            actor_features =slot_outputs['slots'].reshape(batch, -1)
             actor_features = self.slot_att_layer_norm(actor_features)
 
         else:
@@ -214,7 +217,8 @@ class R_Actor(nn.Module):
                 features = torch.cat([
                        self.slot_attn(
                            obs_minibatch.permute(0, 3, 1, 2),
-                           tau=self.tau, sigma=self.sigma
+                           tau=self.tau, sigma=self.sigma,
+                           is_Train=False, visualize=False
                        )["slots"]
                        for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
                 ])
