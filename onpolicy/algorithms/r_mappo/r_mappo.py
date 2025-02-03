@@ -277,7 +277,7 @@ class R_MAPPO():
                     train_info['slot_att_loss'] += slot_att_loss
 
 
-                if self.total_updates % 100 == 0:
+                if (self.total_updates % 50 == 0) and (idx == self.ppo_epoch - 1):
 
                     train_info['dormant_ratio_actor_net'] += self.dormant_tracker.calculate_dormant_ratio("activation")
 

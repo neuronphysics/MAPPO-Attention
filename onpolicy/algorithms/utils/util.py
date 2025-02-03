@@ -26,8 +26,8 @@ class DormantNeuronTracker:
         self.dormant_neurons_weight = defaultdict(list)
         self.total_neurons = {"activation": 0}
         self.total_neuron = 0
-        self.prev_weights = None
-        self.current_weights = None
+
+
     def clear_activation_data(self):
         """
         Clear all activation-based dormant neuron tracking data.
@@ -49,7 +49,16 @@ class DormantNeuronTracker:
                     has_lora = any('lora' in n for n, p in module.named_parameters())
                     
                     if is_trainable or has_lora:
-                       total_count += module.weight.shape[0]
+                        # Handle different layer types
+                        if isinstance(module, nn.Embedding):
+                            num_neurons = module.embedding_dim  # CORRECT: embedding dimension
+                        elif isinstance(module, nn.Conv2d):
+                            num_neurons = module.out_channels
+                        elif isinstance(module, nn.Linear):
+                            num_neurons = module.out_features
+                        elif isinstance(module, nn.LayerNorm):
+                            num_neurons = module.normalized_shape[0]
+                        total_count += num_neurons  # CORRECT COUNTING
                        
         self.total_neurons["activation"] = total_count
         self.total_neuron = total_count
@@ -78,9 +87,12 @@ class DormantNeuronTracker:
                 if isinstance(output, tuple):
                     output = output[0]
                 if isinstance(module, nn.Conv2d):
-                   mean_activation = output.mean(dim=[0, 2, 3])  # Batch and spatial dimensions
+                    mean_activation = output.mean(dim=[0, 2, 3])  # Batch and spatial dimensions
+                elif isinstance(module, nn.Embedding):
+                    mean_activation = output.mean(dim=[0,1])
                 else:
-                   mean_activation = output.mean(dim=0)  
+                    # Mean over ALL dimensions except last (features)
+                    mean_activation = output.mean(dim=tuple(range(output.ndim - 1)))
                 dormant_indices = (mean_activation < self.threshold).nonzero(as_tuple=True)[0].tolist()
                 self.dormant_neurons["activation"][layer_name] = dormant_indices
                 # Clean up
@@ -110,7 +122,9 @@ class DormantNeuronTracker:
             dormant_count = sum(len(indices) for indices in self.dormant_neurons[mode].values())
             total_count = self.total_neuron
             print(f"Dormant Count: {dormant_count}, Total Neuron Count: {total_count}")
-            return dormant_count / total_count if total_count > 0 else 0
+            ratio = dormant_count / total_count if total_count > 0 else 0
+            assert ratio <= 1.0, "Dormant ratio exceeds 1.0"
+            return ratio
 
     def save(self, path, mode):
         """
