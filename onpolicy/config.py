@@ -437,4 +437,15 @@ def get_config():
 
     parser.add_argument('--collect_data_mi', type=int, default=50000)
     parser.add_argument('--fine_tuning_type', type=str, default="Lora")
+    # Weight clipping parameters
+    parser.add_argument("--weight_clipping_beta", type=float, default=3.0,
+                       help="Weight clipping multiplier relative to initialization bounds")
+    parser.add_argument("--lora_beta", type=float, default=1.0,
+                       help="Separate clipping multiplier for LoRA layers")
+    parser.add_argument("--clip_last_layer", type=bool, default=True,
+                       help="Whether to apply clipping to the last layer")
+    # Add slot attention loss coefficient
+    parser.add_argument("--slot_att_loss_coef", type=float, default=0.05,
+                       help="Coefficient for slot attention loss terms")
+
     return parser

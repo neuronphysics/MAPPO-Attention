@@ -188,7 +188,7 @@ class R_MAPPO():
 
             if self.use_slot_att:
                 slot_att_loss= (self.policy.actor.slot_orthoganility_loss + self.policy.actor.slot_consistency_loss)
-                total_loss += slot_att_loss
+                total_loss += self.args.slot_att_loss_coef*slot_att_loss
             total_loss.backward()
 
         actor_parameters =  self.policy.actor.parameters()
