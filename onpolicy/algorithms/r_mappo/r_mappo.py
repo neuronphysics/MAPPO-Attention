@@ -188,7 +188,7 @@ class R_MAPPO():
 
             if self.use_slot_att:
                 slot_att_loss= (self.policy.actor.slot_orthoganility_loss + self.policy.actor.slot_consistency_loss)
-                total_loss += self.args.slot_att_loss_coef*slot_att_loss
+                total_loss += self.args.slot_attn_loss_coef * slot_att_loss
             total_loss.backward()
 
         actor_parameters =  self.policy.actor.parameters()
@@ -277,7 +277,7 @@ class R_MAPPO():
                     train_info['slot_att_loss'] += slot_att_loss
 
 
-                if (self.total_updates % 50 == 0) and (idx == self.ppo_epoch - 1):
+                if (idx == self.ppo_epoch - 1) and (self.total_updates % 100 == 0):
 
                     train_info['dormant_ratio_actor_net'] += self.dormant_tracker.calculate_dormant_ratio("activation")
 

@@ -2,7 +2,7 @@ import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
-from onpolicy.algorithms.utils.weight_clipping import WeightClipping
+from onpolicy.algorithms.utils.weight_clipping import InitBounds, WeightClipping
 
 class R_MAPPOPolicy:
     """
@@ -30,28 +30,22 @@ class R_MAPPOPolicy:
         self.actor = R_Actor(args, self.obs_space, self.act_space, self.device)
         self.critic = R_Critic(args, self.share_obs_space, self.device)
 
+        # actor_parameters = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
+        # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
+
         
+        self.actor_optimizer = WeightClipping(self.actor.named_parameters(), 
+                                               optimizer=torch.optim.AdamW,
+                                                beta=args.clip_beta,
+                                                lr=self.lr, 
+                                                eps=self.opti_eps,
+                                                weight_decay=self.weight_decay)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
                                                  lr=self.critic_lr,
                                                  eps=self.opti_eps,
                                                  weight_decay=self.weight_decay)
+
         
-        # Create weight clipping optimizers with named parameters
-        self.actor_optimizer = WeightClipping(
-                                              self.actor.named_parameters(),  # Pass named parameters for proper tracking
-                                              beta=args.weight_clipping_beta,  # Add this to args
-                                              lora_beta=args.lora_beta if hasattr(args, 'lora_beta') else None,  # Add this to args
-                                              optimizer_class=torch.optim.Adam,
-                                              clip_last_layer=args.clip_last_layer,  # Add this to args
-                                              lr=self.lr,
-                                              eps=self.opti_eps,
-                                              weight_decay=self.weight_decay
-                                             )
-
-
-        if args.use_slot_att:
-            self.slot_att_optimizer, self.slot_att_scheduler = configure_optimizers(self.actor.slot_attn, args)
-
     def lr_decay(self, episode, episodes):
         """
         Decay the actor and critic learning rates.
