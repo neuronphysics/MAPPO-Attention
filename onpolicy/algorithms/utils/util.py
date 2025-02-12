@@ -169,7 +169,63 @@ class DormantNeuronTracker:
         for name, module in self.model.named_modules():
             print(f"{name}: {module}")
 
+def get_optimizer_groups(model, args):
+    """Enhanced parameter grouping with explicit base encoder handling"""
+    params = []
+    param_groups = {
+        'slot_lora': [],
+        'slot': [],
+        'other': [],
+        'frozen': []
+    }
 
+    # Categorize parameters
+    for name, param in model.named_parameters():
+        module = name.split('.')[0]
+        if not param.requires_grad:
+            param_groups['frozen'].append(param)
+            continue
+            
+        if 'slot_attn' in name:
+            if 'lora_' in name:
+                param_groups['slot_lora'].append(param)
+            else:
+                param_groups['slot'].append(param)
+        else:
+            param_groups['other'].append(param)
+
+    print("\nParameter Group Statistics:")
+    for group_name, group_params in param_groups.items():
+        if group_name == 'frozen':
+            num_params = len(group_params)
+            total_params = sum(p[1].numel() for p in group_params)  # p[1] since we stored (name, param)
+            print(f"Frozen layers: {num_params} layers, {total_params} parameters")
+        else:
+            num_params = len(group_params)
+            total_params = sum(p.numel() for p in group_params)
+            print(f"{group_name}: {num_params} layers, {total_params} parameters")
+
+    # Create parameter groups
+    lr_mapping = {
+        'slot_lora': args.lr_main,
+        'slot': args.lr_main,
+        'other': args.lr
+    }
+
+    for group_type in ['slot_lora', 'slot', 'other']:
+        if param_groups[group_type]:
+            params.append({
+                'params': param_groups[group_type],
+                'lr': lr_mapping[group_type],
+                'name': group_type
+            })
+
+    # Validation and reporting
+    total_trainable = sum(p.numel() for group in params for p in group['params'])
+    if total_trainable == 0:
+        raise RuntimeError("No trainable parameters - check fine-tuning config")
+        
+    return params
 
 
 def print_trainable_parameters(model):

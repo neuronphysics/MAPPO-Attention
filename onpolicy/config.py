@@ -434,8 +434,6 @@ def get_config():
     parser.add_argument('--lambda_c', type=float, default=0.1)
     parser.add_argument('--lr_main', type=float, default=1e-4)
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
-
-    parser.add_argument('--clip_beta', type=float, default= 2.0, help='Weight Clipping beta value')
     parser.add_argument('--slot_attn_loss_coef', type=float, default= 0.05, help='Slot Attention Loss Coefficient')
     parser.add_argument('--collect_data_mi', type=int, default=50000)
     parser.add_argument('--fine_tuning_type', type=str, default="Lora")

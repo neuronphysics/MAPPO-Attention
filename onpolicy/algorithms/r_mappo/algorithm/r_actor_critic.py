@@ -73,8 +73,8 @@ class R_Actor(nn.Module):
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
-                    r=8,  # Rank of the low-rank update
-                    lora_alpha=8,  # Scaling factor
+                    r=16,  # Rank of the low-rank update
+                    lora_alpha=16,  # Scaling factor
                     lora_dropout=0.2,  # Dropout probability
                     target_modules=list_modules,  # Target specific layers
                     init_lora_weights="gaussian",

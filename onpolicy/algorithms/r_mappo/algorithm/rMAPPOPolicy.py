@@ -2,7 +2,7 @@ import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
-from onpolicy.algorithms.utils.weight_clipping import InitBounds, WeightClipping
+from onpolicy.algorithms.utils.util import get_optimizer_groups
 
 class R_MAPPOPolicy:
     """
@@ -34,12 +34,9 @@ class R_MAPPOPolicy:
         # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
 
         
-        self.actor_optimizer = WeightClipping(self.actor.named_parameters(), 
-                                               optimizer=torch.optim.AdamW,
-                                                beta=args.clip_beta,
-                                                lr=self.lr, 
-                                                eps=self.opti_eps,
-                                                weight_decay=self.weight_decay)
+        self.actor_optimizer = torch.optim.AdamW(get_optimizer_groups(self.actor.parameters(), args),
+                                                 eps=self.opti_eps,
+                                                 weight_decay=self.weight_decay)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
                                                  lr=self.critic_lr,
                                                  eps=self.opti_eps,
