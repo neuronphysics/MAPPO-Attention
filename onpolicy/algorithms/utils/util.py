@@ -11,6 +11,13 @@ from torch.utils.data import Dataset
 import torch.distributed as dist
 import json
 from collections import defaultdict
+def sp_module(current_module, init_module, shrink_factor, epsilon):
+    use_device = next(current_module.parameters()).device
+    init_params = list(init_module.to(use_device).parameters())
+    for idx, current_param in enumerate(current_module.parameters()):
+        current_param.data *= shrink_factor
+        current_param.data += epsilon * init_params[idx].data
+
 
 class DormantNeuronTracker:
     def __init__(self, model, threshold=0.001):
@@ -181,7 +188,6 @@ def get_optimizer_groups(model, args):
 
     # Categorize parameters
     for name, param in model.named_parameters():
-        module = name.split('.')[0]
         if not param.requires_grad:
             param_groups['frozen'].append(param)
             continue
@@ -197,15 +203,13 @@ def get_optimizer_groups(model, args):
     print("\nParameter Group Statistics:")
     for group_name, group_params in param_groups.items():
         if group_name == 'frozen':
-            num_params = len(group_params)
-            total_params = sum(p[1].numel() for p in group_params)  # p[1] since we stored (name, param)
-            print(f"Frozen layers: {num_params} layers, {total_params} parameters")
-        else:
-            num_params = len(group_params)
             total_params = sum(p.numel() for p in group_params)
-            print(f"{group_name}: {num_params} layers, {total_params} parameters")
+            print(f"Frozen parameters: {total_params} parameters")
+        else:
+            total_params = sum(p.numel() for p in group_params)
+            print(f"{group_name}: {len(group_params)} layers, {total_params} parameters")
 
-    # Create parameter groups
+    # Create parameter groups (rest remains the same)
     lr_mapping = {
         'slot_lora': args.lr_main,
         'slot': args.lr_main,
@@ -220,13 +224,11 @@ def get_optimizer_groups(model, args):
                 'name': group_type
             })
 
-    # Validation and reporting
     total_trainable = sum(p.numel() for group in params for p in group['params'])
     if total_trainable == 0:
         raise RuntimeError("No trainable parameters - check fine-tuning config")
         
     return params
-
 
 def print_trainable_parameters(model):
     """
@@ -548,3 +550,17 @@ def selectively_unfreeze_layers(model, target_modules):
         if any(target in name for target in target_modules):
             param.requires_grad = True
             print(f"Unfrozen layer: {name}")
+            if 'weight' in name:
+                if 'project_q' in name or 'project_k' in name or 'project_v' in name:
+                    # For projection layers
+                    nn.init.xavier_uniform_(param, gain=nn.init.calculate_gain("linear"))
+                elif 'slot_proj' in name:
+                    nn.init.xavier_uniform_(param, gain=0.5)
+                elif 'mlp' in name:
+                    # For MLP layers
+                    nn.init.kaiming_normal_(param,  mode='fan_out', nonlinearity='relu')
+                else:
+                    nn.init.xavier_uniform_(param)
+            elif 'bias' in name:
+                nn.init.zeros_(param)
+

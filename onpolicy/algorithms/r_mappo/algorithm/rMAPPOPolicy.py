@@ -34,7 +34,7 @@ class R_MAPPOPolicy:
         # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
 
         
-        self.actor_optimizer = torch.optim.AdamW(get_optimizer_groups(self.actor.parameters(), args),
+        self.actor_optimizer = torch.optim.AdamW(get_optimizer_groups(self.actor, args),
                                                  eps=self.opti_eps,
                                                  weight_decay=self.weight_decay)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
