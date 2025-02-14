@@ -2,7 +2,7 @@ import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
-from onpolicy.algorithms.utils.util import get_optimizer_groups, sp_module
+from onpolicy.algorithms.utils.util import get_optimizer_groups
 
 class R_MAPPOPolicy:
     """
@@ -53,12 +53,12 @@ class R_MAPPOPolicy:
             for name, param in self.actor.slot_attn.named_parameters():
                 # Only store LoRA or explicitly unfrozen parameters
                 if 'lora_' in name or param.requires_grad:
-                    self.initial_weights[f"slot_attn.{name}"] = param.detach().clone()
+                    self.initial_weights[f"slot_attn.{name}"] = param.detach().clone().requires_grad_(False)
 
         # For policy head
         for name, param in self.actor.act.named_parameters():
             if param.requires_grad:
-                self.initial_weights[f"act.{name}"] = param.detach().clone()
+                self.initial_weights[f"act.{name}"] = param.detach().clone().requires_grad_(False)
 
     def perturb_layers(self, shrink_factor=0.8, epsilon=0.2):
         """Apply Shrink & Perturb selectively to LoRA/trainable parameters"""
