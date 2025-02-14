@@ -2,7 +2,7 @@ import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
-from onpolicy.algorithms.utils.util import get_optimizer_groups
+from onpolicy.algorithms.utils.util import get_optimizer_groups, sp_module
 
 class R_MAPPOPolicy:
     """
@@ -22,7 +22,7 @@ class R_MAPPOPolicy:
         self.critic_lr = args.critic_lr
         self.opti_eps = args.opti_eps
         self.weight_decay = args.weight_decay
-
+        self.use_slot_att = args.use_slot_att
         self.obs_space = obs_space
         self.share_obs_space = cent_obs_space
         self.act_space = act_space
@@ -41,6 +41,44 @@ class R_MAPPOPolicy:
                                                  lr=self.critic_lr,
                                                  eps=self.opti_eps,
                                                  weight_decay=self.weight_decay)
+    
+        self._store_initial_weights()
+        
+    def _store_initial_weights(self):
+        """Store initial weights only for LoRA or trainable parameters"""
+        self.initial_weights = {}
+        
+        # For slot attention
+        if self.use_slot_att:
+            for name, param in self.actor.slot_attn.named_parameters():
+                # Only store LoRA or explicitly unfrozen parameters
+                if 'lora_' in name or param.requires_grad:
+                    self.initial_weights[f"slot_attn.{name}"] = param.detach().clone()
+
+        # For policy head
+        for name, param in self.actor.act.named_parameters():
+            if param.requires_grad:
+                self.initial_weights[f"act.{name}"] = param.detach().clone()
+
+    def perturb_layers(self, shrink_factor=0.8, epsilon=0.2):
+        """Apply Shrink & Perturb selectively to LoRA/trainable parameters"""
+        with torch.no_grad():
+            # Process slot attention if used
+            if self.use_slot_att:
+                for name, param in self.actor.slot_attn.named_parameters():
+                    full_name = f"slot_attn.{name}"
+                    if full_name in self.initial_weights:
+                        # Apply shrink
+                        param.data.mul_(shrink_factor)
+                        # Apply perturb using stored initialization
+                        param.data.add_(epsilon * self.initial_weights[full_name].to(param.device))
+
+            # Process policy head
+            for name, param in self.actor.act.named_parameters():
+                full_name = f"act.{name}"
+                if full_name in self.initial_weights:
+                    param.data.mul_(shrink_factor)
+                    param.data.add_(epsilon * self.initial_weights[full_name].to(param.device))
 
         
     def lr_decay(self, episode, episodes):

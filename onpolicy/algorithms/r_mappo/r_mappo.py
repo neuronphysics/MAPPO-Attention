@@ -277,9 +277,22 @@ class R_MAPPO():
                     train_info['slot_att_loss'] += slot_att_loss
 
 
-                if (idx == self.ppo_epoch - 1) and (self.total_updates % 100 == 0):
-
-                    train_info['dormant_ratio_actor_net'] += self.dormant_tracker.calculate_dormant_ratio("activation")
+                is_last_update = (idx == self.ppo_epoch - 1)
+                if is_last_update:
+                    # Track dormant ratio at half the perturb interval
+                    if self.total_updates % (self.args.perturb_interval//2) == 0:
+                      with torch.no_grad():  # Ensure we don't track unnecessary gradients
+                        train_info['dormant_ratio_actor_net'] += \
+                            self.dormant_tracker.calculate_dormant_ratio("activation")
+                
+                    # Apply shrink and perturb at the specified interval
+                    if self.total_updates % self.args.perturb_interval == 0:
+                        # Optional: clear any cached computations before perturbation 
+                        torch.cuda.empty_cache()
+                        self.policy.perturb_layers(
+                            shrink_factor=self.args.shrink_factor,
+                            epsilon=self.args.perturb_epsilon
+                        )
 
                 train_info['value_loss'] += value_loss.item()
                 train_info['policy_loss'] += policy_loss.item()

@@ -437,6 +437,10 @@ def get_config():
     parser.add_argument('--slot_attn_loss_coef', type=float, default= 0.05, help='Slot Attention Loss Coefficient')
     parser.add_argument('--collect_data_mi', type=int, default=50000)
     parser.add_argument('--fine_tuning_type', type=str, default="Lora")
-    
+    #dealing with plastisity loss
+    parser.add_argument("--shrink_factor", type=float, default=0.8)
+    parser.add_argument("--perturb_epsilon", type=float, default=0.2)
+    parser.add_argument("--perturb_interval", type=int, default=200,
+                   help="Apply S&P every N updates")
 
     return parser

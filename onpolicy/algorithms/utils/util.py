@@ -11,12 +11,7 @@ from torch.utils.data import Dataset
 import torch.distributed as dist
 import json
 from collections import defaultdict
-def sp_module(current_module, init_module, shrink_factor, epsilon):
-    use_device = next(current_module.parameters()).device
-    init_params = list(init_module.to(use_device).parameters())
-    for idx, current_param in enumerate(current_module.parameters()):
-        current_param.data *= shrink_factor
-        current_param.data += epsilon * init_params[idx].data
+
 
 
 class DormantNeuronTracker:
