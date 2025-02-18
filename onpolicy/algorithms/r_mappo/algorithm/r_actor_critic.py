@@ -81,14 +81,12 @@ class R_Actor(nn.Module):
                 lora_config = LoraConfig(
                     r=16,  # Rank of the low-rank update
                     lora_alpha=16,  # Scaling factor
-                    lora_dropout=0.4,  # Dropout probability
+                    lora_dropout=0.1,  # Dropout probability
                     use_rslora=False,
                     use_dora=True,
                     target_modules=list_modules,  # Target specific layers
                     init_lora_weights="gaussian",
                     bias="none",
-                    dora_magnitude_init=0.6,    # Higher initial magnitude for more adaptability
-                    use_magnitude_dropout=True  # Helps with exploration in RL
                 )
                 # Apply LoRA to the selected layers of the SlotAttention module
                 self.slot_attn = get_peft_model(model, lora_config).to(device)
