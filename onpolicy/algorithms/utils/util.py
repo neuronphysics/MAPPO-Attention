@@ -244,7 +244,10 @@ class InitBounds:
 
     def get(self, p):
         if p.dim() == 1:
-            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.previous_weight)
+            if self.previous_weight is not None:
+               fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.previous_weight)
+            else:
+                fan_in = p.size(0)
             return 1.0 / math.sqrt(fan_in)
         elif p.dim() == 2 or p.dim() == 4:
             self.previous_weight = p
@@ -272,9 +275,9 @@ class WeightClipping(torch.optim.Optimizer):
                 continue
                 
             for p in group['params']:
-                if p.grad is None:  # Skip parameters that weren't trained
+                if not p.requires_grad: # Skip parameters that weren't trained
                     continue
-                
+
                 bound = self.init_bounds.get(p)
                 if bound is not None:
                     p.data.clamp_(-group['beta'] * bound, group['beta'] * bound)
