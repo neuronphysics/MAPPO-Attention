@@ -210,13 +210,19 @@ def get_optimizer_groups(model, args):
         'slot': args.lr_main,
         'other': args.lr
     }
-
+    clip_mapping = {
+        'slot_lora': True,
+        'slot': True,
+        'other': False
+    }
     for group_type in ['slot_lora', 'slot', 'other']:
         if param_groups[group_type]:
             params.append({
                 'params': param_groups[group_type],
                 'lr': lr_mapping[group_type],
-                'name': group_type
+                'name': group_type,
+                'needs_clipping': clip_mapping[group_type],
+                'beta': args.weight_clip_beta if clip_mapping[group_type] else 0.0
             })
 
     total_trainable = sum(p.numel() for group in params for p in group['params'])
@@ -224,6 +230,55 @@ def get_optimizer_groups(model, args):
         raise RuntimeError("No trainable parameters - check fine-tuning config")
         
     return params
+
+class InitBounds:
+    '''
+    A class to calculate the initial bounds for weight clipping.
+    Uniform Kaiming initialization bounds are used.
+    Since bias requires knowledge of the previous layer's weights, we keep track of the previous weight tensor in this class.
+    Linear: https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/linear.py#L106
+    Conv2d: https://github.com/pytorch/pytorch/blob/main/torch/nn/modules/conv.py#L144
+    '''
+    def __init__(self):
+        self.previous_weight = None
+
+    def get(self, p):
+        if p.dim() == 1:
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.previous_weight)
+            return 1.0 / math.sqrt(fan_in)
+        elif p.dim() == 2 or p.dim() == 4:
+            self.previous_weight = p
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(p)
+            return  1.0 / math.sqrt(fan_in)
+        else:
+            raise ValueError("Unsupported tensor dimension: {}".format(p.dim()))
+        
+class WeightClipping(torch.optim.Optimizer):
+    def __init__(self, params, beta=1.0, optimizer=torch.optim.Adam, **kwargs):
+        defaults = dict(beta=beta)
+        super(WeightClipping, self).__init__(params, defaults)
+        self.optimizer = optimizer(self.param_groups, **kwargs)
+        self.param_groups = self.optimizer.param_groups
+        self.defaults.update(self.optimizer.defaults)
+        self.init_bounds = InitBounds()
+
+    def step(self):
+        self.optimizer.step()
+        self.weight_clipping()
+
+    def weight_clipping(self):
+        for group in self.param_groups:
+            if not group['needs_clipping']:
+                continue
+                
+            for p in group['params']:
+                if p.grad is None:  # Skip parameters that weren't trained
+                    continue
+                
+                bound = self.init_bounds.get(p)
+                if bound is not None:
+                    p.data.clamp_(-group['beta'] * bound, group['beta'] * bound)
+
 
 def print_trainable_parameters(model):
     """

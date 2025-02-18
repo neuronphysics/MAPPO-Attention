@@ -187,7 +187,7 @@ class R_MAPPO():
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
 
             if self.use_slot_att:
-                slot_att_loss= (self.policy.actor.slot_orthoganility_loss + self.policy.actor.slot_consistency_loss)
+                slot_att_loss= (2* self.policy.actor.slot_orthoganility_loss + self.policy.actor.slot_consistency_loss)
                 total_loss += self.args.slot_attn_loss_coef * slot_att_loss
             total_loss.backward()
 

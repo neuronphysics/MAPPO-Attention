@@ -68,17 +68,27 @@ class R_Actor(nn.Module):
             model = generate_model(args)
             print(model.state_dict().keys())
 
-            list_modules = ["slot_attn.slot_attention.project_q", "slot_attn.slot_attention.project_k", "slot_attn.slot_attention.project_v", "slot_attn.slot_attention.mlp.2", "slot_proj"]
+            list_modules = ["slot_attn.slot_attention.project_q", 
+                            "slot_attn.slot_attention.project_k", 
+                            "slot_attn.slot_attention.project_v",
+                            "slot_attn.slot_attention.mlp.0", 
+                            "slot_attn.slot_attention.mlp.2", 
+                            "slot_attn.pos_emb.dense",
+                            "slot_proj"]
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
                     r=16,  # Rank of the low-rank update
-                    lora_alpha=32,  # Scaling factor
-                    lora_dropout=0.2,  # Dropout probability
+                    lora_alpha=16,  # Scaling factor
+                    lora_dropout=0.4,  # Dropout probability
+                    use_rslora=False,
+                    use_dora=True,
                     target_modules=list_modules,  # Target specific layers
                     init_lora_weights="gaussian",
-                    bias="none"
+                    bias="none",
+                    dora_magnitude_init=0.6,    # Higher initial magnitude for more adaptability
+                    use_magnitude_dropout=True  # Helps with exploration in RL
                 )
                 # Apply LoRA to the selected layers of the SlotAttention module
                 self.slot_attn = get_peft_model(model, lora_config).to(device)
