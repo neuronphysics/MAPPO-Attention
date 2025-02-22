@@ -33,6 +33,15 @@ class MeltingpotRunner(Runner):
         print('num episodes to run (separated):', episodes)
 
         for episode in range(episodes):
+            # Check if it's time to unfreeze layers
+            unfrozen = False
+            for agent_id in range(self.num_agents):
+                if self.trainer[agent_id].policy.check_and_unfreeze(episode):
+                   unfrozen = True
+        
+            if unfrozen:
+               print(f"Episode {episode}: Slot attention layers unfrozen")
+
             self.warmup()
 
             print(f'Episode {episode} start at {time.time()}')

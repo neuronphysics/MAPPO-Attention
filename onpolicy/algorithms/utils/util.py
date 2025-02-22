@@ -616,4 +616,42 @@ def selectively_unfreeze_layers(model, target_modules):
                     nn.init.xavier_uniform_(param)
             elif 'bias' in name:
                 nn.init.zeros_(param)
+                
+# Add to onpolicy/algorithms/utils/util.py or similar utility file
+def unfreeze_layers_at_episode(model, target_modules, current_episode, unfreeze_episode):
+    """
+    Unfreeze specified layers if current_episode >= unfreeze_episode
+    
+    Args:
+        model: The model to modify
+        target_modules: List of strings matching the layer names to unfreeze
+        current_episode: Current training episode
+        unfreeze_episode: Episode at which to unfreeze the layers
+    
+    Returns:
+        bool: True if layers were unfrozen during this call, False otherwise
+    """
+    if current_episode == unfreeze_episode:
+        print(f"Episode {current_episode}: Unfreezing specified layers")
+        for name, param in model.named_parameters():
+            # Check if the parameter name contains any of the target modules
+            if any(target in name for target in target_modules):
+                param.requires_grad = True
+                print(f"Unfrozen layer: {name}")
+                # Reinitialize weights (optional - you may want to keep pretrained weights)
+                if 'weight' in name:
+                    if 'project_q' in name or 'project_k' in name or 'project_v' in name:
+                        # For projection layers
+                        nn.init.xavier_uniform_(param, gain=nn.init.calculate_gain("linear"))
+                    elif 'slot_proj' in name:
+                        nn.init.xavier_uniform_(param, gain=0.5)
+                    elif 'mlp' in name:
+                        # For MLP layers
+                        nn.init.kaiming_normal_(param, mode='fan_out', nonlinearity='relu')
+                    else:
+                        nn.init.xavier_uniform_(param)
+                elif 'bias' in name:
+                    nn.init.zeros_(param)
+        return True
+    return False
 

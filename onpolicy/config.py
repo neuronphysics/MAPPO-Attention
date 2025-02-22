@@ -443,4 +443,5 @@ def get_config():
     parser.add_argument("--perturb_interval", type=int, default=200,
                    help="Apply S&P every N updates")
     parser.add_argument('--weight_clip_beta', type=float, default=1.0, help="weight clipping parameter")
+    parser.add_argument('--unfreeze_episode', type=int, default=200, help="episode to unfreeze the model")
     return parser

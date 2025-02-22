@@ -68,13 +68,13 @@ class R_Actor(nn.Module):
             model = generate_model(args)
             print(model.state_dict().keys())
 
-            list_modules = ["slot_attn.slot_attention.project_q", 
-                            "slot_attn.slot_attention.project_k", 
-                            "slot_attn.slot_attention.project_v",
-                            "slot_attn.slot_attention.mlp.0", 
-                            "slot_attn.slot_attention.mlp.2", 
-                            "slot_attn.pos_emb.dense",
-                            "slot_proj"]
+            self._finetuned_list_modules = ["slot_attn.slot_attention.project_q", 
+                                            "slot_attn.slot_attention.project_k", 
+                                            "slot_attn.slot_attention.project_v",
+                                            "slot_attn.slot_attention.mlp.0", 
+                                            "slot_attn.slot_attention.mlp.2", 
+                                            "slot_attn.pos_emb.dense",
+                                            "slot_proj"]
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
@@ -84,7 +84,7 @@ class R_Actor(nn.Module):
                     lora_dropout=0.1,  # Dropout probability
                     use_rslora=False,
                     use_dora=True,
-                    target_modules=list_modules,  # Target specific layers
+                    target_modules=self._finetuned_list_modules,  # Target specific layers
                     init_lora_weights="gaussian",
                     bias="none",
                 )
@@ -96,9 +96,19 @@ class R_Actor(nn.Module):
                     if 'lora' in n:
                         print(f"New parameter {n:<13} | {p.numel():>5} parameters | updated")
             elif args.fine_tuning_type == "Partial":
-                selectively_unfreeze_layers(model, list_modules)
+                selectively_unfreeze_layers(model, self._finetuned_list_modules)
                 self.slot_attn =  model.to(device)
+            
+            elif args.fine_tuning_type == "Slowly_Unfreeze":
+                for param in model.parameters():
+                    param.requires_grad = False
+                
+                frozen_params = sum(p.numel() for p in model.parameters() if not p.requires_grad)
+                total_params = sum(p.numel() for p in model.parameters())
+                print(f"Slot Attention model: {frozen_params}/{total_params} parameters frozen ({frozen_params/total_params:.2%})")
 
+                self.slot_attn = model.to(device)      
+                      
             self.tau = args.tau_start
             self.sigma = args.sigma_start
             args.use_input_att = False
