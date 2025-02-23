@@ -52,9 +52,9 @@ class R_MAPPO():
         self._use_policy_active_masks = args.use_policy_active_masks
         self.use_slot_att = args.use_slot_att
         #
-        self.dormant_tracker = DormantNeuronTracker(model=self.policy.actor)
-        self.dormant_tracker.initialize_total_neurons()
-        self.dormant_tracker.register_activation_hooks()    
+        #self.dormant_tracker = DormantNeuronTracker(model=self.policy.actor)
+        #self.dormant_tracker.initialize_total_neurons()
+        #self.dormant_tracker.register_activation_hooks()    
         if self.use_attention == True:
             self._use_naive_recurrent_policy = False
             self._use_recurrent_policy = False
@@ -254,7 +254,7 @@ class R_MAPPO():
         train_info['actor_grad_norm'] = 0
         train_info['critic_grad_norm'] = 0
         train_info['ratio'] = 0
-        train_info['dormant_ratio_actor_net'] = 0
+        #train_info['dormant_ratio_actor_net'] = 0
         if self.use_slot_att:
            train_info['slot_att_loss']= 0
 
@@ -280,10 +280,10 @@ class R_MAPPO():
                 is_last_update = (idx == self.ppo_epoch - 1)
                 if is_last_update:
                     # Track dormant ratio at half the perturb interval
-                    if self.total_updates % (self.args.perturb_interval//2) == 0:
-                      with torch.no_grad():  # Ensure we don't track unnecessary gradients
-                        train_info['dormant_ratio_actor_net'] += \
-                            self.dormant_tracker.calculate_dormant_ratio("activation")
+                    #if self.total_updates % (self.args.perturb_interval//2) == 0:
+                    #  with torch.no_grad():  # Ensure we don't track unnecessary gradients
+                    #    train_info['dormant_ratio_actor_net'] += \
+                    #        self.dormant_tracker.calculate_dormant_ratio("activation")
                 
                     # Apply shrink and perturb at the specified interval
                     if self.total_updates % self.args.perturb_interval == 0:

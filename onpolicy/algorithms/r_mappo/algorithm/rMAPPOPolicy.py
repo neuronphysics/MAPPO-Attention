@@ -28,6 +28,7 @@ class R_MAPPOPolicy:
         self.act_space = act_space
         self.unfreeze_episode = args.unfreeze_episode
         self.unfrozen = False
+        self.args = args
         
         self.actor = R_Actor(args, self.obs_space, self.act_space, self.device)
         self.critic = R_Critic(args, self.share_obs_space, self.device)
