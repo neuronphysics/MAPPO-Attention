@@ -3,7 +3,7 @@ from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Crit
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
 from onpolicy.algorithms.utils.util import get_optimizer_groups, WeightClipping, selectively_unfreeze_layers
-
+from peft import LoraConfig, get_peft_model
 class R_MAPPOPolicy:
     """
     MAPPO Policy  class. Wraps actor and critic networks to compute actions and value function predictions.
@@ -81,16 +81,34 @@ class R_MAPPOPolicy:
                old_state = self.actor_optimizer.optimizer.state_dict()
         
             # Unfreeze the layers
-            selectively_unfreeze_layers(self.actor.slot_attn, self.actor._finetuned_list_modules)
+            #selectively_unfreeze_layers(self.actor.slot_attn, self.actor._finetuned_list_modules)
+            # Define LoRA config
+            lora_config = LoraConfig(
+                                     r=16,  # Rank of the low-rank update
+                                     lora_alpha=16,  # Scaling factor
+                                     lora_dropout=0.1,
+                                     use_rslora=False,
+                                     use_dora=True,
+                                     target_modules=self.actor._finetuned_list_modules,
+                                     init_lora_weights="gaussian",
+                                     bias="none",
+                                    )
+        
+            # Convert to LoRA model
+            self.actor.slot_attn = get_peft_model(
+                                                  self.actor.slot_attn, 
+                                                  lora_config
+                                                  ).to(self.device)
+        
         
             # Create new optimizer
             self.actor_optimizer = WeightClipping(
-                get_optimizer_groups(self.actor, self.args),
-                beta=self.args.weight_clip_beta,
-                optimizer=torch.optim.Adam,
-                eps=self.opti_eps,
-                weight_decay=self.weight_decay
-            )
+                                                 get_optimizer_groups(self.actor, self.args),
+                                                 beta=self.args.weight_clip_beta,
+                                                 optimizer=torch.optim.Adam,
+                                                 eps=self.opti_eps,
+                                                 weight_decay=self.weight_decay
+                                                 )
         
             # If we had an old state, try to restore compatible parts
             if old_state is not None:
