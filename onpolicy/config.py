@@ -268,6 +268,8 @@ def get_config():
     parser.add_argument("--num_mini_batch", type=int, default=1,
                         help='number of batches for ppo (default: 1)')
     # entropy_coef params
+    parser.add_argument("--use_entropy_decay", type=str2bool, default=True,
+                    help="Whether to decay entropy coefficient over time (default: True)")
     parser.add_argument("--entropy_coef", type=float, default=0.1,
                         help='entropy term coefficient (default: 0.01)')
     parser.add_argument("--entropy_final_coef", type=float, default=0.01,

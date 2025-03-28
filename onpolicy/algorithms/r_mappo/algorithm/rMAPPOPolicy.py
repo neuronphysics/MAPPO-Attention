@@ -62,17 +62,16 @@ class R_MAPPOPolicy:
                 if 'lora_' in name or param.requires_grad:
                     self.initial_weights[f"slot_attn.{name}"] = param.detach().clone().requires_grad_(False)
 
-        # For policy head
-        for name, param in self.actor.act.named_parameters():
-            if param.requires_grad:
-                self.initial_weights[f"act.{name}"] = param.detach().clone().requires_grad_(False)
 
     def perturb_layers(self, shrink_factor=0.8, epsilon=0.2):
         """Apply Shrink & Perturb selectively to LoRA/trainable parameters"""
+        if not self.use_slot_att:
+            return 
         with torch.no_grad():
             # Process slot attention if used
-            if self.use_slot_att:
-                for name, param in self.actor.slot_attn.named_parameters():
+            
+            for name, param in self.actor.slot_attn.named_parameters():
+                if param.requires_grad or 'lora_' in name:    
                     full_name = f"slot_attn.{name}"
                     if full_name in self.initial_weights:
                         # Apply shrink
@@ -80,12 +79,6 @@ class R_MAPPOPolicy:
                         # Apply perturb using stored initialization
                         param.data.add_(epsilon * self.initial_weights[full_name].to(param.device))
 
-            # Process policy head
-            for name, param in self.actor.act.named_parameters():
-                full_name = f"act.{name}"
-                if full_name in self.initial_weights:
-                    param.data.mul_(shrink_factor)
-                    param.data.add_(epsilon * self.initial_weights[full_name].to(param.device))
 
         
     def lr_decay(self, episode, episodes):

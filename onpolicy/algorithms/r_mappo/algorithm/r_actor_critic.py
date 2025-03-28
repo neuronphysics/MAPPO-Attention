@@ -155,8 +155,11 @@ class R_Actor(nn.Module):
             slot_outputs = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train= True,
                                             visualize=False)
             
-            self.slot_consistency_loss = slot_outputs['loss']['compositional_consistency_loss'].item()
+            self.slot_consistency_loss = slot_outputs['loss']['compositional_consistency_loss']
             self.slot_orthoganility_loss = slot_outputs['sim_loss']
+            self.slot_mse_loss = slot_outputs['loss']['mse']
+            self.slot_cross_entropy_loss = slot_outputs['loss']['cross_entropy']
+            
             actor_features =slot_outputs['slots'].reshape(batch, -1)
             actor_features = self.slot_att_layer_norm(actor_features)
 

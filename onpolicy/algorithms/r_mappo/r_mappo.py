@@ -72,8 +72,13 @@ class R_MAPPO():
             self.value_normalizer = None
 
     def update_entropy_coef(self):
+        if not self.args.use_entropy_decay:
+            # Keep entropy coefficient constant at initial value
+            return
+
         if self.total_updates < self.warmup_updates:
             # During warm-up, keep initial entropy coefficient
+            self.entropy_coef = self.entropy_initial_coef
             return
 
         if self.total_updates > (self.entropy_anneal_duration - self.cooldown_updates):
@@ -187,8 +192,14 @@ class R_MAPPO():
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
 
             if self.use_slot_att:
-                slot_att_loss= (2* self.policy.actor.slot_orthoganility_loss + self.policy.actor.slot_consistency_loss)
+                slot_att_loss = (
+                                2 * self.policy.actor.slot_orthoganility_loss 
+                                + self.policy.actor.slot_consistency_loss 
+                                + self.policy.actor.slot_mse_loss 
+                                + self.policy.actor.slot_cross_entropy_loss
+                                )
                 total_loss += self.args.slot_attn_loss_coef * slot_att_loss
+
             total_loss.backward()
 
         actor_parameters =  self.policy.actor.parameters()
@@ -310,7 +321,7 @@ class R_MAPPO():
         self.update_entropy_coef()
         torch.cuda.empty_cache()
 
-        self.total_updates += 1
+        self.total_updates += self.args.episode_length * self.args.n_rollout_threads
         return train_info
 
     def prep_training(self):
