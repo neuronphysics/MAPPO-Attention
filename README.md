@@ -1,37 +1,72 @@
 # MAPPO Attention Project Repository
 
-Welcome to the repository for our MAPPO (Multi-Agent Proximal Policy Optimization) project. This repository contains the necessary code and scripts to run and manage MAPPO with modular attention architectures experiments.
+Welcome to the repository for our MAPPO (Multi-Agent Proximal Policy Optimization) project. This repository includes the necessary code and scripts to run and manage experiments with MAPPO and modular attention architectures. In addition, we now train our multi-agent systems on three Melting Pot scenario environments:
 
-## Package Versions
+- **territory__rooms** (number of agents: 9)
+- **allelopathic_harvest__open** (number of agents: 16)
+- **prisoners_dilemma_in_the_matrix__arena** (number of agents: 8)
 
-The specific versions of the packages and dependencies used in our MAPPO implementation are detailed in the `run_mppo_attention.sh` script. This script is tailored for execution in a Compute Canada environment, ensuring a consistent and reproducible setup.
+## Pretraining and Fine-Tuning
 
-### Accessing Package Version Information
+- **Pretraining the Slot Attention Module**  
+  We pretrain the Slot Attention module for instance on the `territory__rooms` environment.
 
-To view the package versions, please refer to the `run_mppo_attention.sh` file located in the root directory of this repository. The script includes commands to install or load the specific versions of each required package.
+- **Fine-Tuning for Multi-Agent RL**  
+  We fine-tune the Slot Attention representations for the multi-agent RL task by copying the pretrained model for all agents and then fine-tuning the high-level features using LoRA. 
 
-## Running the Script
+## Environment Setup
 
-If you have access to a Compute Canada environment, you can directly execute the `run_mppo_attention.sh` script to set up the environment and run the MAPPO experiments. Make sure you have the necessary permissions and environment modules loaded.
+### Python Version and Virtual Environment
 
-### Steps to Run:
+- **Python Version:**  
+  Use **Python 3.10** to ensure compatibility with CUDA 12 for PyTorch.
 
-1. Clone the repository to your Compute Canada workspace:
+- **Creating a Conda Environment:**  
+  ```bash
+  conda create -n mappo_project python=3.10
+  conda activate mappo_project
+  ```
+
+- **Creating a Virtual Environment:**  
+  ```bash
+  python3.10 -m venv mappo_project
+  source mappo_project/bin/activate
+  ```
+
+### Installing Dependencies
+
+1. **PyTorch Installation (CUDA 12 Compatible):**  
+   Install a CUDA 12 compatible version of PyTorch. For example:
    ```bash
-   git clone https://github.com/neuronphysics/MAPPO-ATTENTIOAN.git developer
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu120
    ```
 
-2. Navigate to the repository directory:
+2. **Install mpi4py from GitHub:**  
    ```bash
-   cd onpolicy
+   python -m pip install git+https://github.com/mpi4py/mpi4py
    ```
 
-3. Make the script executable (if not already):
+3. **Install Required Packages:**  
+   Replace the path with your specific requirements file if needed:
    ```bash
-   chmod +x run_mppo_attention.sh
+   pip install --no-cache-dir -r ~/projects/def-irina/memole/LSTM/requirements.txt
    ```
 
-4. Execute the script:
+4. **Install this Repository in Editable Mode:**  
    ```bash
-   ./run_mppo_attention.sh
+   pip install -e .
    ```
+
+## Running the Scripts
+
+### Pretraining and Fine-Tuning
+
+- **Pretraining (e.g., for `territory__rooms`):**
+  ```bash
+  ./run_mappo_territory_rooms_pretrain_slot_att_QSA.sh
+  ```
+
+- **Fine-Tuning the Slot Attention Representations:**
+  ```bash
+  ./run_mappo_territory__room_training_slot_attention_and_rim.sh
+  ```

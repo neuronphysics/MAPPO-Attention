@@ -35,9 +35,8 @@ echo "Start running the train meltingpot script ..."
 
 CUDA_VISIBLE_DEVICES=0 python -c "import torch; print(torch.cuda.get_device_capability())"
 
-cd $CURRENT_PATH/onpolicy/scripts/train
 
-srun python3 train_meltingpot.py --use_valuenorm False --use_popart True --env_name "Meltingpot" --algorithm_name "mappo" \
+srun python3 -m onpolicy.scripts.train.train_meltingpot --use_valuenorm False --use_popart True --env_name "Meltingpot" --algorithm_name "mappo" \
      --experiment_name "pretrain_qsa_rim_harvest" --substrate_name "allelopathic_harvest__open" --num_agents 16 --seed 123 --lr 0.00002 \
      --critic_lr 0.00002 --n_rollout_threads 1 --max_grad_norm 0.05 --use_wandb True --user_name "zsheikhb" --wandb_name "zsheikhb" \
      --share_policy False --use_centralized_V False --use_attention True --entropy_coef 0.004 --attention_module "RIM" --rnn_attention_module "LSTM" --rim_num_units 6 \
