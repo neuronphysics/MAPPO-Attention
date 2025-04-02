@@ -26,8 +26,27 @@ class Encoder(nn.Module):
         output:
             feature_map: [B, C, H_enc, W_enc]
         """
-        x = self.conv(x)
-        return x
+        # Use gradient checkpointing to save memory if available
+        if hasattr(torch, 'utils') and hasattr(torch.utils, 'checkpoint'):
+            from torch.utils.checkpoint import checkpoint
+            
+            # Process in chunks to save memory
+            modules = list(self.conv.children())
+            
+            # Apply first convolution
+            out = modules[0](x)
+            
+            # Apply remaining convolutions with checkpointing
+            for module in modules[1:]:
+                def custom_forward(input_tensor):
+                    return module(input_tensor)
+                out = checkpoint(custom_forward, out, use_reentrant=False)
+            
+            return out
+        else:
+            # Fallback to regular forward if checkpointing is not available
+            x = self.conv(x)
+            return x
 
 
 

@@ -138,7 +138,15 @@ class SlotAttentionEncoder(nn.Module):
                 z = torch.randn_like(mu).type_as(f)
                 slots_init = mu + z * sigma * mu.detach()
 
-        slots, attn = self.slot_attention(f, slots_init, self.num_iter)
+        # Use gradient checkpointing to save memory
+        from torch.utils.checkpoint import checkpoint
+
+        # Define function to be used with checkpoint
+        def run_slot_attention(features, slots_init_inner):
+            return self.slot_attention(features, slots_init_inner, self.num_iter)
+
+        # Use checkpoint to reduce memory usage
+        slots, attn = checkpoint(run_slot_attention, f, slots_init, use_reentrant=False)
 
         return {
             'slots': slots,

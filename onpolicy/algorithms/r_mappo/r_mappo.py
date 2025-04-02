@@ -51,10 +51,20 @@ class R_MAPPO():
         self._use_value_active_masks = args.use_value_active_masks
         self._use_policy_active_masks = args.use_policy_active_masks
         self.use_slot_att = args.use_slot_att
-        #
-        self.dormant_tracker = DormantNeuronTracker(model=self.policy.actor)
+        
+        # Check if policy is wrapped in DataParallel and get the appropriate actor and critic
+        if isinstance(self.policy, torch.nn.DataParallel):
+            self.actor = self.policy.module.actor
+            self.critic = self.policy.module.critic
+        else:
+            self.actor = self.policy.actor
+            self.critic = self.policy.critic
+            
+        # Initialize dormant tracker with the correct actor reference
+        self.dormant_tracker = DormantNeuronTracker(model=self.actor)
         self.dormant_tracker.initialize_total_neurons()
-        self.dormant_tracker.register_activation_hooks()    
+        self.dormant_tracker.register_activation_hooks()
+            
         if self.use_attention == True:
             self._use_naive_recurrent_policy = False
             self._use_recurrent_policy = False
@@ -65,7 +75,7 @@ class R_MAPPO():
         # assert (self._use_popart and self._use_valuenorm) == False, ("self._use_popart and self._use_valuenorm can not be set True simultaneously")
 
         if self._use_popart:
-            self.value_normalizer = self.policy.critic.v_out
+            self.value_normalizer = self.critic.v_out
         elif self._use_valuenorm:
             self.value_normalizer = ValueNorm(1).to(self.device)
         else:
@@ -202,8 +212,7 @@ class R_MAPPO():
 
             total_loss.backward()
 
-        actor_parameters =  self.policy.actor.parameters()
-
+        actor_parameters = self.actor.parameters()
 
        
         if self._use_max_grad_norm:
@@ -224,9 +233,9 @@ class R_MAPPO():
         total_critic_loss.backward()
 
         if self._use_max_grad_norm:
-            critic_grad_norm = nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
+            critic_grad_norm = nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
         else:
-            critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
+            critic_grad_norm = get_gard_norm(self.critic.parameters())
 
         self.policy.critic_optimizer.step()
         if not self.use_slot_att:
