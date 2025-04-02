@@ -152,11 +152,28 @@ class SLATE(nn.Module):
                                                                                 H // 4,
                                                                                 W // 4).to(pred.dtype)
             pred_image = self.dvae.decoder(pred_z)
+            # Free memory
+            del x_sampled, pred_z
+            torch.cuda.empty_cache()
 
         # encoder pass
         with nullcontext() if (self.use_consistency_loss) else torch.no_grad():
-            f = self.backbone(pred_image)
+            # Use gradient checkpointing for backbone to save memory
+            if self.use_consistency_loss:
+                from torch.utils.checkpoint import checkpoint
+                # Define forward function to be used with checkpoint
+                def forward_backbone(x):
+                    return self.backbone(x)
+                
+                f = checkpoint(forward_backbone, pred_image, use_reentrant=False)
+            else:
+                f = self.backbone(pred_image)
+                
             hat_z_sampled = self.slot_attn(f, sigma=sigma)['slots']
+            
+            # Free memory
+            del f, pred_image
+            torch.cuda.empty_cache()
 
         return {
             "sampled_image": pred,

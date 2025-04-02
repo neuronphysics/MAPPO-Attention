@@ -9,6 +9,7 @@ from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
 from onpolicy.algorithms.utils.util import global_step_counter
+import torch.nn as nn
 
 
 def _t2n(x):
@@ -157,15 +158,33 @@ class MeltingpotRunner(Runner):
         rnn_cells_critic = []
 
         for agent_id in range(self.num_agents):
+            # Get the device for this specific agent's policy
+            if isinstance(self.policy[agent_id], nn.DataParallel):
+                agent_device = self.policy[agent_id].device_ids[0]
+                agent_device = torch.device(f'cuda:{agent_device}')
+            else:
+                agent_device = next(self.policy[agent_id].parameters()).device
+            
             self.trainer[agent_id].prep_rollout()
+            
+            # Move data to the appropriate device
+            share_obs = torch.FloatTensor(self.buffer[agent_id].share_obs[step]).to(agent_device)
+            obs = torch.FloatTensor(self.buffer[agent_id].obs[step]).to(agent_device)
+            rnn_state = torch.FloatTensor(self.buffer[agent_id].rnn_states[step]).to(agent_device)
+            rnn_cell = torch.FloatTensor(self.buffer[agent_id].rnn_cells[step]).to(agent_device)
+            rnn_state_critic = torch.FloatTensor(self.buffer[agent_id].rnn_states_critic[step]).to(agent_device)
+            rnn_cell_critic = torch.FloatTensor(self.buffer[agent_id].rnn_cells_critic[step]).to(agent_device)
+            mask = torch.FloatTensor(self.buffer[agent_id].masks[step]).to(agent_device)
+                                                                                  
             value, action, action_log_prob, rnn_state, rnn_cell, rnn_state_critic, rnn_cell_critic \
-                = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
-                                                            self.buffer[agent_id].obs[step],
-                                                            self.buffer[agent_id].rnn_states[step],
-                                                            self.buffer[agent_id].rnn_cells[step],
-                                                            self.buffer[agent_id].rnn_states_critic[step],
-                                                            self.buffer[agent_id].rnn_cells_critic[step],
-                                                            self.buffer[agent_id].masks[step])
+                = self.trainer[agent_id].policy.get_actions(share_obs, 
+                                                            obs,
+                                                            rnn_state,
+                                                            rnn_cell,
+                                                            rnn_state_critic,
+                                                            rnn_cell_critic,
+                                                            mask)
+                                                        
             values.append(_t2n(value))
             action = _t2n(action)
             # rearrange action

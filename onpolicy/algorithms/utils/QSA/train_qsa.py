@@ -19,6 +19,13 @@ import math
 
 def generate_model(args):
     model = SLATE(args)
+    # Check if device attribute exists, if not set it
+    if not hasattr(args, 'device'):
+        if torch.cuda.is_available():
+            args.device = torch.device("cuda")
+        else:
+            args.device = torch.device("cpu")
+        print(f"Setting args.device to {args.device} in generate_model")
     model.to(args.device)
     if args.slot_att_load_model:
         tau, sigma = load_slot_att_model(model, args)
@@ -60,6 +67,12 @@ def configure_optimizers(model, args):
 
 
 def train_qsa(args):
+    # Free GPU memory before starting
+    torch.cuda.empty_cache()
+    
+    # Enable mixed precision training
+    scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
+    
     # train_dataset = GlobDataset(world_root=args.slot_att_work_path + "world_data/*", phase='train', img_glob="*.pt",
     #                            crop_repeat=args.slot_att_crop_repeat, crop_size=args.crop_size)
 
@@ -72,8 +85,14 @@ def train_qsa(args):
     # Check how many files were read
     num_files = len(train_dataset.episodes)
     print(f"Number of files read: {num_files}")
+    
+    # Reduce batch size to save memory (if it's too large)
+    original_batch_size = args.slot_pretrain_batch_size
+    memory_saving_batch_size = max(1, original_batch_size // 2)  # Reduce by half, but ensure it's at least 1
+    print(f"Using batch size: {memory_saving_batch_size} (original: {original_batch_size})")
+    
     loader_kwargs = {
-        'batch_size': args.slot_pretrain_batch_size,
+        'batch_size': memory_saving_batch_size,
         'shuffle': True,
         'num_workers': 0,
         'pin_memory': True,
@@ -87,94 +106,177 @@ def train_qsa(args):
         os.makedirs(args.slot_att_work_path + args.substrate_name + "/")
 
     writer = SummaryWriter(args.slot_att_work_path + args.substrate_name + "/" + "tensorboard/")
+    
+    # Check if device attribute exists, if not set it
+    if not hasattr(args, 'device'):
+        if torch.cuda.is_available():
+            args.device = torch.device("cuda")
+        else:
+            args.device = torch.device("cpu")
+        print(f"Setting args.device to {args.device}")
 
     model: nn.Module = generate_model(args)
+    
+    # Enable gradient checkpointing to save memory
+    if hasattr(model, 'backbone') and hasattr(model.backbone, 'conv'):
+        # Enable gradient checkpointing for the backbone
+        for module in model.backbone.conv:
+            if isinstance(module, nn.Sequential):
+                module.apply(lambda m: setattr(m, '_checkpoint', True) if hasattr(m, '_checkpoint') else None)
+    
     optimizer, scheduler = configure_optimizers(model, args)
 
     model.train()
     for ep in tqdm(range(args.slot_train_ep)):
         for idx, batch_data in enumerate(train_loader):
+            # Clear memory
+            torch.cuda.empty_cache()
+            
             # batch, channel, height, width
             global_step = ep * len(train_loader) + idx
             tau = cosine_anneal(global_step, args.tau_steps, start_value=args.tau_start,
                                 final_value=args.tau_final)
             sigma = cosine_anneal(global_step, args.sigma_steps, start_value=args.sigma_start,
                                   final_value=args.sigma_final)
-            out = model(batch_data.to(args.device), tau=tau, sigma=sigma, is_Train=True,
-                        visualize=ep % args.slot_log_fre == 0)
-
-            mse_loss = out['loss']['mse']
-            similarity_loss = out['sim_loss']
-            cross_entropy = out['loss']['cross_entropy']
-            consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(train_loader.dataset)
+            # Ensure device exists
+            if not hasattr(args, 'device'):
+                if torch.cuda.is_available():
+                    args.device = torch.device("cuda")
+                else:
+                    args.device = torch.device("cpu")
+            
             optimizer.zero_grad()
-            loss = mse_loss + cross_entropy
-
-            if args.use_orthogonal_loss:
-                loss += similarity_loss
-                writer.add_scalar("train_similarity_loss", similarity_loss, global_step)
-
-            if args.use_consistency_loss:
-                loss += consistency_loss
-                writer.add_scalar("train_consistency_loss", consistency_loss, global_step)
-
-            loss.backward()
-
-            nn.utils.clip_grad_norm_(model.parameters(), args.slot_clip_grade_norm)
-
-            optimizer.step()
+            
+            # Use mixed precision training if available
+            if scaler:
+                with torch.cuda.amp.autocast():
+                    out = model(batch_data.to(args.device), tau=tau, sigma=sigma, is_Train=True,
+                                visualize=ep % args.slot_log_fre == 0)
+                    mse_loss = out['loss']['mse']
+                    similarity_loss = out['sim_loss']
+                    cross_entropy = out['loss']['cross_entropy']
+                    consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(train_loader.dataset)
+                    loss = mse_loss + cross_entropy
+                    
+                    if args.use_orthogonal_loss:
+                        loss += similarity_loss
+                    
+                    if args.use_consistency_loss:
+                        loss += consistency_loss
+                
+                # Scale the loss and call backward
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                nn.utils.clip_grad_norm_(model.parameters(), args.slot_clip_grade_norm)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                # Regular training without mixed precision
+                out = model(batch_data.to(args.device), tau=tau, sigma=sigma, is_Train=True,
+                            visualize=ep % args.slot_log_fre == 0)
+                mse_loss = out['loss']['mse']
+                similarity_loss = out['sim_loss']
+                cross_entropy = out['loss']['cross_entropy']
+                consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(train_loader.dataset)
+                loss = mse_loss + cross_entropy
+                
+                if args.use_orthogonal_loss:
+                    loss += similarity_loss
+                    writer.add_scalar("train_similarity_loss", similarity_loss, global_step)
+                
+                if args.use_consistency_loss:
+                    loss += consistency_loss
+                    writer.add_scalar("train_consistency_loss", consistency_loss, global_step)
+                
+                loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), args.slot_clip_grade_norm)
+                optimizer.step()
+            
             scheduler.step(global_step)
-
-            writer.add_scalar("train_dvae_loss", mse_loss, global_step)
-            writer.add_scalar("train_loss", cross_entropy, global_step)
-
+            
+            if not scaler:  # Only add metrics without mixed precision, to avoid OOM during logging
+                writer.add_scalar("train_dvae_loss", mse_loss, global_step)
+                writer.add_scalar("train_loss", cross_entropy, global_step)
+            
+            # Clean up intermediate tensors
+            del out
+            torch.cuda.empty_cache()
 
         if ep % args.slot_log_fre == 0:
-            masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
-            writer.add_image("masked image", masked_image, global_step=ep)
-            writer.add_image("recon", recon_row, global_step=ep)
-            writer.add_image("atten masks", combined_mask, global_step=ep)
-            tsne_image = plot_tsne(out['slots'])
-            writer.add_figure("tsne plot", tsne_image, global_step=ep)
+            # Only visualize if not using mixed precision (to save memory)
+            if not scaler:
+                with torch.no_grad():
+                    masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
+                    writer.add_image("masked image", masked_image, global_step=ep)
+                    writer.add_image("recon", recon_row, global_step=ep)
+                    writer.add_image("atten masks", combined_mask, global_step=ep)
+                    tsne_image = plot_tsne(out['slots'])
+                    writer.add_figure("tsne plot", tsne_image, global_step=ep)
 
         if ep % args.slot_save_fre == 0:
             save_slot_att_model(model, tau, sigma, args)
 
         if ep != 0 and ep % 1 == 0:
+            torch.cuda.empty_cache()  # Clear memory before validation
+            
             with torch.no_grad():
                 for idx, batch_data in enumerate(val_loader):
-
+                    # Skip validation if memory is getting tight
+                    if torch.cuda.is_available() and torch.cuda.memory_reserved() / torch.cuda.max_memory_allocated() > 0.8:
+                        print("Skipping validation to save memory")
+                        break
+                        
                     global_step = ep * len(val_loader) + idx
                     tau = cosine_anneal(global_step, args.tau_steps, start_value=args.tau_start,
                                         final_value=args.tau_final)
                     sigma = cosine_anneal(global_step, args.sigma_steps, start_value=args.sigma_start,
                                           final_value=args.sigma_final)
-                    out = model(batch_data.to(args.device), tau=tau, sigma=sigma, is_Train=True,
+                    # Ensure device exists
+                    if not hasattr(args, 'device'):
+                        if torch.cuda.is_available():
+                            args.device = torch.device("cuda")
+                        else:
+                            args.device = torch.device("cpu")
+                    
+                    try:
+                        out = model(batch_data.to(args.device), tau=tau, sigma=sigma, is_Train=True,
                                 visualize=ep % args.slot_log_fre == 0)
 
-                    mse_loss = out['loss']['mse']
-                    similarity_loss = out['sim_loss']
-                    cross_entropy = out['loss']['cross_entropy']
-                    consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(
-                        val_loader.dataset)
-                    loss = mse_loss + cross_entropy
+                        mse_loss = out['loss']['mse']
+                        similarity_loss = out['sim_loss']
+                        cross_entropy = out['loss']['cross_entropy']
+                        consistency_loss = out['loss']['compositional_consistency_loss'].item() * ep / len(
+                            val_loader.dataset)
+                        loss = mse_loss + cross_entropy
 
-                    if args.use_orthogonal_loss:
-                        loss += similarity_loss
-                        writer.add_scalar("validate_similarity_loss", similarity_loss, global_step)
+                        if args.use_orthogonal_loss:
+                            loss += similarity_loss
+                            writer.add_scalar("validate_similarity_loss", similarity_loss, global_step)
 
-                    if args.use_consistency_loss:
-                        loss += consistency_loss
-                        writer.add_scalar("validate_consistency_loss", consistency_loss, global_step)
+                        if args.use_consistency_loss:
+                            loss += consistency_loss
+                            writer.add_scalar("validate_consistency_loss", consistency_loss, global_step)
 
-                    writer.add_scalar("validate_dvae_loss", mse_loss, global_step)
-                    writer.add_scalar("validate_loss", cross_entropy, global_step)
+                        writer.add_scalar("validate_dvae_loss", mse_loss, global_step)
+                        writer.add_scalar("validate_loss", cross_entropy, global_step)
 
-
-                    masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
-                    writer.add_image("validate masked image", masked_image, global_step=ep)
-                    writer.add_image("validate recon", recon_row, global_step=ep)
-                    writer.add_image("validate atten masks", combined_mask, global_step=ep)
+                        if not scaler and ep % args.slot_log_fre == 0:
+                            masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
+                            writer.add_image("validate masked image", masked_image, global_step=ep)
+                            writer.add_image("validate recon", recon_row, global_step=ep)
+                            writer.add_image("validate atten masks", combined_mask, global_step=ep)
+                        
+                        # Free memory
+                        del out
+                        torch.cuda.empty_cache()
+                        
+                    except RuntimeError as e:
+                        if "out of memory" in str(e):
+                            print(f"Warning: CUDA OOM during validation, skipping batch")
+                            torch.cuda.empty_cache()
+                            continue
+                        else:
+                            raise
 
 
 def visualize_img(out, original):

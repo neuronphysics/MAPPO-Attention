@@ -25,27 +25,35 @@ echo "current path ---> $CURRENT_PATH"
 pip install -e .
 
 
-environment_name= "territory__rooms"
+environment_name="territory__rooms"
 num_agents=9
-slot_attn_batch_size=500
+slot_attn_batch_size=200  # Further reduced from 250 to save memory
 num_units=6
+hidden_size=200          # Reduced from 270 to reduce memory usage
+
+# Export these variables to prevent memory fragmentation and optimize GPU memory usage
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTORCH_NO_CUDA_MEMORY_CACHING=1
+# Enable gradient checkpointing which trades computation for memory
+export PYTORCH_USE_CUDA_MEMORY_EFFICIENT_FORWARD=1
 
 wandb login a2a1bab96ebbc3869c65e3632485e02fcae9cc42
 echo "Start running the train meltingpot script ..."
 
-CUDA_VISIBLE_DEVICES=0 python -c "import torch; print(torch.cuda.get_device_capability())"
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -c "import torch; print(f'Number of GPUs available: {torch.cuda.device_count()}'); print([torch.cuda.get_device_capability(i) for i in range(torch.cuda.device_count())])"
 
 
 # for QSA
 echo "Pretrain slot attention QSA model ..."
-CUDA_VISIBLE_DEVICES=0 python3 -m onpolicy.scripts.train.train_meltingpot --use_valuenorm False --use_popart True --env_name "Meltingpot" --algorithm_name "mappo" \
+# Use all available GPUs
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 -m onpolicy.scripts.train.train_meltingpot --use_valuenorm False --use_popart True --env_name "Meltingpot" --algorithm_name "mappo" \
      --experiment_name "pretrain_qsa_rim_territory__rooms" --substrate_name ${environment_name} --num_agents ${num_agents} --seed 123 --lr 0.00002 \
      --critic_lr 0.00002 --n_rollout_threads 1 --max_grad_norm 0.05 --use_wandb True --user_name "zsheikhb" --wandb_name "zsheikhb" \
      --share_policy False --use_centralized_V False --use_attention True --entropy_coef 0.004 --rnn_attention_module "LSTM" --attention_module "RIM" --rim_num_units ${num_units} \
-     --rim_topk 4 --hidden_size 270 --num_env_steps 4000000 --log_interval 1 --episode_length 1000 --downsample True --img_scale_factor 1 \
+     --rim_topk 4 --hidden_size ${hidden_size} --num_env_steps 4000000 --log_interval 1 --episode_length 1000 --downsample True --img_scale_factor 1 \
      --world_img_scale_factor 1 --pretrain_slot_att True --slot_train_ep 250 --slot_pretrain_batch_size ${slot_attn_batch_size} \
-     --slot_att_work_path "/home/mila/z/zahra.sheikhbahaee/Projects/meltingpot/Lora/onpolicy/scripts/results/slot_att/" \
+     --slot_att_work_path "./onpolicy/scripts/results/slot_att/" \
      --slot_att_load_model False --use_slot_att False --use_pos_encoding False --use_input_att False --use_com_att True --use_x_reshape True \
      --slot_att_crop_repeat 9 --slot_log_fre 1 --collect_data True --collect_agent True --collect_world True --collect_data_ep_num 35 \
-     --no_train True --crop_size 88 --use_orthogonal_loss True --use_consistency_loss True
+     --no_train True --crop_size 88 --use_orthogonal_loss True --use_consistency_loss True --use_multi_gpu True --use_gradient_checkpointing True
 

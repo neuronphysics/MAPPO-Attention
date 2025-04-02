@@ -2,6 +2,7 @@ import wandb
 import os
 import numpy as np
 import torch
+import torch.nn as nn
 from tensorboardX import SummaryWriter
 from onpolicy.utils.shared_buffer import SharedReplayBuffer
 
@@ -17,11 +18,11 @@ class Runner(object):
     def __init__(self, config):
 
         self.all_args = config['all_args']
-        self.all_args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if self.all_args.use_cuda and torch.cuda.is_available() else "cpu")
+        self.all_args.device = self.device
 
         self.envs = config['envs']
         self.eval_envs = config['eval_envs']
-        self.device = config['device']
         self.num_agents = config['num_agents']
         if config.__contains__("render_envs"):
             self.render_envs = config['render_envs']       
@@ -83,11 +84,20 @@ class Runner(object):
         print("act_space: ", self.envs.action_space)
         
         # policy network
-        self.policy = Policy(self.all_args,
-                            self.envs.observation_space['player_0']['RGB'],
-                            share_observation_space,
-                            self.envs.action_space['player_0'],
-                            device = self.device)
+        policy = Policy(self.all_args,
+                        self.envs.observation_space['player_0']['RGB'],
+                        share_observation_space,
+                        self.envs.action_space['player_0'],
+                        device = self.device)
+
+        # Check for multiple GPUs and wrap the policy
+        if self.all_args.use_cuda and torch.cuda.device_count() > 1:
+            print(f"Using {torch.cuda.device_count()} GPUs!")
+            self.policy = nn.DataParallel(policy)
+            self.policy.to(self.device)
+        else:
+            self.policy = policy
+            self.policy.to(self.device)
 
         if self.model_dir is not None and self.all_args.load_model:
             self.restore(self.model_dir)
@@ -152,24 +162,43 @@ class Runner(object):
 
     def save(self, episode=0):
         """Save policy's actor and critic networks."""
+        policy_to_save = self.policy.module if isinstance(self.policy, nn.DataParallel) else self.policy
+
         if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
-            self.policy.save(self.save_dir, episode)
+            policy_to_save.save(self.save_dir, episode)
         else:
-            policy_actor = self.trainer.policy.actor
-            torch.save(policy_actor.state_dict(), str(self.save_dir) + "/actor.pt")
-            policy_critic = self.trainer.policy.critic
-            torch.save(policy_critic.state_dict(), str(self.save_dir) + "/critic.pt")
+            policy_actor = policy_to_save.actor
+            torch.save(policy_actor.state_dict(), str(self.save_dir) + "/actor_{}.pt".format(episode))
+            policy_critic = policy_to_save.critic
+            torch.save(policy_critic.state_dict(), str(self.save_dir) + "/critic_{}.pt".format(episode))
 
     def restore(self, model_dir):
         """Restore policy's networks from a saved model."""
+        policy_to_load = self.policy.module if isinstance(self.policy, nn.DataParallel) else self.policy
+        actor_path = str(model_dir) + '/actor.pt'
+        critic_path = str(model_dir) + '/critic.pt'
+
         if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
-            self.policy.restore(model_dir)
+            policy_to_load.restore(model_dir)
         else:
-            policy_actor_state_dict = torch.load(str(self.model_dir) + '/actor.pt')
-            self.policy.actor.load_state_dict(policy_actor_state_dict)
+            # Load actor state dict
+            try:
+                policy_actor_state_dict = torch.load(actor_path, map_location=self.device)
+                policy_to_load.actor.load_state_dict(policy_actor_state_dict)
+            except FileNotFoundError:
+                print(f"Warning: Actor model file not found at {actor_path}")
+            except Exception as e:
+                 print(f"Error loading actor state dict from {actor_path}: {e}")
+
+            # Load critic state dict if not just rendering
             if not self.all_args.use_render:
-                policy_critic_state_dict = torch.load(str(self.model_dir) + '/critic.pt')
-                self.policy.critic.load_state_dict(policy_critic_state_dict)
+                 try:
+                    policy_critic_state_dict = torch.load(critic_path, map_location=self.device)
+                    policy_to_load.critic.load_state_dict(policy_critic_state_dict)
+                 except FileNotFoundError:
+                    print(f"Warning: Critic model file not found at {critic_path}")
+                 except Exception as e:
+                    print(f"Error loading critic state dict from {critic_path}: {e}")
 
     def log_train(self, train_infos, total_num_steps):
         """

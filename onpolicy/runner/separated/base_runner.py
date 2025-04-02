@@ -5,6 +5,7 @@ import numpy as np
 from itertools import chain
 import torch
 from tensorboardX import SummaryWriter
+import torch.nn as nn
 
 from onpolicy.utils.separated_buffer import SeparatedReplayBuffer
 from onpolicy.utils.util import update_linear_schedule
@@ -18,11 +19,12 @@ class Runner(object):
     def __init__(self, config):
 
         self.all_args = config['all_args']
-        self.all_args.device = "cuda" if torch.cuda.is_available() else "cpu"
-
+        # Set a default device 
+        self.all_args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
         self.envs = config['envs']
         self.eval_envs = config['eval_envs']
-        self.device = config['device']
+        self.device = config.get('device', torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         self.num_agents = config['num_agents']
 
         # parameters
@@ -91,7 +93,16 @@ class Runner(object):
             from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
         self.policy = []
+        num_gpus = torch.cuda.device_count()
+        
         for agent_id in range(self.num_agents):
+            # Distribute agents across GPUs if multiple are available
+            if num_gpus > 1:
+                # Assign each agent to a specific GPU based on agent_id
+                device = torch.device(f"cuda:{agent_id % num_gpus}")
+            else:
+                device = self.device
+            
             if not self.env_name == "Meltingpot":
                 share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else \
                     self.envs.observation_space[agent_id]
@@ -99,7 +110,7 @@ class Runner(object):
                             self.envs.observation_space[agent_id],
                             share_observation_space,
                             self.envs.action_space[agent_id],
-                            device=self.device)
+                            device=device)
             else:
                 player_key = f"player_{agent_id}"
                 rgb_shape = self.envs.observation_space[player_key]["RGB"].shape
@@ -113,10 +124,18 @@ class Runner(object):
                             self.envs.observation_space[player_key]['RGB'],
                             share_observation_space,
                             self.envs.action_space[player_key],
-                            device=self.device)
-                # policy network
+                            device=device)
 
-            self.policy.append(po)
+            if torch.cuda.device_count() > 1 and self.all_args.use_multi_gpu:
+                print(f"Agent {agent_id}: Using {torch.cuda.device_count()} GPUs with DataParallel!")
+                policy_wrapped = nn.DataParallel(po)
+                policy_wrapped.to(device)
+            else:
+                print(f"Agent {agent_id}: Using GPU {agent_id % num_gpus if num_gpus > 0 else 'CPU'}")
+                policy_wrapped = po
+                policy_wrapped.to(device)
+
+            self.policy.append(policy_wrapped)
 
         ##count total number of parameters
         print(f"total number of parameters of this model is {self.count_parameters()}")
@@ -128,8 +147,15 @@ class Runner(object):
         self.trainer = []
         self.buffer = []
         for agent_id in range(self.num_agents):
+            # Get the device for this specific agent's policy
+            if isinstance(self.policy[agent_id], nn.DataParallel):
+                agent_device = self.policy[agent_id].device_ids[0]
+                agent_device = torch.device(f'cuda:{agent_device}')
+            else:
+                agent_device = next(self.policy[agent_id].parameters()).device
+            
             # algorithm
-            tr = TrainAlgo(self.all_args, self.policy[agent_id], device=self.device)
+            tr = TrainAlgo(self.all_args, self.policy[agent_id], device=agent_device)
             # buffer
             if not self.env_name == "Meltingpot":
                 share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else \
@@ -180,17 +206,29 @@ class Runner(object):
     @torch.no_grad()
     def compute(self):
         for agent_id in range(self.num_agents):
+            # Get the device for this specific agent's policy
+            if isinstance(self.policy[agent_id], nn.DataParallel):
+                agent_device = self.policy[agent_id].device_ids[0]
+            else:
+                agent_device = next(self.policy[agent_id].parameters()).device
+            
             self.trainer[agent_id].prep_rollout()
             if self.all_args.rnn_attention_module == "LSTM":
-                next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
-                                                                      self.buffer[agent_id].rnn_states_critic[-1],
-                                                                      self.buffer[agent_id].rnn_cells_critic[-1],
-                                                                      self.buffer[agent_id].masks[-1])
+                # Move data to the agent's specific device
+                share_obs = torch.tensor(self.buffer[agent_id].share_obs[-1]).to(agent_device)
+                rnn_states = torch.tensor(self.buffer[agent_id].rnn_states_critic[-1]).to(agent_device)
+                rnn_cells = torch.tensor(self.buffer[agent_id].rnn_cells_critic[-1]).to(agent_device)
+                masks = torch.tensor(self.buffer[agent_id].masks[-1]).to(agent_device)
+                
+                next_value = self.trainer[agent_id].policy.get_values(share_obs, rnn_states, rnn_cells, masks)
             else:
-                next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
-                                                                      self.buffer[agent_id].rnn_states_critic[-1],
-                                                                      None,
-                                                                      self.buffer[agent_id].masks[-1])
+                # Move data to the agent's specific device
+                share_obs = torch.tensor(self.buffer[agent_id].share_obs[-1]).to(agent_device)
+                rnn_states = torch.tensor(self.buffer[agent_id].rnn_states_critic[-1]).to(agent_device)
+                masks = torch.tensor(self.buffer[agent_id].masks[-1]).to(agent_device)
+                
+                next_value = self.trainer[agent_id].policy.get_values(share_obs, rnn_states, None, masks)
+            
             next_value = _t2n(next_value)
             self.buffer[agent_id].compute_returns(next_value, self.trainer[agent_id].value_normalizer)
 
@@ -212,9 +250,12 @@ class Runner(object):
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
         for agent_id in range(self.num_agents):
-            policy_actor = self.trainer[agent_id].policy.actor
+            # No need to check for nn.DataParallel here since we're getting the policy_to_save correctly
+            policy_to_save = self.policy[agent_id].module if isinstance(self.policy[agent_id], nn.DataParallel) else self.policy[agent_id]
+
+            policy_actor = policy_to_save.actor
             torch.save(policy_actor.state_dict(), os.path.join(self.save_dir, f"actor_agent_{agent_id}.pt"))
-            policy_critic = self.trainer[agent_id].policy.critic
+            policy_critic = policy_to_save.critic
             torch.save(policy_critic.state_dict(), os.path.join(self.save_dir, f"critic_agent_{agent_id}.pt"))
             if self.trainer[agent_id]._use_valuenorm:
                 policy_vnrom = self.trainer[agent_id].value_normalizer
@@ -222,13 +263,36 @@ class Runner(object):
 
     def restore(self):
         for agent_id in range(self.num_agents):
-            policy_actor_state_dict = torch.load(os.path.join(self.model_dir, f'actor_agent_{agent_id}.pt'))
-            self.policy[agent_id].actor.load_state_dict(policy_actor_state_dict)
-            policy_critic_state_dict = torch.load(os.path.join(self.model_dir, f'critic_agent_{agent_id}.pt'))
-            self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
+            policy_to_load = self.policy[agent_id].module if isinstance(self.policy[agent_id], nn.DataParallel) else self.policy[agent_id]
+
+            actor_path = os.path.join(self.model_dir, f'actor_agent_{agent_id}.pt')
+            critic_path = os.path.join(self.model_dir, f'critic_agent_{agent_id}.pt')
+            vnrom_path = os.path.join(self.model_dir, f'vnrom_agent_{agent_id}.pt')
+
+            try:
+                policy_actor_state_dict = torch.load(actor_path, map_location=self.device)
+                policy_to_load.actor.load_state_dict(policy_actor_state_dict)
+            except FileNotFoundError:
+                print(f"Warning: Actor model file not found for agent {agent_id} at {actor_path}")
+            except Exception as e:
+                print(f"Error loading actor state dict for agent {agent_id} from {actor_path}: {e}")
+
+            try:
+                policy_critic_state_dict = torch.load(critic_path, map_location=self.device)
+                policy_to_load.critic.load_state_dict(policy_critic_state_dict)
+            except FileNotFoundError:
+                print(f"Warning: Critic model file not found for agent {agent_id} at {critic_path}")
+            except Exception as e:
+                print(f"Error loading critic state dict for agent {agent_id} from {critic_path}: {e}")
+
             if self.trainer[agent_id]._use_valuenorm:
-                policy_vnrom_state_dict = torch.load(os.path.join(self.model_dir, f'vnrom_agent_{agent_id}.pt'))
-                self.trainer[agent_id].value_normalizer.load_state_dict(policy_vnrom_state_dict)
+                try:
+                    policy_vnrom_state_dict = torch.load(vnrom_path, map_location=self.device)
+                    self.trainer[agent_id].value_normalizer.load_state_dict(policy_vnrom_state_dict)
+                except FileNotFoundError:
+                    print(f"Warning: Value normalizer file not found for agent {agent_id} at {vnrom_path}")
+                except Exception as e:
+                    print(f"Error loading value normalizer state dict for agent {agent_id} from {vnrom_path}: {e}")
 
     def log_train(self, train_infos, total_num_steps):
         for agent_id in range(self.num_agents):
@@ -258,6 +322,11 @@ class Runner(object):
         actor_parameters = 0
         critic_parameters = 0
         for agent_id in range(self.num_agents):
-            actor_parameters += sum(p.numel() for p in self.policy[agent_id].actor.parameters())
-            critic_parameters += sum(p.numel() for p in self.policy[agent_id].critic.parameters())
+            if isinstance(self.policy[agent_id], nn.DataParallel):
+                # For DataParallel wrapped models, access through the .module attribute
+                actor_parameters += sum(p.numel() for p in self.policy[agent_id].module.actor.parameters())
+                critic_parameters += sum(p.numel() for p in self.policy[agent_id].module.critic.parameters())
+            else:
+                actor_parameters += sum(p.numel() for p in self.policy[agent_id].actor.parameters())
+                critic_parameters += sum(p.numel() for p in self.policy[agent_id].critic.parameters())
         return actor_parameters + critic_parameters

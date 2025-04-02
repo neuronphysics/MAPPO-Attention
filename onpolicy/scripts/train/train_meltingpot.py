@@ -92,6 +92,12 @@ def parse_args(args, parser):
                         help="number of controlled players.")
 
     parser.add_argument('--scale_factor', type=int, default=1, help="the scale factor for the observation")
+    
+    parser.add_argument('--use_multi_gpu', action='store_true', default=False, 
+                        help="Whether to distribute models across multiple GPUs")
+                        
+    parser.add_argument('--use_gradient_checkpointing', action='store_true', default=False,
+                        help="Use gradient checkpointing to save memory at the cost of slower backward pass")
 
     all_args = parser.parse_known_args(args)[0]
 
@@ -143,10 +149,10 @@ def main(args):
     if all_args.substrate_name == 'collaborative_cooking':
         substrate.get_config(all_args.substrate_name).cooking_pot_pseudoreward = 1.0
 
-        # cuda
+    # cuda
     if all_args.cuda and torch.cuda.is_available():
         print("choose to use gpu...")
-        device = torch.device("cuda:0")
+        device = torch.device("cuda")
         torch.set_num_threads(all_args.n_training_threads)
         if all_args.cuda_deterministic:
             torch.backends.cudnn.benchmark = False
