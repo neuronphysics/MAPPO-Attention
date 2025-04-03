@@ -111,7 +111,7 @@ def train_qsa(args):
             loss = mse_loss + cross_entropy
 
             if args.use_orthogonal_loss:
-                loss += similarity_loss
+                loss += similarity_loss * args.orthogonal_loss_coef
                 writer.add_scalar("train_similarity_loss", similarity_loss, global_step)
 
             if args.use_consistency_loss:

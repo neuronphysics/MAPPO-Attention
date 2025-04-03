@@ -193,7 +193,7 @@ class R_MAPPO():
 
             if self.use_slot_att:
                 slot_att_loss = (
-                                2 * self.policy.actor.slot_orthoganility_loss 
+                                 self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss 
                                 + self.policy.actor.slot_consistency_loss 
                                 + self.policy.actor.slot_mse_loss 
                                 + self.policy.actor.slot_cross_entropy_loss
