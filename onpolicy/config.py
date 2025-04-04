@@ -443,7 +443,7 @@ def get_config():
     #dealing with plastisity loss
     parser.add_argument("--shrink_factor", type=float, default=0.8)
     parser.add_argument("--perturb_epsilon", type=float, default=0.2)
-    parser.add_argument("--perturb_interval", type=int, default=200,
-                   help="Apply S&P every N updates")
+    parser.add_argument("--perturb_interval", type=int, default=1000000,
+                   help="Apply S&P every N steps update")
     parser.add_argument('--weight_clip_beta', type=float, default=1.0, help="weight clipping parameter")
     return parser
