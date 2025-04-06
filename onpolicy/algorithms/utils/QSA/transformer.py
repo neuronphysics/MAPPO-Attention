@@ -1,5 +1,5 @@
 from .utils import *
-
+from .multihead_attention import MHA
 
 class MultiHeadAttention(nn.Module):
 
@@ -73,8 +73,18 @@ class TransformerEncoderBlock(nn.Module):
         self.is_first = is_first
 
         self.attn_layer_norm = nn.LayerNorm(d_model)
-        self.attn = MultiHeadAttention(d_model, num_heads, dropout, gain)
-
+        #self.attn = MultiHeadAttention(d_model, num_heads, dropout, gain)
+        self.attn = MHA(
+                        embed_dim=d_model,
+                        num_heads=num_heads,
+                        dropout=dropout,
+                        qkv_proj_bias=False,    # Match original implementation
+                        out_proj_bias=False,     # Match original implementation
+                        causal=False,            # Encoder is bidirectional
+                        use_flash_attn=True,     # Enable FlashAttention
+                        gain=gain,               # Pass through gain parameter
+                        fused_bias_fc=False      # Disable fused bias if not available
+                       )
         self.ffn_layer_norm = nn.LayerNorm(d_model)
         self.ffn = nn.Sequential(
             linear(d_model, 4 * d_model, weight_init='kaiming'),

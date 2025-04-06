@@ -1,5 +1,5 @@
 import os
-import sys
+import math
 from .utils import *
 from .dvae import dVAE
 from .slot_attn import SlotAttentionEncoder
@@ -7,7 +7,7 @@ from .encoder import Encoder
 from .transformer import PositionalEncoding, TransformerDecoder
 from sklearn.cluster import KMeans
 from contextlib import nullcontext
-
+import torch.nn.functional as F
 
 
 class SLATE(nn.Module):
@@ -45,6 +45,7 @@ class SLATE(nn.Module):
         self.backbone = Encoder(args.encoder_channels, args.encoder_strides, args.encoder_kernel_size)
 
         self.ortho_loss_fn = PerpetualOrthogonalProjectionLoss(num_classes=num_slot, feat_dim=slot_dim)
+
 
         self.use_post_cluster = args.use_post_cluster
         self.lambda_c = args.lambda_c
@@ -115,6 +116,7 @@ class SLATE(nn.Module):
         loss["cross_entropy"] = cross_entropy
         # we always want to look at the consistency loss, but we not always want to backpropagate through consistency part
         consistency_pass_dict = self.consistency_pass(emb_input, slots, sigma, H, W)
+        
         loss["compositional_consistency_loss"], _ =  hungarian_slots_loss(
                 consistency_pass_dict["sampled_latents"] ,
                 consistency_pass_dict["predicted_sampled_latents"],
@@ -182,39 +184,60 @@ class OneHotDictionary(nn.Module):
     def get_embedding(self):
         return self.dictionary.weight
 
-
 class PerpetualOrthogonalProjectionLoss(nn.Module):
-    def __init__(self, num_classes=10, feat_dim=2048, no_norm=False, use_attention=True):
-        super(PerpetualOrthogonalProjectionLoss, self).__init__()
-
+    def __init__(self, num_classes=10, feat_dim=2048, use_attention=True, no_norm=False,
+                 slot_ortho_weight=1.0, orthogonality_weight=1.0):
+        super().__init__()
         self.num_classes = num_classes
         self.feat_dim = feat_dim
         self.no_norm = no_norm
         self.use_attention = use_attention
+        self.slot_ortho_weight = slot_ortho_weight
+        self.orthogonality_weight = orthogonality_weight
+        
+        # Orthogonal centers with weight norm
+        self.class_centres = nn.utils.weight_norm(nn.Linear(feat_dim, num_classes, bias=False))
+        nn.init.orthogonal_(self.class_centres.weight)
 
-        self.class_centres = nn.Parameter(torch.randn(self.num_classes, self.feat_dim))
+    def orthogonal_center_loss(self):
+        
+        return torch.norm(torch.mm(self.class_centres.weight, self.class_centres.weight.t()) - torch.eye(self.num_classes, device=self.class_centres.weight.device), p='fro')**2
 
-    def forward(self, features, labels=None):
+    def slot_loss(self, features):
+        slots = features.view(-1, self.num_classes, self.feat_dim)
+        slots = F.normalize(slots, dim=-1)
+        sim_matrix = torch.einsum('bnd,bmd->bnm', slots, slots)
+        return torch.norm(sim_matrix - torch.eye(self.num_classes, device=slots.device).unsqueeze(0), p='fro') / slots.size(0)
+
+    def forward(self, features, labels):
+        total_loss = 0.0
         device = features.device
-
+        
+        # 1. Slot orthogonality (dominant)
+        total_loss += self.slot_ortho_weight * self.slot_loss(features)
+        
+        # 2. Center orthogonality (dominant)
+        total_loss += self.orthogonality_weight * self.orthogonal_center_loss()
+        
+        # 3. Sparse attention
         if self.use_attention:
-            features_weights = torch.matmul(features, features.T)
-            features_weights = F.softmax(features_weights, dim=1)
-            features = torch.matmul(features_weights, features)
-
-        #  features are normalized
+            features = F.normalize(features, dim=1)
+            attn = torch.matmul(features, features.t())
+            attn = F.gumbel_softmax(attn, tau=0.1, hard=True, dim=1)
+            features = torch.matmul(attn, features)
+        
+        # 4. Alignment with margin
         if not self.no_norm:
             features = F.normalize(features, p=2, dim=1)
-        normalized_class_centres = F.normalize(self.class_centres, p=2, dim=1)
-
-        labels = labels[:, None]  # extend dim
-        class_range = torch.arange(self.num_classes, device=device).long()
-        class_range = class_range[:, None]  # extend dim
-        label_mask = torch.eq(labels, class_range.t()).float().to(device)
-        feature_centre_variance = torch.matmul(features, normalized_class_centres.t())
-        same_class_loss = (label_mask * feature_centre_variance).sum() / (label_mask.sum() + 1e-6)
-        diff_class_loss = ((1 - label_mask) * feature_centre_variance).sum() / ((1 - label_mask).sum() + 1e-6)
-
-        loss = 0.5 * (1.0 - same_class_loss) + torch.abs(diff_class_loss)
-
-        return loss
+        
+        norm_centers = F.normalize(self.class_centres.weight, p=2, dim=1)
+        scores = torch.mm(features, norm_centers.t())
+        
+        label_mask = (labels[:, None] == torch.arange(self.num_classes, device=device)).float()
+        same_class_loss = (label_mask * scores).sum() / (label_mask.sum() + 1e-6)
+        #L_{diff}​=mean(ReLU(margin+(1−label_mask)×scores))
+        diff_class_loss = torch.relu(0.25 + (1 - label_mask) * scores).mean()  # Margin
+        
+        total_loss += (1.0 - same_class_loss) + diff_class_loss
+        
+        return total_loss

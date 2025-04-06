@@ -118,6 +118,7 @@ def train_qsa(args):
                 loss += consistency_loss
                 writer.add_scalar("train_consistency_loss", consistency_loss, global_step)
 
+
             loss.backward()
 
             nn.utils.clip_grad_norm_(model.parameters(), args.slot_clip_grade_norm)
@@ -166,6 +167,7 @@ def train_qsa(args):
                     if args.use_consistency_loss:
                         loss += consistency_loss
                         writer.add_scalar("validate_consistency_loss", consistency_loss, global_step)
+
 
                     writer.add_scalar("validate_dvae_loss", mse_loss, global_step)
                     writer.add_scalar("validate_loss", cross_entropy, global_step)
@@ -240,7 +242,7 @@ def plot_tsne(slots):
     labels = torch.arange(num_slots).unsqueeze(0).repeat(batch_size, 1).view(-1).cpu().numpy()
 
     # 3. Apply t-SNE
-    tsne = TSNE(n_components=2, perplexity=30, learning_rate=200, n_iter=1000, random_state=42)
+    tsne = TSNE(n_components=2, perplexity=30, learning_rate=200, max_iter=1000, random_state=42)
     slots_tsne = tsne.fit_transform(slots_flat.detach().cpu().numpy())
 
     # 4. Plot the t-SNE visualization with different colors for each slot
