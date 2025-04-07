@@ -146,14 +146,36 @@ class TransformerDecoderBlock(nn.Module):
         self.is_first = is_first
 
         self.self_attn_layer_norm = nn.LayerNorm(d_model)
-        self.self_attn = MultiHeadAttention(d_model, num_heads, dropout, gain)
+        #self.self_attn = MultiHeadAttention(d_model, num_heads, dropout, gain)
+        self.self_attn = MHA(
+                            embed_dim=d_model,
+                            num_heads=num_heads,
+                            dropout=dropout,
+                            causal=True,            # Causal masking for autoregressive self-attention
+                            use_flash_attn=True,    # Enable FlashAttention
+                            qkv_proj_bias=False,    # Match original parameters
+                            out_proj_bias=False,
+                            gain=gain,
+                            cross_attn=False,        # Self-attention
+                            )
 
-        mask = torch.triu(torch.ones((max_len, max_len), dtype=torch.bool), diagonal=1)
-        self.register_buffer('self_attn_mask', mask)
+
+        #mask = torch.triu(torch.ones((max_len, max_len), dtype=torch.bool), diagonal=1)
+        #self.register_buffer('self_attn_mask', mask)
 
         self.encoder_decoder_attn_layer_norm = nn.LayerNorm(d_model)
-        self.encoder_decoder_attn = MultiHeadAttention(d_model, num_heads, dropout, gain)
-
+        #self.encoder_decoder_attn = MultiHeadAttention(d_model, num_heads, dropout, gain)
+        self.encoder_decoder_attn = MHA(
+                                        embed_dim=d_model,
+                                        num_heads=num_heads,
+                                        dropout=dropout,
+                                        causal=False,           # No causal mask for cross-attention
+                                        use_flash_attn=True,
+                                        cross_attn=True,        # Cross-attention (queries from decoder, keys/values from encoder)
+                                        qkv_proj_bias=False,
+                                        out_proj_bias=False,
+                                        gain=gain, 
+                                        )
         self.ffn_layer_norm = nn.LayerNorm(d_model)
         self.ffn = nn.Sequential(
             linear(d_model, 4 * d_model, weight_init='kaiming'),
@@ -161,7 +183,7 @@ class TransformerDecoderBlock(nn.Module):
             linear(4 * d_model, d_model, gain=gain),
             nn.Dropout(dropout))
 
-    def forward(self, input, encoder_output):
+    def forward(self, input, encoder_output, key_padding_mask=None):
         """
         input: batch_size x target_len x d_model
         encoder_output: batch_size x source_len x d_model
@@ -171,15 +193,21 @@ class TransformerDecoderBlock(nn.Module):
 
         if self.is_first:
             input = self.self_attn_layer_norm(input)
-            x = self.self_attn(input, input, input, self.self_attn_mask[:T, :T])
+            with torch.amp.autocast(device_type='cuda'):
+                 x = self.self_attn(input, key_padding_mask=key_padding_mask)
+            
             input = input + x
         else:
             x = self.self_attn_layer_norm(input)
-            x = self.self_attn(x, x, x, self.self_attn_mask[:T, :T])
+            with torch.amp.autocast(device_type='cuda'):
+                 x = self.self_attn(x, key_padding_mask= key_padding_mask)
+            
             input = input + x
 
         x = self.encoder_decoder_attn_layer_norm(input)
-        x = self.encoder_decoder_attn(x, encoder_output, encoder_output)
+        with torch.amp.autocast(device_type='cuda'):
+             x = self.encoder_decoder_attn(x, x_kv= encoder_output)
+        
         input = input + x
 
         x = self.ffn_layer_norm(input)

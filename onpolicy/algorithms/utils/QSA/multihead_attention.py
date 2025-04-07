@@ -404,7 +404,9 @@ class MHA(nn.Module):
         )
         self.out_proj = linear_cls(embed_dim, embed_dim, bias=out_proj_bias, **factory_kwargs)
         nn.init.xavier_uniform_(self.out_proj.weight, gain)
-        nn.init.zeros_(self.out_proj.bias)
+        if self.out_proj.bias is not None:  # <-- Add this check
+            nn.init.zeros_(self.out_proj.bias)
+        
 
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None):
         dtype = self.out_proj.weight.dtype if dtype is None else dtype
