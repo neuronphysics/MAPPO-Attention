@@ -191,8 +191,8 @@ class PerpetualOrthogonalProjectionLoss(nn.Module):
                  feat_dim=2048, 
                  no_norm=False, 
                  use_attention=True,  
-                 orthogonality_weight=0.2, 
-                 slot_ortho_weight=0.1, 
+                 orthogonality_weight=0.3, 
+                 slot_ortho_weight=0.2, 
                  device=None):
         
         super(PerpetualOrthogonalProjectionLoss, self).__init__()

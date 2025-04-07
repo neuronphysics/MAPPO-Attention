@@ -25,9 +25,9 @@ echo "current path ---> $CURRENT_PATH"
 pip install -e .
 
 
-environment_name= "territory__rooms"
+environment_name="territory__rooms"
 num_agents=9
-slot_attn_batch_size=500
+slot_attn_batch_size=300
 num_units=6
 
 wandb login a2a1bab96ebbc3869c65e3632485e02fcae9cc42

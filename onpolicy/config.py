@@ -432,8 +432,8 @@ def get_config():
     parser.add_argument('--sigma_final', type=float, default=0)
     parser.add_argument('--sigma_start', type=float, default=1)
 
-    parser.add_argument('--use_post_cluster', default=False, action='store_true')
-    parser.add_argument('--use_kmeans', default=False, action='store_true')
+    parser.add_argument('--use_post_cluster', default=True, action='store_true')
+    parser.add_argument('--use_kmeans', default=True, action='store_true')
     parser.add_argument('--lambda_c', type=float, default=0.1)
     parser.add_argument('--lr_main', type=float, default=1e-4)
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
