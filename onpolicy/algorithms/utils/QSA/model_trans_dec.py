@@ -190,8 +190,7 @@ class PerpetualOrthogonalProjectionLoss(nn.Module):
                  num_classes=10, 
                  feat_dim=2048, 
                  no_norm=False, 
-                 use_attention=True, 
-                 temperature=2.0, 
+                 use_attention=True,  
                  orthogonality_weight=0.2, 
                  slot_ortho_weight=0.1, 
                  device=None):
@@ -202,7 +201,6 @@ class PerpetualOrthogonalProjectionLoss(nn.Module):
         self.feat_dim = feat_dim
         self.no_norm = no_norm
         self.use_attention = use_attention
-        self.temperature = temperature
         self.orthogonality_weight = orthogonality_weight
         self.slot_ortho_weight = slot_ortho_weight
         self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -256,8 +254,11 @@ class PerpetualOrthogonalProjectionLoss(nn.Module):
         
 
         #create mask for class assignment
-        label_mask = torch.eq(labels[:, None], 
-                            torch.arange(self.num_classes, device=device).long()[None].t()).float()
+        
+        labels = labels[:, None]  # extend dim
+        class_range = torch.arange(self.num_classes, device=device).long()
+        class_range = class_range[:, None]  # extend dim
+        label_mask = torch.eq(labels, class_range.t()).float().to(device)
         #calculate the feature centre loss
         feature_centre_variance = torch.matmul(features, normalized_class_centres.t())
         same_class_loss = (label_mask * feature_centre_variance).sum() / (label_mask.sum() + 1e-6)
