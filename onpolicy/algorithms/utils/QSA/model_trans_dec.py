@@ -44,7 +44,7 @@ class SLATE(nn.Module):
 
         self.backbone = Encoder(args.encoder_channels, args.encoder_strides, args.encoder_kernel_size)
 
-        self.ortho_loss_fn = PerpetualOrthogonalProjectionLoss(num_classes=num_slot, feat_dim=slot_dim)
+        self.ortho_loss_fn = PerpetualOrthogonalProjectionLoss(num_classes=num_slot, feat_dim=slot_dim, device=args.device)
 
 
         self.use_post_cluster = args.use_post_cluster
@@ -165,8 +165,7 @@ class SLATE(nn.Module):
             "sampled_latents": z_sampled,
             "predicted_sampled_latents": hat_z_sampled
         }
-
-
+    
 class OneHotDictionary(nn.Module):
     def __init__(self, vocab_size, emb_size):
         super().__init__()
@@ -184,60 +183,87 @@ class OneHotDictionary(nn.Module):
     def get_embedding(self):
         return self.dictionary.weight
 
+
+
 class PerpetualOrthogonalProjectionLoss(nn.Module):
-    def __init__(self, num_classes=10, feat_dim=2048, use_attention=True, no_norm=False,
-                 slot_ortho_weight=1.0, orthogonality_weight=1.0):
-        super().__init__()
+    def __init__(self, 
+                 num_classes=10, 
+                 feat_dim=2048, 
+                 no_norm=False, 
+                 use_attention=True, 
+                 temperature=2.0, 
+                 orthogonality_weight=0.2, 
+                 slot_ortho_weight=0.1, 
+                 device=None):
+        
+        super(PerpetualOrthogonalProjectionLoss, self).__init__()
+
         self.num_classes = num_classes
         self.feat_dim = feat_dim
         self.no_norm = no_norm
         self.use_attention = use_attention
-        self.slot_ortho_weight = slot_ortho_weight
+        self.temperature = temperature
         self.orthogonality_weight = orthogonality_weight
+        self.slot_ortho_weight = slot_ortho_weight
+        self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        #learnable class centres
+        self.class_centres = nn.Parameter(torch.randn(self.num_classes, self.feat_dim, device=self.device))
+        # Apply orthogonal initialization (significantly better than random)
+        with torch.no_grad():
+            nn.init.orthogonal_(self.class_centres)
+            
         
-        # Orthogonal centers with weight norm
-        self.class_centres = nn.utils.weight_norm(nn.Linear(feat_dim, num_classes, bias=False))
-        nn.init.orthogonal_(self.class_centres.weight)
-
-    def orthogonal_center_loss(self):
+        self.to(self.device)
+            
+    def orthogonal_center_loss(self, norm_centers):
+        """Enforce class centers remain orthogonal (key addition)"""
         
-        return torch.norm(torch.mm(self.class_centres.weight, self.class_centres.weight.t()) - torch.eye(self.num_classes, device=self.class_centres.weight.device), p='fro')**2
+        # Compute how far they deviate from orthogonal
+        return torch.norm(torch.mm(norm_centers, norm_centers.t()) - torch.eye(self.num_classes, device=self.device), p='fro')**2  # Frobenius norm squared
 
     def slot_loss(self, features):
-        slots = features.view(-1, self.num_classes, self.feat_dim)
-        slots = F.normalize(slots, dim=-1)
+        """ Pushes slots from the same batch away from each other, preventing slot collapse"""
+        batch_size = features.size(0) // self.num_classes
+        features = features.view(batch_size, self.num_classes, -1)
+        slots = F.normalize(features, dim=-1)
+        # Compute share similarity matrix
         sim_matrix = torch.einsum('bnd,bmd->bnm', slots, slots)
-        return torch.norm(sim_matrix - torch.eye(self.num_classes, device=slots.device).unsqueeze(0), p='fro') / slots.size(0)
+        # Strict ortho loss
+        
+        return torch.norm(sim_matrix - torch.eye(self.num_classes, device=slots.device).unsqueeze(0), p='fro') / batch_size
 
-    def forward(self, features, labels):
-        total_loss = 0.0
+
+    def forward(self, features, labels=None):
         device = features.device
-        
-        # 1. Slot orthogonality (dominant)
+        total_loss=0
+
+        # 1. loss between slots
         total_loss += self.slot_ortho_weight * self.slot_loss(features)
-        
-        # 2. Center orthogonality (dominant)
-        total_loss += self.orthogonality_weight * self.orthogonal_center_loss()
-        
-        # 3. Sparse attention
+
+        # 2. Orthogonal center regularization 
+        normalized_class_centres = F.normalize(self.class_centres, p=2, dim=1)
+        total_loss += self.orthogonality_weight * self.orthogonal_center_loss(normalized_class_centres)
+
+        # 3. Feature-to center alignment 
         if self.use_attention:
-            features = F.normalize(features, dim=1)
-            attn = torch.matmul(features, features.t())
-            attn = F.gumbel_softmax(attn, tau=0.1, hard=True, dim=1)
-            features = torch.matmul(attn, features)
-        
-        # 4. Alignment with margin
+            features_weights = torch.matmul(features, features.T)
+            features_weights = F.gumbel_softmax(features_weights, dim=1)
+            features = torch.matmul(features_weights, features)
+
+        #  features are normalized
         if not self.no_norm:
             features = F.normalize(features, p=2, dim=1)
         
-        norm_centers = F.normalize(self.class_centres.weight, p=2, dim=1)
-        scores = torch.mm(features, norm_centers.t())
+
+        #create mask for class assignment
+        label_mask = torch.eq(labels[:, None], 
+                            torch.arange(self.num_classes, device=device).long()[None].t()).float()
+        #calculate the feature centre loss
+        feature_centre_variance = torch.matmul(features, normalized_class_centres.t())
+        same_class_loss = (label_mask * feature_centre_variance).sum() / (label_mask.sum() + 1e-6)
+        diff_class_loss = torch.relu(0.2 + (1 - label_mask) * feature_centre_variance).mean()
+
+        total_loss += 0.5 * (1.0 - same_class_loss) + diff_class_loss
         
-        label_mask = (labels[:, None] == torch.arange(self.num_classes, device=device)).float()
-        same_class_loss = (label_mask * scores).sum() / (label_mask.sum() + 1e-6)
-        #L_{diff}​=mean(ReLU(margin+(1−label_mask)×scores))
-        diff_class_loss = torch.relu(0.25 + (1 - label_mask) * scores).mean()  # Margin
-        
-        total_loss += (1.0 - same_class_loss) + diff_class_loss
-        
+
         return total_loss

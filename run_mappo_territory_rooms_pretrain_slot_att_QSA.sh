@@ -46,6 +46,5 @@ CUDA_VISIBLE_DEVICES=0 python3 -m onpolicy.scripts.train.train_meltingpot --use_
      --world_img_scale_factor 1 --pretrain_slot_att True --slot_train_ep 250 --slot_pretrain_batch_size ${slot_attn_batch_size} \
      --slot_att_work_path "/home/mila/z/zahra.sheikhbahaee/Projects/meltingpot/Lora/onpolicy/scripts/results/slot_att/" \
      --slot_att_load_model False --use_slot_att False --use_pos_encoding False --use_input_att False --use_com_att True --use_x_reshape True \
-     --slot_att_crop_repeat 9 --slot_log_fre 1 --collect_data True --collect_agent True --collect_world True --collect_data_ep_num 35 \
-     --no_train True --crop_size 88 --use_orthogonal_loss True --use_consistency_loss True
-
+     --slot_att_crop_repeat 9 --slot_log_fre 1 --collect_data True --collect_agent True --collect_world True --collect_data_ep_num 25 \
+     --no_train True --crop_size 88 --use_orthogonal_loss True --use_consistency_loss True --orthogonal_loss_coef 2.0
