@@ -1,8 +1,7 @@
 # Copyright (c) 2023, Tri Dao.
-#From https://github.com/daveredrum/SceneTex
+#From https://github.com/daveredrum/SceneTex/blob/main/models/modules/multihead_attention.py
 import math
 from functools import partial
-
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
@@ -298,8 +297,8 @@ def _update_kv_cache(kv, inference_params, layer_idx):
     batch_end = batch_start + kv.shape[0]
     sequence_start = inference_params.seqlen_offset
     sequence_end = sequence_start + kv.shape[1]
-    assert batch_end <= (kv_cache.shape[0] if kv_cache is not None else v_cache.shape[0])
-    assert sequence_end <= (kv_cache.shape[1] if kv_cache is not None else v_cache.shape[2])
+    assert batch_end <= kv_cache.shape[0] 
+    assert sequence_end <= kv_cache.shape[1] 
     assert kv_cache is not None
     kv_cache[batch_start:batch_end, sequence_start:sequence_end, ...] = kv
     return kv_cache[batch_start:batch_end, :sequence_end, ...]
@@ -579,7 +578,31 @@ class MHA(nn.Module):
                     if not self.checkpointing:
                         context = self.inner_attn(qkv, **kwargs)
                     else:
-                        context = torch.utils.checkpoint.checkpoint(self.inner_attn, qkv, **kwargs)
+                        def custom_forward(input_tensor):
+                            if isinstance(self.inner_attn, FlashSelfAttention):
+                                # For Flash attention, only pass supported parameters
+                                return self.inner_attn(
+                                                        input_tensor,
+                                                        causal=kwargs.get('causal', self.causal),  # Use class default as fallback
+                                                        **({"cu_seqlens": kwargs["cu_seqlens"]} if "cu_seqlens" in kwargs else {}),# Only include these parameters if they exist in kwargs
+                                                        **({"max_seqlen": kwargs["max_seqlen"]} if "max_seqlen" in kwargs else {})
+                                                      )
+                            elif isinstance(self.inner_attn, SelfAttention):
+                                return self.inner_attn(
+                                                        input_tensor,
+                                                        causal=kwargs.get('causal', self.causal),
+                                                        key_padding_mask=kwargs.get('key_padding_mask', None)
+                                                    )
+                            else:
+                                # Fallback with no kwargs for unknown attention types
+                                return self.inner_attn(input_tensor)
+    
+                        context = torch.utils.checkpoint.checkpoint(
+                                            custom_forward,
+                                            qkv,
+                                            use_reentrant=False
+                                                )
+                        #context = torch.utils.checkpoint.checkpoint(self.inner_attn, qkv, **kwargs)
                 else:
                     context = self._update_kvcache_attention(
                         qkv[:, :, 0], qkv[:, :, 1:], inference_params
@@ -630,9 +653,34 @@ class MHA(nn.Module):
                     if not self.checkpointing:
                         context = self.inner_cross_attn(q, kv, **kwargs)
                     else:
+                        def custom_forward(q_tensor, kv_tensor):
+                            if isinstance(self.inner_cross_attn, FlashCrossAttention):
+                                # Only include parameters that exist in kwargs
+                                flash_kwargs = {
+                                                 "causal": kwargs.get('causal', self.causal)
+                                     }
+                                # Conditionally add optional parameters
+                                for param in ['cu_seqlens', 'max_seqlen', 'cu_seqlens_k', 'max_seqlen_k']:
+                                    if param in kwargs:
+                                        flash_kwargs[param] = kwargs[param]
+            
+                                return self.inner_cross_attn(q_tensor, kv_tensor, **flash_kwargs)
+                            elif isinstance(self.inner_cross_attn, CrossAttention):
+                                return self.inner_cross_attn(
+                                                            q_tensor, 
+                                                            kv_tensor,
+                                                            causal=kwargs.get('causal', self.causal),
+                                                            key_padding_mask=kwargs.get('key_padding_mask', None)
+                                                            )   
+                            else:
+                                return self.inner_cross_attn(q_tensor, kv_tensor)
+    
                         context = torch.utils.checkpoint.checkpoint(
-                            self.inner_cross_attn, q, kv, **kwargs
-                        )
+                                                                   custom_forward,
+                                                                   q, kv,
+                                                                   use_reentrant=False
+                                                                   )   
+                        #context = torch.utils.checkpoint.checkpoint(self.inner_cross_attn, q, kv, **kwargs)
                 else:
                     context = self._update_kvcache_attention(q, kv, inference_params)
             else:

@@ -78,7 +78,7 @@ class TransformerEncoderBlock(nn.Module):
                         embed_dim=d_model,
                         num_heads=num_heads,
                         dropout=dropout,
-                        qkv_proj_bias=False,    # Match original implementation
+                        qkv_proj_bias=False,     # Match original implementation
                         out_proj_bias=False,     # Match original implementation
                         causal=False,            # Encoder is bidirectional
                         use_flash_attn=True,     # Enable FlashAttention
@@ -152,11 +152,12 @@ class TransformerDecoderBlock(nn.Module):
                             num_heads=num_heads,
                             dropout=dropout,
                             causal=True,            # Causal masking for autoregressive self-attention
+                            cross_attn=False,       # Self-attention
                             use_flash_attn=True,    # Enable FlashAttention
                             qkv_proj_bias=False,    # Match original parameters
                             out_proj_bias=False,
+                            checkpointing=True,
                             gain=gain,
-                            cross_attn=False,        # Self-attention
                             )
 
 
@@ -174,6 +175,7 @@ class TransformerDecoderBlock(nn.Module):
                                         cross_attn=True,        # Cross-attention (queries from decoder, keys/values from encoder)
                                         qkv_proj_bias=False,
                                         out_proj_bias=False,
+                                        checkpointing=True,
                                         gain=gain, 
                                         )
         self.ffn_layer_norm = nn.LayerNorm(d_model)
