@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
-from onpolicy.algorithms.utils.util import check, DormantNeuronTracker
+from onpolicy.algorithms.utils.util import check
 from torch.utils.checkpoint import checkpoint
 import torch.distributed as dist
 class R_MAPPO():
@@ -52,9 +52,7 @@ class R_MAPPO():
         self._use_policy_active_masks = args.use_policy_active_masks
         self.use_slot_att = args.use_slot_att
         #
-        self.dormant_tracker = DormantNeuronTracker(model=self.policy.actor)
-        self.dormant_tracker.initialize_total_neurons()
-        self.dormant_tracker.register_activation_hooks()    
+ 
         if self.use_attention == True:
             self._use_naive_recurrent_policy = False
             self._use_recurrent_policy = False
@@ -192,12 +190,18 @@ class R_MAPPO():
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
 
             if self.use_slot_att:
-                slot_att_loss = (
-                                 self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss 
-                                + self.policy.actor.slot_consistency_loss 
-                                + self.policy.actor.slot_mse_loss 
-                                + self.policy.actor.slot_cross_entropy_loss
-                                )
+                if self.args.use_slot_attn_transformer_decoder:
+                    slot_att_loss = (
+                                     self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss 
+                                     + self.policy.actor.slot_consistency_loss 
+                                     + self.policy.actor.slot_mse_loss 
+                                     + self.policy.actor.slot_cross_entropy_loss
+                                    )
+                else:
+                    slot_att_loss = (
+                                     self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss 
+                                     + self.policy.actor.slot_mse_loss
+                                    )
                 total_loss += self.args.slot_attn_loss_coef * slot_att_loss
 
             total_loss.backward()
@@ -265,7 +269,6 @@ class R_MAPPO():
         train_info['actor_grad_norm'] = 0
         train_info['critic_grad_norm'] = 0
         train_info['ratio'] = 0
-        train_info['dormant_ratio_actor_net'] = 0
         if self.use_slot_att:
            train_info['slot_att_loss']= 0
 
@@ -290,11 +293,6 @@ class R_MAPPO():
 
                 is_last_update = (idx == self.ppo_epoch - 1)
                 if is_last_update:
-                    # Track dormant ratio at half the perturb interval
-                    if self.total_updates % (self.args.perturb_interval//2) == 0:
-                      with torch.no_grad():  # Ensure we don't track unnecessary gradients
-                        train_info['dormant_ratio_actor_net'] += \
-                            self.dormant_tracker.calculate_dormant_ratio("activation")
                 
                     # Apply shrink and perturb at the specified interval
                     if self.total_updates % self.args.perturb_interval == 0:

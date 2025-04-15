@@ -3,7 +3,7 @@ from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Crit
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
 from onpolicy.algorithms.utils.util import get_optimizer_groups, WeightClipping
-
+from peft import LoraConfig, get_peft_model
 class R_MAPPOPolicy:
     """
     MAPPO Policy  class. Wraps actor and critic networks to compute actions and value function predictions.
@@ -26,7 +26,9 @@ class R_MAPPOPolicy:
         self.obs_space = obs_space
         self.share_obs_space = cent_obs_space
         self.act_space = act_space
-
+        self.unfreeze_episode = args.unfreeze_episode
+        self.unfrozen = False
+        
         self.actor = R_Actor(args, self.obs_space, self.act_space, self.device)
         self.critic = R_Critic(args, self.share_obs_space, self.device)
 
@@ -61,6 +63,69 @@ class R_MAPPOPolicy:
                 # Only store LoRA or explicitly unfrozen parameters
                 if 'lora_' in name or param.requires_grad:
                     self.initial_weights[f"slot_attn.{name}"] = param.detach().clone().requires_grad_(False)
+
+    def check_and_unfreeze(self, current_episode):
+        """Check if it's time to unfreeze layers and do so if needed"""
+        if not self.unfrozen and current_episode >= self.unfreeze_episode and self.use_slot_att:
+            print(f"Episode {current_episode}: Unfreezing slot attention layers")
+        
+            # Store the current optimizer state before unfreezing
+            old_state = None
+            if hasattr(self.actor_optimizer, 'optimizer'):
+               old_state = self.actor_optimizer.optimizer.state_dict()
+        
+            # Unfreeze the layers
+            #selectively_unfreeze_layers(self.actor.slot_attn, self.actor._finetuned_list_modules)
+            # Define LoRA config
+            lora_config = LoraConfig(
+                                     r=16,  # Rank of the low-rank update
+                                     lora_alpha=16,  # Scaling factor
+                                     lora_dropout=0.1,
+                                     use_rslora=False,
+                                     use_dora=True,
+                                     target_modules=self.actor._finetuned_list_modules,
+                                     init_lora_weights="gaussian",
+                                     bias="none",
+                                    )
+        
+            # Convert to LoRA model
+            self.actor.slot_attn = get_peft_model(
+                                                  self.actor.slot_attn, 
+                                                  lora_config
+                                                  ).to(self.device)
+        
+        
+            # Create new optimizer
+            self.actor_optimizer = WeightClipping(
+                                                 get_optimizer_groups(self.actor, self.args),
+                                                 beta=self.args.weight_clip_beta,
+                                                 optimizer=torch.optim.Adam,
+                                                 eps=self.opti_eps,
+                                                 weight_decay=self.weight_decay
+                                                 )
+        
+            # If we had an old state, try to restore compatible parts
+            if old_state is not None:
+               # Create a new state dict for the new optimizer
+               new_state = self.actor_optimizer.optimizer.state_dict()
+            
+               # Transfer parameter states for parameters that existed in both optimizers
+               for param_id in old_state['state']:
+                   if param_id in new_state['state']:
+                      new_state['state'][param_id] = old_state['state'][param_id]
+            
+               # Load the merged state back into the optimizer
+               self.actor_optimizer.optimizer.load_state_dict(new_state)
+               print("Transferred optimizer state for previously trainable parameters")
+        
+            # Print information about newly trainable parameters
+            trainable_params = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
+            total_params = sum(p.numel() for p in self.actor.parameters())
+            print(f"After unfreezing: {trainable_params}/{total_params} parameters trainable ({trainable_params/total_params:.2%})")
+        
+            self.unfrozen = True
+            return True
+        return False            
 
 
     def perturb_layers(self, shrink_factor=0.8, epsilon=0.2):

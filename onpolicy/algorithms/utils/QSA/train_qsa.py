@@ -13,7 +13,7 @@ from onpolicy.algorithms.utils.QSA.data_loader import GlobDataset
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from io import BytesIO
-from .model_trans_dec import SLATE
+from .model_trans_dec import SLATE, SLATEExtractor
 import math
 
 
@@ -24,7 +24,22 @@ def generate_model(args):
         tau, sigma = load_slot_att_model(model, args)
         args.tau_start = tau
         args.sigma_start = sigma
-    return model
+    if args.use_slot_attn_transformer_decoder:
+        return model
+    else:
+        extractor = SLATEExtractor(args)
+        extractor.to(args.device)
+    
+        # Copy weights from the pretrained model
+        extractor.dvae.load_state_dict(model.dvae.state_dict())
+        extractor.backbone.load_state_dict(model.backbone.state_dict())
+        extractor.slot_attn.load_state_dict(model.slot_attn.state_dict())
+        extractor.ortho_loss_fn.load_state_dict(model.ortho_loss_fn.state_dict())
+    
+        if args.use_post_cluster:
+           extractor.post_cluster.copy_(model.post_cluster)
+        
+        return extractor
 
 
 def configure_optimizers(model, args):

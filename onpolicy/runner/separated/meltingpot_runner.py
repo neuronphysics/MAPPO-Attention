@@ -33,6 +33,13 @@ class MeltingpotRunner(Runner):
         print('num episodes to run (separated):', episodes)
 
         for episode in range(episodes):
+            #for fine tuning we can freeze the slot attention model and unfreeze it after certain number of episodes
+            if self.all_args.fine_tuning_type == "Slowly_Unfreeze" and self.all_args.use_slot_att:
+            
+                for agent_id in range(self.num_agents):
+                    if self.trainer[agent_id].policy.check_and_unfreeze(episode):
+                       print(f"Episode {episode}: Slot attention layers unfrozen {self.trainer[agent_id].policy.unfrozen}")
+            
             self.warmup()
 
             print(f'Episode {episode} start at {time.time()}')

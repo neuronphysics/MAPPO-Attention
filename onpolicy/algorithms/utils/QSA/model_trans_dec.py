@@ -183,6 +183,87 @@ class OneHotDictionary(nn.Module):
     def get_embedding(self):
         return self.dictionary.weight
 
+class SLATEExtractor(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        if args.attention_module == 'RIM':
+            num_slot = args.rim_num_units
+        else:
+            num_slot = args.scoff_num_units
+        slot_dim = args.hidden_size // num_slot
+
+        self.vocab_size = args.vocab_size
+
+        self.dvae = dVAE(args.vocab_size, args.img_channels, args.dvae_kernel_size)
+
+        self.slot_attn = SlotAttentionEncoder(
+            args.num_iter, num_slot, args.feature_size,
+            slot_dim, args.mlp_size,
+            (args.crop_size, args.crop_size), args.truncate,
+            args.init_method, args.drop_path)
+
+
+        self.backbone = Encoder(args.encoder_channels, args.encoder_strides, args.encoder_kernel_size)
+
+        self.ortho_loss_fn = PerpetualOrthogonalProjectionLoss(num_classes=num_slot, feat_dim=slot_dim, device=args.device)
+
+
+        self.use_post_cluster = args.use_post_cluster
+        self.lambda_c = args.lambda_c
+        self.num_slots = num_slot
+        self.slot_size = slot_dim
+        if self.use_post_cluster:
+            self.register_buffer('post_cluster', torch.zeros(1, num_slot, slot_dim))
+            nn.init.xavier_normal_(self.post_cluster)
+        self.kmeans = KMeans(n_clusters=num_slot, random_state=args.seed) if args.use_kmeans else None
+
+    def forward(self, image, visualize=False, tau=0.1, sigma=0, is_Train=False):
+        """
+        image: batch_size x img_channels x H x W
+        """
+        out = {}
+        loss = {}
+
+        B, C, H, W = image.size()
+
+        # dvae encode
+        mse, recon, z = self.dvae(image, tau, return_z=True)
+        loss['mse'] = mse
+
+
+        # apply feature extractor
+        f = self.backbone(image)
+        if self.use_post_cluster:
+            slots_init = self.post_cluster.repeat(B, 1, 1)
+            slot_attn_out = self.slot_attn(f, sigma=sigma, slots_init=slots_init)
+            slots = slot_attn_out['slots']
+            if is_Train:
+                # update post cluster, shape: 1 x num_slots x slot_size
+                if self.kmeans is not None:
+                    self.kmeans.fit(slots.detach().reshape(-1, self.slot_size).cpu().numpy())
+                    update = torch.Tensor(self.kmeans.cluster_centers_.reshape(1, self.num_slots, self.slot_size)).to(
+                        image.device)
+                    self.post_cluster = self.lambda_c * update + (1 - self.lambda_c) * self.post_cluster
+                else:
+                    update = slots.detach().mean(dim=0, keepdim=True)
+                    self.post_cluster = self.lambda_c * update + (1 - self.lambda_c) * self.post_cluster
+        else:
+            slot_attn_out = self.slot_attn(f, sigma=sigma)
+            slots = slot_attn_out['slots']
+        attns = slot_attn_out['attn']
+        attns = attns.reshape(B, -1, 1, H, W)
+
+        out['slots'] = slots
+        labels = torch.arange(self.num_slots).unsqueeze(0).repeat(B, 1).reshape(-1).to(slots.device)
+        out['sim_loss'] = self.ortho_loss_fn(slots.reshape(-1, self.slot_size), labels)
+        
+        if visualize:
+            with torch.no_grad():
+                out['recon'] = recon
+  
+        out['attns'] = attns
+        out['loss'] = loss
+        return out
 
 
 class PerpetualOrthogonalProjectionLoss(nn.Module):

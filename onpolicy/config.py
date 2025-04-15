@@ -380,6 +380,7 @@ def get_config():
     parser.add_argument("--slot_clip_grade_norm", type=float, default=1.0)
     parser.add_argument("--slot_save_fre", type=int, default=5, )
     parser.add_argument("--slot_log_fre", type=int, default=3, )
+    parser.add_argument("--use_slot_attn_transformer_decoder", type=str2bool, default=True, help="use transformer decoder for fine-tuning during RL training")
 
     parser.add_argument("--use_consistency_loss", type=str2bool, default=True)
     parser.add_argument("--use_orthogonal_loss", type=str2bool, default=False, )
@@ -439,11 +440,13 @@ def get_config():
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
     parser.add_argument('--slot_attn_loss_coef', type=float, default= 0.05, help='Slot Attention Loss Coefficient')
     parser.add_argument('--collect_data_mi', type=int, default=50000)
-    parser.add_argument('--fine_tuning_type', type=str, default="Lora")
+    parser.add_argument('--fine_tuning_type', type=str, default="Lora", help="options are [Lora, Slowly_Unfreeze, Partial]")
+    parser.add_argument('--unfreeze_episode', type=int, default=200, help="episode to unfreeze the model")
+
     #dealing with plastisity loss
     parser.add_argument("--shrink_factor", type=float, default=0.8)
     parser.add_argument("--perturb_epsilon", type=float, default=0.2)
-    parser.add_argument("--perturb_interval", type=int, default=1000000,
-                   help="Apply S&P every N steps update")
+    parser.add_argument("--perturb_interval", type=int, default=1000000, help="Apply S&P every N steps update")
+
     parser.add_argument('--weight_clip_beta', type=float, default=1.0, help="weight clipping parameter")
     return parser
