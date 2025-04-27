@@ -39,7 +39,7 @@ class R_MAPPOPolicy:
                                             get_optimizer_groups(self.actor, args),
                                             beta=args.weight_clip_beta,
                                             ewc_lambda=args.ewc_lambda,
-                                            ewc_beta=args.ewc_beta_fisher,
+                                            ewc_beta_weight=args.ewc_beta_fisher,
                                             ewc_beta_fisher=args.ewc_beta_weight,
                                             optimizer=torch.optim.Adam,
                                             eps=self.opti_eps,
@@ -104,7 +104,7 @@ class R_MAPPOPolicy:
                                                     get_optimizer_groups(self.actor, self.args),
                                                     beta=self.args.weight_clip_beta,
                                                     ewc_lambda=self.args.ewc_lambda,
-                                                    ewc_beta=self.args.ewc_beta_weight,      # 
+                                                    ewc_beta_weight=self.args.ewc_beta_weight,      # 
                                                     ewc_beta_fisher=self.args.ewc_beta_fisher, # 
                                                     optimizer=torch.optim.Adam,
                                                     eps=self.opti_eps,

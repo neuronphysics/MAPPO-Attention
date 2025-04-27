@@ -63,8 +63,8 @@ def get_optimizer_groups(model, args):
         'other': 0.0  # No EWC regularization for other parameters
     }
     ewc_beta_mapping = {
-        'slot_lora': args.ewc_beta,
-        'slot': args.ewc_beta,
+        'slot_lora': args.ewc_beta_weight,
+        'slot': args.ewc_beta_weight,
         'other': 0.0  # No EWC regularization for other parameters
     }
     ewc_beta_fisher_mapping = {
@@ -81,7 +81,7 @@ def get_optimizer_groups(model, args):
                 'needs_clipping': clip_mapping[group_type],
                 'beta': args.weight_clip_beta if clip_mapping[group_type] else 0.0,
                 'ewc_lambda': ewc_lambda_mapping[group_type],
-                'ewc_beta': ewc_beta_mapping[group_type],
+                'ewc_beta_weight': ewc_beta_mapping[group_type],
                 'ewc_beta_fisher': ewc_beta_fisher_mapping[group_type],
             })
 
@@ -117,8 +117,8 @@ class InitBounds:
             raise ValueError("Unsupported tensor dimension: {}".format(p.dim()))
         
 class EWCWeightClipping(torch.optim.Optimizer):
-    def __init__(self, params, beta=1.0, ewc_lambda=0.01, ewc_beta=0.999, ewc_beta_fisher=0.999, optimizer=torch.optim.Adam, **kwargs):
-        defaults = dict(beta=beta, ewc_lambda=ewc_lambda, ewc_beta=ewc_beta, ewc_beta_fisher=ewc_beta_fisher)
+    def __init__(self, params, beta=1.0, ewc_lambda=0.01, ewc_beta_weight=0.999, ewc_beta_fisher=0.999, optimizer=torch.optim.Adam, **kwargs):
+        defaults = dict(beta=beta, ewc_lambda=ewc_lambda, ewc_beta_weight=ewc_beta_weight, ewc_beta_fisher=ewc_beta_fisher)
         super(EWCWeightClipping, self).__init__(params, defaults)
         self.optimizer = optimizer(self.param_groups, **kwargs)
         self.param_groups = self.optimizer.param_groups
@@ -166,11 +166,11 @@ class EWCWeightClipping(torch.optim.Optimizer):
                 fisher_trace = state["fisher_trace"]
                 
                 # Update EMA of weights and fisher information
-                weight_trace.mul_(group["ewc_beta"]).add_(p.data, alpha=1 - group["ewc_beta"])
+                weight_trace.mul_(group["ewc_beta_weight"]).add_(p.data, alpha=1 - group["ewc_beta_weight"])
                 fisher_trace.mul_(group["ewc_beta_fisher"]).add_(p.grad.data ** 2, alpha=1 - group["ewc_beta_fisher"])
                 
                 # Bias correction
-                bias_correction_weight = 1 - group["ewc_beta"] ** state["ewc_step"]
+                bias_correction_weight = 1 - group["ewc_beta_weight"] ** state["ewc_step"]
                 bias_correction_fisher = 1 - group["ewc_beta_fisher"] ** state["ewc_step"]
                 
                 # Calculate consolidation term and add to gradient
