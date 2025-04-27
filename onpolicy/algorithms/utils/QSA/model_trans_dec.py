@@ -8,7 +8,7 @@ from .transformer import PositionalEncoding, TransformerDecoder
 from sklearn.cluster import KMeans
 from contextlib import nullcontext
 import torch.nn.functional as F
-
+import torch
 
 class SLATE(nn.Module):
     def __init__(self, args):

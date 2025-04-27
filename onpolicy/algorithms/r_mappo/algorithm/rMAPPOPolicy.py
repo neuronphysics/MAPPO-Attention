@@ -2,7 +2,7 @@ import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
-from onpolicy.algorithms.utils.util import get_optimizer_groups, WeightClipping
+from onpolicy.algorithms.utils.util import get_optimizer_groups, EWCWeightClipping
 from peft import LoraConfig, get_peft_model
 class R_MAPPOPolicy:
     """
@@ -35,9 +35,12 @@ class R_MAPPOPolicy:
 
         # actor_parameters = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
         # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
-        self.actor_optimizer = WeightClipping(
+        self.actor_optimizer = EWCWeightClipping(
                                             get_optimizer_groups(self.actor, args),
                                             beta=args.weight_clip_beta,
+                                            ewc_lambda=args.ewc_lambda,
+                                            ewc_beta=args.ewc_beta_fisher,
+                                            ewc_beta_fisher=args.ewc_beta_weight,
                                             optimizer=torch.optim.Adam,
                                             eps=self.opti_eps,
                                             weight_decay=self.weight_decay
@@ -97,13 +100,16 @@ class R_MAPPOPolicy:
         
         
             # Create new optimizer
-            self.actor_optimizer = WeightClipping(
-                                                 get_optimizer_groups(self.actor, self.args),
-                                                 beta=self.args.weight_clip_beta,
-                                                 optimizer=torch.optim.Adam,
-                                                 eps=self.opti_eps,
-                                                 weight_decay=self.weight_decay
-                                                 )
+            self.actor_optimizer = EWCWeightClipping(
+                                                    get_optimizer_groups(self.actor, self.args),
+                                                    beta=self.args.weight_clip_beta,
+                                                    ewc_lambda=self.args.ewc_lambda,
+                                                    ewc_beta=self.args.ewc_beta_weight,      # 
+                                                    ewc_beta_fisher=self.args.ewc_beta_fisher, # 
+                                                    optimizer=torch.optim.Adam,
+                                                    eps=self.opti_eps,
+                                                    weight_decay=self.weight_decay
+                                                    )
         
             # If we had an old state, try to restore compatible parts
             if old_state is not None:

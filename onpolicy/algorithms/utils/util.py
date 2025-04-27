@@ -57,6 +57,21 @@ def get_optimizer_groups(model, args):
         'slot': True,
         'other': False
     }
+    ewc_lambda_mapping = {
+        'slot_lora': args.ewc_lambda,
+        'slot': args.ewc_lambda,
+        'other': 0.0  # No EWC regularization for other parameters
+    }
+    ewc_beta_mapping = {
+        'slot_lora': args.ewc_beta,
+        'slot': args.ewc_beta,
+        'other': 0.0  # No EWC regularization for other parameters
+    }
+    ewc_beta_fisher_mapping = {
+        'slot_lora': args.ewc_beta_fisher,
+        'slot': args.ewc_beta_fisher,
+        'other': 0.0  # No EWC regularization for other parameters
+    }
     for group_type in ['slot_lora', 'slot', 'other']:
         if param_groups[group_type]:
             params.append({
@@ -64,7 +79,10 @@ def get_optimizer_groups(model, args):
                 'lr': lr_mapping[group_type],
                 'name': group_type,
                 'needs_clipping': clip_mapping[group_type],
-                'beta': args.weight_clip_beta if clip_mapping[group_type] else 0.0
+                'beta': args.weight_clip_beta if clip_mapping[group_type] else 0.0,
+                'ewc_lambda': ewc_lambda_mapping[group_type],
+                'ewc_beta': ewc_beta_mapping[group_type],
+                'ewc_beta_fisher': ewc_beta_fisher_mapping[group_type],
             })
 
     total_trainable = sum(p.numel() for group in params for p in group['params'])
@@ -98,16 +116,18 @@ class InitBounds:
         else:
             raise ValueError("Unsupported tensor dimension: {}".format(p.dim()))
         
-class WeightClipping(torch.optim.Optimizer):
-    def __init__(self, params, beta=1.0, optimizer=torch.optim.Adam, **kwargs):
-        defaults = dict(beta=beta)
-        super(WeightClipping, self).__init__(params, defaults)
+class EWCWeightClipping(torch.optim.Optimizer):
+    def __init__(self, params, beta=1.0, ewc_lambda=0.01, ewc_beta=0.999, ewc_beta_fisher=0.999, optimizer=torch.optim.Adam, **kwargs):
+        defaults = dict(beta=beta, ewc_lambda=ewc_lambda, ewc_beta=ewc_beta, ewc_beta_fisher=ewc_beta_fisher)
+        super(EWCWeightClipping, self).__init__(params, defaults)
         self.optimizer = optimizer(self.param_groups, **kwargs)
         self.param_groups = self.optimizer.param_groups
         self.defaults.update(self.optimizer.defaults)
         self.init_bounds = InitBounds()
+ 
 
     def step(self):
+        self._apply_ewc()
         self.optimizer.step()
         self.weight_clipping()
 
@@ -124,6 +144,38 @@ class WeightClipping(torch.optim.Optimizer):
                 if bound is not None:
                     p.data.clamp_(-group['beta'] * bound, group['beta'] * bound)
 
+    def _apply_ewc(self):
+        for group in self.param_groups:
+            # Only apply EWC to slot and slot_lora parameters
+            if group['name'] not in ['slot', 'slot_lora']:
+                continue
+                
+            for p in group["params"]:
+                if not p.requires_grad or p.grad is None:
+                    continue
+                    
+                state = self.state[p]
+                if len(state) == 0:  # Safety check
+                    state["ewc_step"] = 0
+                    state["weight_trace"] = torch.zeros_like(p.data)
+                    state["fisher_trace"] = torch.zeros_like(p.data)
+ 
+                state["ewc_step"] += 1
+                
+                weight_trace = state["weight_trace"]
+                fisher_trace = state["fisher_trace"]
+                
+                # Update EMA of weights and fisher information
+                weight_trace.mul_(group["ewc_beta"]).add_(p.data, alpha=1 - group["ewc_beta"])
+                fisher_trace.mul_(group["ewc_beta_fisher"]).add_(p.grad.data ** 2, alpha=1 - group["ewc_beta_fisher"])
+                
+                # Bias correction
+                bias_correction_weight = 1 - group["ewc_beta"] ** state["ewc_step"]
+                bias_correction_fisher = 1 - group["ewc_beta_fisher"] ** state["ewc_step"]
+                
+                # Calculate consolidation term and add to gradient
+                weight_consolidation = group["ewc_lambda"] * fisher_trace * (p.data - weight_trace / bias_correction_weight) / bias_correction_fisher
+                p.grad.data.add_( weight_consolidation) 
 
 def print_trainable_parameters(model):
     """

@@ -72,18 +72,20 @@ class R_Actor(nn.Module):
                                             "slot_attn.slot_attention.project_k", 
                                             "slot_attn.slot_attention.project_v",
                                             "slot_attn.slot_attention.mlp.0", 
-                                            "slot_attn.slot_attention.mlp.2", 
+                                            "slot_attn.slot_attention.mlp.2",
+                                            "slot_attn.pos_emb.dense",
                                            ]
             if args.use_slot_attn_transformer_decoder:
-                self._finetuned_list_modules += ["slot_attn.pos_emb.dense",
-                                                 "slot_proj"]
+                self._finetuned_list_modules += ["slot_proj",
+                                                 "out",
+                                                ]
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
                                         r=32,  # Rank of the low-rank update
-                                        lora_alpha=32,  # Scaling factor
-                                        lora_dropout=0.1,  # Dropout probability
+                                        lora_alpha=16,  # Scaling factor (2:1 ratio to rank)
+                                        lora_dropout=0.05,  # Dropout probability
                                         target_modules=self._finetuned_list_modules,  # Target specific layers
                                         init_lora_weights="gaussian",
                                         bias="none",
