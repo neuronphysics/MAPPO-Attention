@@ -448,8 +448,8 @@ def get_config():
     parser.add_argument("--perturb_epsilon", type=float, default=0.2)
     parser.add_argument("--perturb_interval", type=int, default=1000000, help="Apply S&P every N steps update")
 
-    parser.add_argument('--weight_clip_beta', type=float, default=1.0, help="weight clipping parameter")
-    parser.add_argument('--ewc_lambda', type=float, default=0.01, help='EWC regularization strength')
-    parser.add_argument('--ewc_beta_weight', type=float, default=0.999, help='EMA decay rate for parameter values in EWC')
-    parser.add_argument('--ewc_beta_fisher', type=float, default=0.999, help='EMA decay rate for Fisher information in EWC')
+    parser.add_argument('--weight_clip_beta', type=float, default=2.0, help="weight clipping parameter")
+    parser.add_argument('--ewc_lambda', type=float, default=1.0, help='EWC regularization strength')
+    parser.add_argument('--ewc_beta_weight', type=float, default=0.9999, help='EMA decay rate for parameter values in EWC')
+    parser.add_argument('--ewc_beta_fisher', type=float, default=0.9999, help='EMA decay rate for Fisher information in EWC')
     return parser

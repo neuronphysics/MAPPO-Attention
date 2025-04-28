@@ -145,6 +145,9 @@ class EWCWeightClipping(torch.optim.Optimizer):
                     p.data.clamp_(-group['beta'] * bound, group['beta'] * bound)
 
     def _apply_ewc(self):
+        """
+        EWC is applied by modifying gradients, not by directly updating parameters
+        """
         for group in self.param_groups:
             # Only apply EWC to slot and slot_lora parameters
             if group['name'] not in ['slot', 'slot_lora']:
