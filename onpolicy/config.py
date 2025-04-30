@@ -347,7 +347,7 @@ def get_config():
 
     # additional modular attention parameters
     parser.add_argument("--drop_out", type=float,
-                        default=0.5, help="specify the drop out")
+                        default=0.5, help="specify the drop out rate inside the rim module")
     parser.add_argument("--rnn_attention_module", type=str,
                         default='GRU', help='specify the rnn module to use')
     parser.add_argument("--use_bidirectional", type=str2bool, default=False,
@@ -439,6 +439,7 @@ def get_config():
     parser.add_argument('--lr_main', type=float, default=1e-4)
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
     parser.add_argument('--slot_attn_loss_coef', type=float, default= 0.05, help='Slot Attention Loss Coefficient')
+    parser.add_argument('--slot_lambda_entropy', type=float, default= 0.01, help='Attention Entropy Loss Coefficient')
     parser.add_argument('--collect_data_mi', type=int, default=50000)
     parser.add_argument('--fine_tuning_type', type=str, default="Lora", help="options are [Lora, Slowly_Unfreeze, Partial]")
     parser.add_argument('--unfreeze_episode', type=int, default=200, help="episode to unfreeze the model")

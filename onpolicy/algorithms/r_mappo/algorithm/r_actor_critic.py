@@ -83,7 +83,7 @@ class R_Actor(nn.Module):
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
                 lora_config = LoraConfig(
-                                        r=32,  # Rank of the low-rank update
+                                        r=16,  # Rank of the low-rank update
                                         lora_alpha=16,  # Scaling factor (2:1 ratio to rank)
                                         lora_dropout=0.05,  # Dropout probability
                                         target_modules=self._finetuned_list_modules,  # Target specific layers
@@ -171,6 +171,7 @@ class R_Actor(nn.Module):
                self.slot_consistency_loss = slot_outputs['loss']['compositional_consistency_loss']
                self.slot_cross_entropy_loss = slot_outputs['loss']['cross_entropy']
             self.slot_orthoganility_loss = slot_outputs['sim_loss']
+            self.slot_attention_entropy_loss = slot_outputs["attn_entropy"]
             self.slot_mse_loss = slot_outputs['loss']['mse']
             
             

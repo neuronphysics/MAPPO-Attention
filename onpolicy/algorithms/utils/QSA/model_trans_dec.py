@@ -9,6 +9,7 @@ from sklearn.cluster import KMeans
 from contextlib import nullcontext
 import torch.nn.functional as F
 import torch
+from einops import reduce
 
 class SLATE(nn.Module):
     def __init__(self, args):
@@ -195,7 +196,7 @@ class SLATEExtractor(nn.Module):
         self.vocab_size = args.vocab_size
 
         self.dvae = dVAE(args.vocab_size, args.img_channels, args.dvae_kernel_size)
-
+        self.slot_lambda_entropy = args.slot_lambda_entropy
         self.slot_attn = SlotAttentionEncoder(
             args.num_iter, num_slot, args.feature_size,
             slot_dim, args.mlp_size,
@@ -251,6 +252,13 @@ class SLATEExtractor(nn.Module):
             slot_attn_out = self.slot_attn(f, sigma=sigma)
             slots = slot_attn_out['slots']
         attns = slot_attn_out['attn']
+        # Calculate entropy regularization
+        entropy = reduce(
+                         torch.special.entr(attns.clamp(min=1e-20, max=1)),
+                         "b s f -> b",
+                          "mean"
+                        ).sum()
+        out["attn_entropy"] = self.slot_lambda_entropy * entropy
         attns = attns.reshape(B, -1, 1, H, W)
 
         out['slots'] = slots
