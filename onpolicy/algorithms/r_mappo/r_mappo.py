@@ -196,7 +196,6 @@ class R_MAPPO():
                                      + self.policy.actor.slot_consistency_loss 
                                      + self.policy.actor.slot_mse_loss 
                                      + self.policy.actor.slot_cross_entropy_loss
-                                     + self.policy.slot_attention_entropy_loss
                                     )
                 else:
                     slot_att_loss = (

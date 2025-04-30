@@ -168,10 +168,12 @@ class R_Actor(nn.Module):
             slot_outputs = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train= True,
                                             visualize=False)
             if self.args.use_slot_attn_transformer_decoder:
-               self.slot_consistency_loss = slot_outputs['loss']['compositional_consistency_loss']
-               self.slot_cross_entropy_loss = slot_outputs['loss']['cross_entropy']
+                self.slot_consistency_loss = slot_outputs['loss']['compositional_consistency_loss']
+                self.slot_cross_entropy_loss = slot_outputs['loss']['cross_entropy']
+            else:
+                self.slot_attention_entropy_loss = slot_outputs["attn_entropy"]
+
             self.slot_orthoganility_loss = slot_outputs['sim_loss']
-            self.slot_attention_entropy_loss = slot_outputs["attn_entropy"]
             self.slot_mse_loss = slot_outputs['loss']['mse']
             
             
