@@ -202,10 +202,10 @@ class SLATEExtractor(nn.Module):
             slot_dim, args.mlp_size,
             (args.crop_size, args.crop_size), args.truncate,
             args.init_method, args.drop_path)
-
+        
 
         self.backbone = Encoder(args.encoder_channels, args.encoder_strides, args.encoder_kernel_size)
-
+        self.norm_backbone = nn.LayerNorm(args.feature_size)
         self.ortho_loss_fn = PerpetualOrthogonalProjectionLoss(num_classes=num_slot, feat_dim=slot_dim, device=args.device)
 
 
@@ -217,6 +217,23 @@ class SLATEExtractor(nn.Module):
             self.register_buffer('post_cluster', torch.zeros(1, num_slot, slot_dim))
             nn.init.xavier_normal_(self.post_cluster)
         self.kmeans = KMeans(n_clusters=num_slot, random_state=args.seed) if args.use_kmeans else None
+
+    def _add_layernorm_to_slot_attention(self):
+        #Adding LayerNorm to the slot attention module
+        module = self.slot_attn.slot_attention
+
+        first_linear = module.mlp[0]  # Original linear(slot_size→mlp_size)
+        relu = module.mlp[1]          # Original ReLU
+        second_linear = module.mlp[2] # Original linear(mlp_size→slot_size)
+        mlp_size = first_linear.out_features
+        # New MLP with LayerNorm
+        module.mlp = nn.Sequential(
+                    first_linear,
+                    nn.LayerNorm(mlp_size),    # After first linear, before ReLU
+                    relu,
+                    second_linear
+        )
+
 
     def forward(self, image, visualize=False, tau=0.1, sigma=0, is_Train=False):
         """
@@ -234,9 +251,15 @@ class SLATEExtractor(nn.Module):
 
         # apply feature extractor
         f = self.backbone(image)
+        
+        # Add this line - normalize backbone features before slot attention
+        f_flat = torch.flatten(f, start_dim=2, end_dim=3).permute(0, 2, 1)
+        
+        f_norm = self.norm_backbone(f_flat).permute(0, 2, 1).reshape_as(f)
+        
         if self.use_post_cluster:
             slots_init = self.post_cluster.repeat(B, 1, 1)
-            slot_attn_out = self.slot_attn(f, sigma=sigma, slots_init=slots_init)
+            slot_attn_out = self.slot_attn(f_norm, sigma=sigma, slots_init=slots_init)
             slots = slot_attn_out['slots']
             if is_Train:
                 # update post cluster, shape: 1 x num_slots x slot_size
@@ -249,7 +272,7 @@ class SLATEExtractor(nn.Module):
                     update = slots.detach().mean(dim=0, keepdim=True)
                     self.post_cluster = self.lambda_c * update + (1 - self.lambda_c) * self.post_cluster
         else:
-            slot_attn_out = self.slot_attn(f, sigma=sigma)
+            slot_attn_out = self.slot_attn(f_norm, sigma=sigma)
             slots = slot_attn_out['slots']
         attns = slot_attn_out['attn']
         # Calculate entropy regularization

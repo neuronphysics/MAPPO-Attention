@@ -19,6 +19,7 @@ def get_optimizer_groups(model, args):
     param_groups = {
         'slot_lora': [],
         'slot': [],
+        'layernorm': [],
         'other': [],
         'frozen': []
     }
@@ -28,8 +29,10 @@ def get_optimizer_groups(model, args):
         if not param.requires_grad:
             param_groups['frozen'].append(param)
             continue
+        if 'slot_attn' in name and (('norm_' in name) or ('layernorm' in name.lower()) or ('.mlp.1.' in name)):
+            param_groups['layernorm'].append(param)
             
-        if 'slot_attn' in name:
+        elif 'slot_attn' in name:
             if 'lora_' in name:
                 param_groups['slot_lora'].append(param)
             else:
@@ -50,29 +53,34 @@ def get_optimizer_groups(model, args):
     lr_mapping = {
         'slot_lora': args.lr_main,
         'slot': args.lr_main,
+        'layernorm': args.lr_main,
         'other': args.lr
     }
     clip_mapping = {
         'slot_lora': True,
         'slot': True,
+        'layernorm': False,
         'other': False
     }
     ewc_lambda_mapping = {
         'slot_lora': args.ewc_lambda,
         'slot': args.ewc_lambda,
+        'layernorm': 0.0,  # No EWC regularization for layernorm parameters
         'other': 0.0  # No EWC regularization for other parameters
     }
     ewc_beta_mapping = {
         'slot_lora': args.ewc_beta_weight,
         'slot': args.ewc_beta_weight,
+        'layernorm': 0.0,  # No EWC regularization for layernorm parameters
         'other': 0.0  # No EWC regularization for other parameters
     }
     ewc_beta_fisher_mapping = {
         'slot_lora': args.ewc_beta_fisher,
         'slot': args.ewc_beta_fisher,
+        'layernorm': 0.0,  # No EWC regularization for layernorm parameters
         'other': 0.0  # No EWC regularization for other parameters
     }
-    for group_type in ['slot_lora', 'slot', 'other']:
+    for group_type in ['slot_lora', 'slot', 'layernorm', 'other']:
         if param_groups[group_type]:
             params.append({
                 'params': param_groups[group_type],
@@ -117,13 +125,29 @@ class InitBounds:
             raise ValueError("Unsupported tensor dimension: {}".format(p.dim()))
         
 class EWCWeightClipping(torch.optim.Optimizer):
-    def __init__(self, params, beta=1.0, ewc_lambda=0.01, ewc_beta_weight=0.999, ewc_beta_fisher=0.999, optimizer=torch.optim.Adam, **kwargs):
+    def __init__(self, params, pretrained_weights=None, beta=1.0, ewc_lambda=0.01, ewc_beta_weight=0.999, ewc_beta_fisher=0.999, optimizer=torch.optim.Adam, **kwargs):
         defaults = dict(beta=beta, ewc_lambda=ewc_lambda, ewc_beta_weight=ewc_beta_weight, ewc_beta_fisher=ewc_beta_fisher)
         super(EWCWeightClipping, self).__init__(params, defaults)
         self.optimizer = optimizer(self.param_groups, **kwargs)
         self.param_groups = self.optimizer.param_groups
         self.defaults.update(self.optimizer.defaults)
         self.init_bounds = InitBounds()
+        # Store pretrained weights reference
+        self.pretrained_weights = pretrained_weights or {}
+        
+        # Create mapping between parameters and names
+        self.param_name_map = {}
+        for group in self.param_groups:
+            for p in group['params']:
+                if not p.requires_grad:
+                    continue
+                    
+                # Find parameter name by comparing with stored parameters
+                for name, saved_param in self.pretrained_weights.items():
+                    # Compare shape and some values to identify matching parameters
+                    if p.shape == saved_param.shape and torch.all(p[:5] == saved_param[:5].to(p.device)):
+                        self.param_name_map[p.data_ptr()] = name
+                        break
  
 
     def step(self):
@@ -158,14 +182,21 @@ class EWCWeightClipping(torch.optim.Optimizer):
                     continue
                     
                 state = self.state[p]
+                param_name = self.param_name_map.get(p.data_ptr())
                 if len(state) == 0:  # Safety check
                     state["ewc_step"] = 0
-                    state["weight_trace"] = torch.zeros_like(p.data)
+#                    state["weight_trace"] = torch.zeros_like(p.data)
                     state["fisher_trace"] = torch.zeros_like(p.data)
+                    # Use pretrained weight if available for this parameter
+                    if param_name and param_name in self.pretrained_weights:
+                        state["original_weight"] = self.pretrained_weights[param_name].to(p.device)
+                    else:
+                        # Fallback to current weights if no pretrained weight found
+                        state["original_weight"] = torch.zeros_like(p.data)
  
                 state["ewc_step"] += 1
                 
-                weight_trace = state["weight_trace"]
+                weight_trace = state["original_weight"]
                 fisher_trace = state["fisher_trace"]
                 
                 # Update EMA of weights and fisher information
@@ -496,21 +527,12 @@ def selectively_unfreeze_layers(model, target_modules):
 
     # Then unfreeze specified layers
     for name, param in model.named_parameters():
+        # Keep LayerNorms trainable
+        if ('norm_' in name) or ('layernorm' in name.lower()) or ('.mlp.1.' in name):
+            param.requires_grad = True
         # Check if the parameter name contains any of the target modules
         if any(target in name for target in target_modules):
             param.requires_grad = True
             print(f"Unfrozen layer: {name}")
-            if 'weight' in name:
-                if 'project_q' in name or 'project_k' in name or 'project_v' in name:
-                    # For projection layers
-                    nn.init.xavier_uniform_(param, gain=nn.init.calculate_gain("linear"))
-                elif 'slot_proj' in name:
-                    nn.init.xavier_uniform_(param, gain=0.5)
-                elif 'mlp' in name:
-                    # For MLP layers
-                    nn.init.kaiming_normal_(param,  mode='fan_out', nonlinearity='relu')
-                else:
-                    nn.init.xavier_uniform_(param)
-            elif 'bias' in name:
-                nn.init.zeros_(param)
+
 

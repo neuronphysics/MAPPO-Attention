@@ -34,6 +34,8 @@ def generate_model(args):
         extractor.dvae.load_state_dict(model.dvae.state_dict())
         extractor.backbone.load_state_dict(model.backbone.state_dict())
         extractor.slot_attn.load_state_dict(model.slot_attn.state_dict())
+        #add layer norm
+        extractor._add_layernorm_to_slot_attention()
         extractor.ortho_loss_fn.load_state_dict(model.ortho_loss_fn.state_dict())
     
         if args.use_post_cluster:

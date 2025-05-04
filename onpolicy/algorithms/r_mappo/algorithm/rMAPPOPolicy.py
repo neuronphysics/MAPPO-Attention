@@ -37,6 +37,7 @@ class R_MAPPOPolicy:
         # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
         self.actor_optimizer = EWCWeightClipping(
                                             get_optimizer_groups(self.actor, args),
+                                            pretrained_weights=getattr(self.actor, 'pretrained_weights', {}),
                                             beta=args.weight_clip_beta,
                                             ewc_lambda=args.ewc_lambda,
                                             ewc_beta_weight=args.ewc_beta_fisher,
@@ -102,6 +103,7 @@ class R_MAPPOPolicy:
             # Create new optimizer
             self.actor_optimizer = EWCWeightClipping(
                                                     get_optimizer_groups(self.actor, self.args),
+                                                    pretrained_weights=getattr(self.actor, 'pretrained_weights', {}),
                                                     beta=self.args.weight_clip_beta,
                                                     ewc_lambda=self.args.ewc_lambda,
                                                     ewc_beta_weight=self.args.ewc_beta_weight,      # 
@@ -145,11 +147,20 @@ class R_MAPPOPolicy:
             for name, param in self.actor.slot_attn.named_parameters():
                 if param.requires_grad or 'lora_' in name:    
                     full_name = f"slot_attn.{name}"
-                    if full_name in self.initial_weights:
-                        # Apply shrink
-                        param.data.mul_(shrink_factor)
-                        # Apply perturb using stored initialization
-                        param.data.add_(epsilon * self.initial_weights[full_name].to(param.device))
+                    param.data.mul_(shrink_factor)
+                    # Choose appropriate perturbation target
+                    if 'lora_' not in name and full_name in self.actor.pretrained_weights:
+                        # Backbone parameters: perturb toward pretrained values
+                        perturb_target = self.actor.pretrained_weights[full_name].to(param.device)
+                    elif full_name in self.initial_weights:
+                        # LoRA parameters: perturb toward initial values
+                        perturb_target = self.initial_weights[full_name].to(param.device)
+                    else:
+                        # New parameters: perturb toward zero
+                        perturb_target = torch.zeros_like(param.data)
+                
+                    # Apply perturbation
+                    param.data.add_(epsilon * perturb_target)
 
 
         

@@ -445,12 +445,12 @@ def get_config():
     parser.add_argument('--unfreeze_episode', type=int, default=200, help="episode to unfreeze the model")
 
     #dealing with plastisity loss
-    parser.add_argument("--shrink_factor", type=float, default=0.8)
-    parser.add_argument("--perturb_epsilon", type=float, default=0.2)
-    parser.add_argument("--perturb_interval", type=int, default=1000000, help="Apply S&P every N steps update")
+    parser.add_argument("--shrink_factor", type=float, default=0.975)
+    parser.add_argument("--perturb_epsilon", type=float, default=0.025)
+    parser.add_argument("--perturb_interval", type=int, default=100000, help="Apply S&P every N steps update")
 
     parser.add_argument('--weight_clip_beta', type=float, default=2.0, help="weight clipping parameter")
-    parser.add_argument('--ewc_lambda', type=float, default=1.0, help='EWC regularization strength')
+    parser.add_argument('--ewc_lambda', type=float, default=0.005, help='EWC regularization strength')
     parser.add_argument('--ewc_beta_weight', type=float, default=0.9999, help='EMA decay rate for parameter values in EWC')
     parser.add_argument('--ewc_beta_fisher', type=float, default=0.9999, help='EMA decay rate for Fisher information in EWC')
     return parser

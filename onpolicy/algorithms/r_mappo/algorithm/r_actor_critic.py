@@ -66,19 +66,25 @@ class R_Actor(nn.Module):
         if self.use_slot_att:
             self.slot_att_layer_norm = nn.LayerNorm(self.hidden_size)
             model = generate_model(args)
+            
             print(model.state_dict().keys())
             
             self._finetuned_list_modules = ["slot_attn.slot_attention.project_q", 
                                             "slot_attn.slot_attention.project_k", 
                                             "slot_attn.slot_attention.project_v",
                                             "slot_attn.slot_attention.mlp.0", 
-                                            "slot_attn.slot_attention.mlp.2",
+                                            "slot_attn.slot_attention.mlp.3",
                                             "slot_attn.pos_emb.dense",
                                            ]
             if args.use_slot_attn_transformer_decoder:
                 self._finetuned_list_modules += ["slot_proj",
                                                  "out",
                                                 ]
+            #store the pretrained weights of the model
+            self.pretrained_weights = {}
+            for name, param in model.named_parameters():
+                if any(module in name for module in self._finetuned_list_modules):
+                    self.pretrained_weights[name] = param.data.clone().detach()
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
@@ -92,12 +98,18 @@ class R_Actor(nn.Module):
                                         )
                 # Apply LoRA to the selected layers of the SlotAttention module
                 self.slot_attn = get_peft_model(model, lora_config).to(device)
+                for name, param in self.slot_attn.named_parameters():
+                    # Keep LayerNorms trainable
+                    if ('norm_' in name) or ('layernorm' in name.lower()) or ('.mlp.1.' in name):
+                       param.requires_grad = True
+                
                 print_trainable_parameters(self.slot_attn)  # check the fraction of parameters trained
                 #self.slot_attn.print_trainable_parameters()
                 for n, p in self.slot_attn.model.named_parameters():
                     if 'lora' in n:
                         print(f"New parameter {n:<13} | {p.numel():>5} parameters | updated")
-
+                    elif p.requires_grad and (('norm_' in n) or ('layernorm' in n.lower()) or ('.mlp.1.' in n)):
+                        print(f"New parameter {n:<40} | {p.numel():>5} parameters | LayerNorm updated")
             elif args.fine_tuning_type == "Partial":
                 selectively_unfreeze_layers(model, self._finetuned_list_modules)
                 self.slot_attn =  model.to(device)
