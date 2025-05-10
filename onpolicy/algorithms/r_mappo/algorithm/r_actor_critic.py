@@ -83,8 +83,8 @@ class R_Actor(nn.Module):
             #store the pretrained weights of the model
             self.pretrained_weights = {}
             for name, param in model.named_parameters():
-                if any(module in name for module in self._finetuned_list_modules):
-                    self.pretrained_weights[name] = param.data.clone().detach()
+                if ('norm' in name.lower()) or ('.mlp.1.' in name) or any(module in name for module in self._finetuned_list_modules):
+                    self.pretrained_weights[name] = param.data.clone().detach().requires_grad_(False)
 
             if args.fine_tuning_type =='Lora':
                 # Define the LoRA configuration
