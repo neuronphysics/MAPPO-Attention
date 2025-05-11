@@ -371,6 +371,15 @@ def get_config():
     parser.add_argument("--scoff_num_memory_heads", type=int, default=4, )
     parser.add_argument("--scoff_memory_topk", type=int, default=4, )
     parser.add_argument("--scoff_num_schemas", type=int, default=3, help="number of schemas")
+        
+    # add for transformer
+    parser.add_argument("--encode_state", action='store_true', default=True, help="whether to encode the state")
+    parser.add_argument("--n_block", type=int, default=1, help="number of transformer blocks")
+    parser.add_argument("--n_embd", type=int, default=128, help="embedding dimension for transformer")
+    parser.add_argument("--n_head", type=int, default=8, help="number of heads for transformer")
+    parser.add_argument("--dec_actor", action='store_true', default=False, help="whether to use transformer decoder for actor")
+    parser.add_argument("--share_actor", action='store_true', default=True, help="whether to share actor parameters")
+
 
     parser.add_argument("--pretrain_slot_att", type=str2bool, default=False, )
     
