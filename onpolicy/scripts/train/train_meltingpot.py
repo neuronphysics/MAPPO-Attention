@@ -134,7 +134,7 @@ def main(args):
             all_args.use_recurrent_policy = False
             all_args.use_naive_recurrent_policy = False
     elif all_args.algorithm_name == "mat" or all_args.algorithm_name == "mat_dec":
-        print("u are choosing to use mat, we set use_recurrent_policy to be True")
+        print("u are choosing to use mat, we set use_recurrent_policy to be False")
         all_args.use_recurrent_policy = False
         all_args.use_naive_recurrent_policy = False
     elif all_args.algorithm_name == "ippo":

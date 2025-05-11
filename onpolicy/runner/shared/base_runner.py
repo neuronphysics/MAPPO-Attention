@@ -83,11 +83,12 @@ class Runner(object):
         print("act_space: ", self.envs.action_space)
         
         # policy network
-        self.policy = Policy(self.all_args,
-                            self.envs.observation_space['player_0']['RGB'],
-                            share_observation_space,
-                            self.envs.action_space['player_0'],
-                            device = self.device)
+        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
+            self.policy = Policy(self.all_args, self.envs.observation_space['player_0']['RGB'], share_observation_space, self.envs.action_space['player_0'], self.num_agents, device = self.device)
+        else:
+            #self.policy = Policy(self.all_args, self.envs.observation_space[0], share_observation_space, self.envs.action_space[0], device = self.device)
+
+            self.policy = Policy(self.all_args, self.envs.observation_space['player_0']['RGB'], share_observation_space, self.envs.action_space['player_0'], device = self.device)
 
         if self.model_dir is not None and self.all_args.load_model:
             self.restore(self.model_dir)
