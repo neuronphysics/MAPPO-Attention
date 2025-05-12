@@ -4,6 +4,8 @@ from onpolicy.utils.util import update_linear_schedule
 from onpolicy.utils.util import get_shape_from_obs_space, get_shape_from_act_space
 from onpolicy.algorithms.utils.util import check
 from onpolicy.algorithms.mat.algorithm.ma_transformer import MultiAgentTransformer
+from functools import reduce
+import operator
 
 
 class TransformerPolicy:
@@ -17,7 +19,7 @@ class TransformerPolicy:
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
 
-    def __init__(self, args, obs_space, cent_obs_space, act_space, num_agents, device=torch.device("cpu")):
+    def __init__(self, args, obs_space, cent_obs_space, act_space, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.device = device
         self.lr = args.lr
         self.opti_eps = args.opti_eps
@@ -28,8 +30,8 @@ class TransformerPolicy:
         else:
             self.action_type = 'Discrete'
 
-        self.obs_dim = get_shape_from_obs_space(obs_space)[0]
-        self.share_obs_dim = get_shape_from_obs_space(cent_obs_space)[0]
+        self.obs_dim =  reduce(operator.mul, get_shape_from_obs_space(obs_space), 1)
+        self.share_obs_dim =  reduce(operator.mul,get_shape_from_obs_space(cent_obs_space), 1)
 
         if self.action_type == 'Discrete':
             self.act_dim = act_space.n
@@ -43,31 +45,16 @@ class TransformerPolicy:
         print("share_obs_dim: ", self.share_obs_dim)
         print("act_dim: ", self.act_dim)
 
-        self.num_agents = num_agents
+        self.num_agents = args.num_agents
         self.tpdv = dict(dtype=torch.float32, device=device)
 
-        self.transformer = MultiAgentTransformer(self.share_obs_dim, self.obs_dim, self.act_dim, num_agents,
+        self.transformer = MultiAgentTransformer(self.share_obs_dim, self.obs_dim, self.act_dim, self.num_agents,
                                                  n_block=args.n_block, n_embd=args.n_embd, n_head=args.n_head,
                                                  encode_state=args.encode_state, device=device,
                                                  action_type=self.action_type, dec_actor=args.dec_actor,
                                                  share_actor=args.share_actor)
         if args.env_name == "hands":
             self.transformer.zero_std()
-
-        # count the volume of parameters of model
-        # Total_params = 0
-        # Trainable_params = 0
-        # NonTrainable_params = 0
-        # for param in self.transformer.parameters():
-        #     mulValue = np.prod(param.size())
-        #     Total_params += mulValue
-        #     if param.requires_grad:
-        #         Trainable_params += mulValue
-        #     else:
-        #         NonTrainable_params += mulValue
-        
-        
-        
 
         self.optimizer = torch.optim.Adam(self.transformer.parameters(),
                                           lr=self.lr, eps=self.opti_eps,
@@ -81,7 +68,7 @@ class TransformerPolicy:
         """
         update_linear_schedule(self.optimizer, episode, episodes, self.lr)
 
-    def get_actions(self, cent_obs, obs, rnn_states_actor, rnn_states_critic, masks, available_actions=None,
+    def get_actions(self, cent_obs, obs, rnn_states_actor, rnn_cells_actor, rnn_states_critic, rnn_cells_critic, masks, available_actions=None,
                     deterministic=False):
         """
         Compute actions and value function predictions for the given inputs.
@@ -111,13 +98,16 @@ class TransformerPolicy:
                                                                          deterministic)
 
         actions = actions.view(-1, self.act_num)
-        action_log_probs = action_log_probs.view(-1, self.act_num)
+        action_log_probs = action_log_probs.view(-1)
         values = values.view(-1, 1)
 
         # unused, just for compatibility
-        rnn_states_actor = check(rnn_states_actor).to(**self.tpdv)
-        rnn_states_critic = check(rnn_states_critic).to(**self.tpdv)
-        return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic
+        # input size is (num_thread * num_agents, 1 , hidden_size)
+        rnn_states_actor = check(rnn_states_actor).to(**self.tpdv).transpose(0, 1)
+        rnn_cells_actor = check(rnn_cells_actor).to(**self.tpdv).transpose(0, 1)
+        rnn_states_critic = check(rnn_states_critic).to(**self.tpdv).transpose(0, 1)
+        rnn_cells_critic = check(rnn_cells_critic).to(**self.tpdv).transpose(0, 1)
+        return values, actions, action_log_probs, rnn_states_actor, rnn_cells_actor, rnn_states_critic, rnn_cells_critic
 
     def get_values(self, cent_obs, obs, rnn_states_critic, masks):
         """

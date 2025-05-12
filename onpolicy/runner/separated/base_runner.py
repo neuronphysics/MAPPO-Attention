@@ -237,7 +237,7 @@ class Runner(object):
                 if self.use_wandb:
                     wandb.log({agent_k: v}, step=total_num_steps)
                 else:
-                    #self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)
+                    # self.writter.add_scalars(agent_k, {agent_k: v}, total_num_steps)
                     if isinstance(v, float) or isinstance(v, np.float32):
                         res = v
                     elif isinstance(v, torch.Tensor):

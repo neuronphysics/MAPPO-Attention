@@ -24,6 +24,7 @@ def generate_model(args):
         tau, sigma = load_slot_att_model(model, args)
         args.tau_start = tau
         args.sigma_start = sigma
+
     if args.use_slot_attn_transformer_decoder:
         return model
     else:

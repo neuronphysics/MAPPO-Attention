@@ -137,21 +137,13 @@ class MeltingpotRunner(Runner):
                                               np.concatenate(self.buffer.rnn_states_critic[step]),
                                               np.concatenate(self.buffer.rnn_cells_critic[step]),
                                               np.concatenate(self.buffer.masks[step]))
-        # [self.envs, agents, dim]
-        
-        # if self.n_rollout_threads == 1:
-        #     values = np.array(_t2n(value))
-        #     actions = np.array(_t2n(action))
-        #     action_log_probs = np.array(_t2n(action_log_prob))
-        #     rnn_states = np.array(_t2n(rnn_states))
-        #     rnn_cells  = np.array(_t2n(rnn_cells))
-        #     rnn_states_critic = np.array(_t2n(rnn_states_critic))
-        #     rnn_cells_critic = np.array(_t2n(rnn_cells_critic))
-        #
-        # else:
+
+        # (num_threads * num_agents)
         values = np.array(np.split(_t2n(value.squeeze(0)), self.n_rollout_threads))
         actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
         action_log_probs = np.array(np.split(_t2n(action_log_prob), self.n_rollout_threads))
+
+        # we need them to be (num_threads * num_agents, hidden_size)
         rnn_states = np.array(np.split(_t2n(rnn_states.squeeze(0)), self.n_rollout_threads))
         rnn_cells  = np.array(np.split(_t2n(rnn_cells.squeeze(0)), self.n_rollout_threads))
         rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic.squeeze(0)), self.n_rollout_threads))

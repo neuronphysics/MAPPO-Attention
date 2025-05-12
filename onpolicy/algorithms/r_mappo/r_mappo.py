@@ -17,7 +17,7 @@ class R_MAPPO():
     def __init__(self,
                  args,
                  policy,
-                 device=torch.device("cpu")):
+                 device):
 
         self.args = args
         self.device = device

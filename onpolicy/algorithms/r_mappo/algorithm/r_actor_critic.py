@@ -62,6 +62,7 @@ class R_Actor(nn.Module):
 
         base = CNNBase if len(obs_shape) == 3 else MLPBase
         self.base = base(args, obs_shape)
+        self.pretrained_weights = None
 
         if self.use_slot_att:
             self.slot_att_layer_norm = nn.LayerNorm(self.hidden_size)

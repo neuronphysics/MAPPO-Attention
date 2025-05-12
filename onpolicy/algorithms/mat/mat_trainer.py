@@ -16,13 +16,12 @@ class MATTrainer:
     def __init__(self,
                  args,
                  policy,
-                 num_agents,
-                 device=torch.device("cpu")):
+                 device):
 
         self.device = device
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.policy = policy
-        self.num_agents = num_agents
+        self.num_agents = args.num_agents
 
         self.clip_param = args.clip_param
         self.ppo_epoch = args.ppo_epoch
@@ -44,7 +43,7 @@ class MATTrainer:
         self.dec_actor = args.dec_actor
         
         if self._use_valuenorm:
-            self.value_normalizer = ValueNorm(1, device=self.device)
+            self.value_normalizer = ValueNorm(1).to(self.device)
         else:
             self.value_normalizer = None
 
@@ -103,7 +102,7 @@ class MATTrainer:
         :return actor_grad_norm: (torch.Tensor) gradient norm from actor update.
         :return imp_weights: (torch.Tensor) importance sampling weights.
         """
-        share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, \
+        share_obs_batch, obs_batch, rnn_states_batch, rnn_cells_batch, rnn_states_critic_batch, rnn_cells_critic_batch, actions_batch, \
         value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, \
         adv_targ, available_actions_batch = sample
 
@@ -160,12 +159,16 @@ class MATTrainer:
 
         :return train_info: (dict) contains information regarding training update (e.g. loss, grad norms, etc).
         """
-        advantages_copy = buffer.advantages.copy()
+        if self._use_valuenorm:
+            advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(buffer.value_preds[:-1])
+        else:
+            advantages = buffer.returns[:-1] - buffer.value_preds[:-1]
+
+        advantages_copy = advantages.copy()
         advantages_copy[buffer.active_masks[:-1] == 0.0] = np.nan
         mean_advantages = np.nanmean(advantages_copy)
         std_advantages = np.nanstd(advantages_copy)
-        advantages = (buffer.advantages - mean_advantages) / (std_advantages + 1e-5)
-        
+        advantages = (advantages - mean_advantages) / (std_advantages + 1e-5)
 
         train_info = {}
 
@@ -177,7 +180,7 @@ class MATTrainer:
         train_info['ratio'] = 0
 
         for _ in range(self.ppo_epoch):
-            data_generator = buffer.feed_forward_generator_transformer(advantages, self.num_mini_batch)
+            data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
 
             for sample in data_generator:
 

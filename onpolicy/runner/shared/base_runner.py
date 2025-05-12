@@ -72,16 +72,8 @@ class Runner(object):
             from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
             from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
-        print('use centralized V', self.use_centralized_V)
-        print('obs space', self.envs.observation_space)
-        print('action space', )
+        share_observation_space = self.envs.share_observation_space['player_0']
 
-        share_observation_space = self.envs.share_observation_space['player_0'] if self.use_centralized_V else self.envs.share_observation_space['player_0']
-
-        print("obs_space: ", self.envs.observation_space)
-        print("share_obs_space: ", self.envs.share_observation_space)
-        print("act_space: ", self.envs.action_space)
-        
         # policy network
         self.policy = Policy(self.all_args,
                             self.envs.observation_space['player_0']['RGB'],
@@ -93,10 +85,7 @@ class Runner(object):
             self.restore(self.model_dir)
 
         # algorithm
-        if self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
-            self.trainer = TrainAlgo(self.all_args, self.policy, self.num_agents, device = self.device)
-        else:
-            self.trainer = TrainAlgo(self.all_args, self.policy, device = self.device)
+        self.trainer = TrainAlgo(self.all_args, self.policy, device = self.device)
         
         # buffer
         self.buffer = SharedReplayBuffer(self.all_args,

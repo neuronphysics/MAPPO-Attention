@@ -387,7 +387,7 @@ def get_config():
     parser.add_argument("--orthogonal_loss_coef", type=float, default=1.0, help="Weight coefficient for orthogonal projection loss")
 
     parser.add_argument("--slot_att_work_path", type=str,
-                        default="/mnt/e/pycharm_projects/meltingpot-main/onpolicy/scripts/results/slot_att/", )
+                        default="/mnt/d/Projects/MAPPO-Attention/onpolicy/scripts/results/slot_att/", )
     parser.add_argument("--slot_pretrain_batch_size", type=int, default=2, )
 
     parser.add_argument("--slot_att_load_model", type=str2bool, default=False, )
@@ -453,4 +453,11 @@ def get_config():
     parser.add_argument('--ewc_lambda', type=float, default=0.01, help='EWC regularization strength')
     parser.add_argument('--ewc_beta_weight', type=float, default=0.9999, help='EMA decay rate for parameter values in EWC')
     parser.add_argument('--ewc_beta_fisher', type=float, default=0.9999, help='EMA decay rate for Fisher information in EWC')
+
+    parser.add_argument("--n_block", type=int, default=1)
+    parser.add_argument("--n_embd", type=int, default=128)
+    parser.add_argument("--n_head", type=int, default=4)
+    parser.add_argument("--encode_state", type=str2bool, default=False)
+    parser.add_argument("--dec_actor", type=str2bool, default=False)
+    parser.add_argument("--share_actor", type=str2bool, default=False)
     return parser
