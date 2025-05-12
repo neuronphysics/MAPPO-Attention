@@ -56,7 +56,7 @@ class R_Actor(nn.Module):
         self.use_attention = args.use_attention
         self._attention_module = args.attention_module
         self.use_slot_att = args.use_slot_att
-
+        self.pretrained_weights = None
         self._obs_shape = obs_shape
         self.global_step = 0
 
