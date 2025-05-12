@@ -216,11 +216,16 @@ class MeltingpotRunner(Runner):
         rnn_states_critic = np.array(rnn_states_critic) if isinstance(rnn_states_critic, list) else rnn_states_critic
         rnn_cells_critic = np.array(rnn_cells_critic) if isinstance(rnn_cells_critic, list) else rnn_cells_critic
 
-        values = values.squeeze(-1).transpose(1, 0, 2)
+        if values.ndim == 3:
+            values = values.transpose(2, 0, 1)
+        else:
+            values = values.squeeze(-1).transpose(1, 0, 2)
+
         if actions.ndim == 3:
             actions = actions.transpose(2, 0, 1)
         else:
             actions = actions.squeeze(-1).transpose(1, 0, 2)
+
         if action_log_probs.ndim == 2:
             action_log_probs = action_log_probs[:, np.newaxis, :]
         action_log_probs = action_log_probs.transpose(1, 0, 2)

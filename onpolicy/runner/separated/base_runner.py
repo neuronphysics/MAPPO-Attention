@@ -86,6 +86,9 @@ class Runner(object):
         elif self.all_args.algorithm_name == "hatrpo":
             from onpolicy.algorithms.hatrpo.hatrpo_trainer import HATRPO as TrainAlgo
             from onpolicy.algorithms.hatrpo.policy import HATRPO_Policy as Policy
+        elif self.algorithm_name == "mat" or self.algorithm_name == "mat_dec":
+            from onpolicy.algorithms.mat.mat_trainer import MATTrainer as TrainAlgo
+            from onpolicy.algorithms.mat.algorithm.transformer_policy import TransformerPolicy as Policy
         else:
             from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
             from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
@@ -181,15 +184,21 @@ class Runner(object):
     def compute(self):
         for agent_id in range(self.num_agents):
             self.trainer[agent_id].prep_rollout()
-            if self.all_args.rnn_attention_module == "LSTM":
-                next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
-                                                                      self.buffer[agent_id].rnn_states_critic[-1],
-                                                                      self.buffer[agent_id].rnn_cells_critic[-1],
-                                                                      self.buffer[agent_id].masks[-1])
+            if self.algorithm_name == "rmappo":
+                if self.all_args.rnn_attention_module == "LSTM":
+                    next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
+                                                                          self.buffer[agent_id].rnn_states_critic[-1],
+                                                                          self.buffer[agent_id].rnn_cells_critic[-1],
+                                                                          self.buffer[agent_id].masks[-1])
+                else:
+                    next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
+                                                                          self.buffer[agent_id].rnn_states_critic[-1],
+                                                                          None,
+                                                                          self.buffer[agent_id].masks[-1])
             else:
                 next_value = self.trainer[agent_id].policy.get_values(self.buffer[agent_id].share_obs[-1],
+                                                                      self.buffer[agent_id].obs[-1],
                                                                       self.buffer[agent_id].rnn_states_critic[-1],
-                                                                      None,
                                                                       self.buffer[agent_id].masks[-1])
             next_value = _t2n(next_value)
             self.buffer[agent_id].compute_returns(next_value, self.trainer[agent_id].value_normalizer)
@@ -211,21 +220,32 @@ class Runner(object):
     def save(self):
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
+
         for agent_id in range(self.num_agents):
-            policy_actor = self.trainer[agent_id].policy.actor
-            torch.save(policy_actor.state_dict(), os.path.join(self.save_dir, f"actor_agent_{agent_id}.pt"))
-            policy_critic = self.trainer[agent_id].policy.critic
-            torch.save(policy_critic.state_dict(), os.path.join(self.save_dir, f"critic_agent_{agent_id}.pt"))
+            if self.algorithm_name == "rmappo":
+                policy_actor = self.trainer[agent_id].policy.actor
+                torch.save(policy_actor.state_dict(), os.path.join(self.save_dir, f"actor_agent_{agent_id}.pt"))
+                policy_critic = self.trainer[agent_id].policy.critic
+                torch.save(policy_critic.state_dict(), os.path.join(self.save_dir, f"critic_agent_{agent_id}.pt"))
+            elif self.algorithm_name == "mat":
+                transformer = self.trainer[agent_id].policy.transformer
+                torch.save(transformer.state_dict(), os.path.join(self.save_dir, f"mat_agent_{agent_id}.pt"))
+
             if self.trainer[agent_id]._use_valuenorm:
                 policy_vnrom = self.trainer[agent_id].value_normalizer
                 torch.save(policy_vnrom.state_dict(), os.path.join(self.save_dir, f"vnrom_agent_{agent_id}.pt"))
 
     def restore(self):
         for agent_id in range(self.num_agents):
-            policy_actor_state_dict = torch.load(os.path.join(self.model_dir, f'actor_agent_{agent_id}.pt'))
-            self.policy[agent_id].actor.load_state_dict(policy_actor_state_dict)
-            policy_critic_state_dict = torch.load(os.path.join(self.model_dir, f'critic_agent_{agent_id}.pt'))
-            self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
+            if self.algorithm_name == "rmappo":
+                policy_actor_state_dict = torch.load(os.path.join(self.model_dir, f'actor_agent_{agent_id}.pt'))
+                self.policy[agent_id].actor.load_state_dict(policy_actor_state_dict)
+                policy_critic_state_dict = torch.load(os.path.join(self.model_dir, f'critic_agent_{agent_id}.pt'))
+                self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
+            elif self.algorithm_name == "mat":
+                transformer_dict = torch.load(os.path.join(self.model_dir, f'mat_agent_{agent_id}.pt'))
+                self.policy[agent_id].transformer.load_state_dict(transformer_dict)
+
             if self.trainer[agent_id]._use_valuenorm:
                 policy_vnrom_state_dict = torch.load(os.path.join(self.model_dir, f'vnrom_agent_{agent_id}.pt'))
                 self.trainer[agent_id].value_normalizer.load_state_dict(policy_vnrom_state_dict)
@@ -255,6 +275,9 @@ class Runner(object):
                     self.writter.add_scalars(k, {k: np.mean(v)}, total_num_steps)
 
     def count_parameters(self):
+        if self.algorithm_name != "rmappo":
+            return
+
         actor_parameters = 0
         critic_parameters = 0
         for agent_id in range(self.num_agents):

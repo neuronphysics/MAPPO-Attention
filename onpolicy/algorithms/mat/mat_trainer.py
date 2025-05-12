@@ -21,7 +21,11 @@ class MATTrainer:
         self.device = device
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.policy = policy
-        self.num_agents = args.num_agents
+
+        if args.share_policy:
+            self.num_agents = args.num_agents
+        else:
+            self.num_agents = 1
 
         self.clip_param = args.clip_param
         self.ppo_epoch = args.ppo_epoch

@@ -45,7 +45,11 @@ class TransformerPolicy:
         print("share_obs_dim: ", self.share_obs_dim)
         print("act_dim: ", self.act_dim)
 
-        self.num_agents = args.num_agents
+        if args.share_policy:
+            self.num_agents = args.num_agents
+        else:
+            self.num_agents = 1
+
         self.tpdv = dict(dtype=torch.float32, device=device)
 
         self.transformer = MultiAgentTransformer(self.share_obs_dim, self.obs_dim, self.act_dim, self.num_agents,
