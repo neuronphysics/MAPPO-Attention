@@ -2,7 +2,7 @@ import torch
 from onpolicy.algorithms.r_mappo.algorithm.r_actor_critic import R_Actor, R_Critic
 from onpolicy.utils.util import update_linear_schedule
 from onpolicy.algorithms.utils.QSA.train_qsa import configure_optimizers
-from onpolicy.algorithms.utils.util import get_optimizer_groups, EWCWeightClipping
+from onpolicy.algorithms.utils.util import get_optimizer_groups, EWCWeightClipping, WeightClipping
 from peft import LoraConfig, get_peft_model
 class R_MAPPOPolicy:
     """
@@ -35,17 +35,26 @@ class R_MAPPOPolicy:
 
         # actor_parameters = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
         # critic_parameters = sum(p.numel() for p in self.critic.parameters() if p.requires_grad)
-        self.actor_optimizer = EWCWeightClipping(
-                                            get_optimizer_groups(self.actor, args),
-                                            pretrained_weights= self.actor.pretrained_weights,
-                                            beta=args.weight_clip_beta,
-                                            ewc_lambda=args.ewc_lambda,
-                                            ewc_beta_weight=args.ewc_beta_weight,
-                                            ewc_beta_fisher=args.ewc_beta_fisher,
-                                            optimizer=torch.optim.Adam,
-                                            eps=self.opti_eps,
-                                            weight_decay=self.weight_decay
-                                             )
+        if args.use_EWC:
+           self.actor_optimizer = EWCWeightClipping(
+                                                    get_optimizer_groups(self.actor, args),
+                                                    pretrained_weights= self.actor.pretrained_weights,
+                                                    beta=args.weight_clip_beta,
+                                                    ewc_lambda=args.ewc_lambda,
+                                                    ewc_beta_weight=args.ewc_beta_weight,
+                                                    ewc_beta_fisher=args.ewc_beta_fisher,
+                                                    optimizer=torch.optim.Adam,
+                                                    eps=self.opti_eps,
+                                                    weight_decay=self.weight_decay
+                                                 )
+        else:
+           self.actor_optimizer = WeightClipping(
+                                                 get_optimizer_groups(self.actor, args),
+                                                 beta=args.weight_clip_beta,
+                                                 optimizer=torch.optim.Adam,
+                                                 eps=self.opti_eps,
+                                                 weight_decay=self.weight_decay
+                                                )
         """
         self.actor_optimizer = torch.optim.Adam(get_optimizer_groups(self.actor, args),
                                                  eps=self.opti_eps,
@@ -103,16 +112,25 @@ class R_MAPPOPolicy:
         
         
             # Create new optimizer
-            self.actor_optimizer = EWCWeightClipping(
-                                                    get_optimizer_groups(self.actor, self.args),
-                                                    pretrained_weights=self.actor.pretrained_weights,
-                                                    beta=self.args.weight_clip_beta,
-                                                    ewc_lambda=self.args.ewc_lambda,
-                                                    ewc_beta_weight=self.args.ewc_beta_weight,      # 
-                                                    ewc_beta_fisher=self.args.ewc_beta_fisher, # 
-                                                    optimizer=torch.optim.Adam,
-                                                    eps=self.opti_eps,
-                                                    weight_decay=self.weight_decay
+            if self.args.use_EWC:
+                self.actor_optimizer = EWCWeightClipping(
+                                                        get_optimizer_groups(self.actor, self.args),
+                                                        pretrained_weights=self.actor.pretrained_weights,
+                                                        beta=self.args.weight_clip_beta,
+                                                        ewc_lambda=self.args.ewc_lambda,
+                                                        ewc_beta_weight=self.args.ewc_beta_weight,      # 
+                                                        ewc_beta_fisher=self.args.ewc_beta_fisher, # 
+                                                        optimizer=torch.optim.Adam,
+                                                        eps=self.opti_eps,
+                                                        weight_decay=self.weight_decay
+                                                       )
+            else:
+                self.actor_optimizer = WeightClipping(
+                                                     get_optimizer_groups(self.actor, self.args),
+                                                     beta=self.args.weight_clip_beta,
+                                                     optimizer=torch.optim.Adam,
+                                                     eps=self.opti_eps,
+                                                     weight_decay=self.weight_decay
                                                     )
         
             # If we had an old state, try to restore compatible parts
@@ -158,9 +176,6 @@ class R_MAPPOPolicy:
                     elif full_name in self.initial_weights:
                         # LoRA parameters: perturb toward initial values
                         perturb_target = self.initial_weights[full_name].to(param.device)
-                        target_norm =torch.norm(self.initial_weights[full_name].data).item()
-                        current_norm = torch.norm(param.data).item()
-                        param.data.mul_(target_norm/(current_norm+eps))
                     else:
                         # New parameters: perturb toward zero
                         perturb_target = torch.zeros_like(param.data)

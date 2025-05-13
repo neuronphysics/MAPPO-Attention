@@ -124,6 +124,33 @@ class InitBounds:
         else:
             raise ValueError("Unsupported tensor dimension: {}".format(p.dim()))
         
+class WeightClipping(torch.optim.Optimizer):
+    def __init__(self, params, beta=1.0, optimizer=torch.optim.Adam, **kwargs):
+        defaults = dict(beta=beta)
+        super(WeightClipping, self).__init__(params, defaults)
+        self.optimizer = optimizer(self.param_groups, **kwargs)
+        self.param_groups = self.optimizer.param_groups
+        self.defaults.update(self.optimizer.defaults)
+        self.init_bounds = InitBounds()
+
+    def step(self):
+        self.optimizer.step()
+        self.weight_clipping()
+
+    def weight_clipping(self):
+        for group in self.param_groups:
+            if not group['needs_clipping']:
+                continue
+                
+            for p in group['params']:
+                if not p.requires_grad: # Skip parameters that weren't trained
+                    continue
+
+                bound = self.init_bounds.get(p)
+                if bound is not None:
+                    p.data.clamp_(-group['beta'] * bound, group['beta'] * bound)
+
+        
 class EWCWeightClipping(torch.optim.Optimizer):
     def __init__(self, params, pretrained_weights=None, beta=1.0, ewc_lambda=0.01, ewc_beta_weight=0.999, ewc_beta_fisher=0.999, optimizer=torch.optim.Adam, **kwargs):
         defaults = dict(beta=beta, ewc_lambda=ewc_lambda, ewc_beta_weight=ewc_beta_weight, ewc_beta_fisher=ewc_beta_fisher)

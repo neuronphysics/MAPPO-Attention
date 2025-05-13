@@ -91,7 +91,7 @@ class R_Actor(nn.Module):
                 lora_config = LoraConfig(
                                         r=16,  # Rank of the low-rank update
                                         lora_alpha=16,  # Scaling factor (2:1 ratio to rank)
-                                        lora_dropout=0.05,  # Dropout probability
+                                        lora_dropout=0.1,  # Dropout probability
                                         target_modules=self._finetuned_list_modules,  # Target specific layers
                                         init_lora_weights="gaussian",
                                         bias="none",
