@@ -19,7 +19,8 @@ class TransformerPolicy:
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
 
-    def __init__(self, args, obs_space, cent_obs_space, act_space, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+    def __init__(self, args, obs_space, cent_obs_space, act_space,
+                 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.device = device
         self.lr = args.lr
         self.opti_eps = args.opti_eps
@@ -30,8 +31,8 @@ class TransformerPolicy:
         else:
             self.action_type = 'Discrete'
 
-        self.obs_dim =  reduce(operator.mul, get_shape_from_obs_space(obs_space), 1)
-        self.share_obs_dim =  reduce(operator.mul,get_shape_from_obs_space(cent_obs_space), 1)
+        self.obs_dim = reduce(operator.mul, get_shape_from_obs_space(obs_space), 1)
+        self.share_obs_dim = reduce(operator.mul, get_shape_from_obs_space(cent_obs_space), 1)
 
         if self.action_type == 'Discrete':
             self.act_dim = act_space.n
@@ -72,7 +73,8 @@ class TransformerPolicy:
         """
         update_linear_schedule(self.optimizer, episode, episodes, self.lr)
 
-    def get_actions(self, cent_obs, obs, rnn_states_actor, rnn_cells_actor, rnn_states_critic, rnn_cells_critic, masks, available_actions=None,
+    def get_actions(self, cent_obs, obs, rnn_states_actor, rnn_cells_actor, rnn_states_critic, rnn_cells_critic, masks,
+                    available_actions=None,
                     deterministic=False):
         """
         Compute actions and value function predictions for the given inputs.
@@ -163,13 +165,13 @@ class TransformerPolicy:
         entropy = entropy.view(-1, self.act_num)
 
         if self._use_policy_active_masks and active_masks is not None:
-            entropy = (entropy*active_masks).sum()/active_masks.sum()
+            entropy = (entropy * active_masks).sum() / active_masks.sum()
         else:
             entropy = entropy.mean()
 
         return values, action_log_probs, entropy
 
-    def act(self, cent_obs, obs, rnn_states_actor, masks, available_actions=None, deterministic=True):
+    def act(self, obs, rnn_states_actor, rnn_cells_actor, masks, available_actions=None, deterministic=False):
         """
         Compute actions using the given inputs.
         :param obs (np.ndarray): local agent inputs to the actor.
@@ -182,15 +184,16 @@ class TransformerPolicy:
 
         # this function is just a wrapper for compatibility
         rnn_states_critic = np.zeros_like(rnn_states_actor)
-        _, actions, _, rnn_states_actor, _ = self.get_actions(cent_obs,
-                                                              obs,
-                                                              rnn_states_actor,
-                                                              rnn_states_critic,
-                                                              masks,
-                                                              available_actions,
-                                                              deterministic)
+        rnn_cells_critic = np.zeros_like(rnn_cells_actor)
 
-        return actions, rnn_states_actor
+        batch_size = obs.shape[0]
+        cent_obs = np.zeros((batch_size, self.num_agents, self.share_obs_dim))
+        _, actions, _, rnn_states_actor, rnn_cells_actor, _, _ = self.get_actions(cent_obs, obs, rnn_states_actor, rnn_cells_actor,
+                                                                    rnn_states_critic, rnn_cells_critic, masks,
+                                                                    available_actions,
+                                                                    deterministic)
+        # (1, num_thread, hidden_size)
+        return actions, rnn_states_actor, rnn_cells_actor
 
     def save(self, save_dir, episode):
         torch.save(self.transformer.state_dict(), str(save_dir) + "/transformer_" + str(episode) + ".pt")
@@ -205,4 +208,3 @@ class TransformerPolicy:
 
     def eval(self):
         self.transformer.eval()
-
