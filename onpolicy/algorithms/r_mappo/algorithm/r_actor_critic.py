@@ -76,6 +76,12 @@ class R_Actor(nn.Module):
                                             "slot_attn.slot_attention.mlp.3",
                                             "slot_attn.pos_emb.dense",
                                            ]
+            if args.fine_tuning_type == "Partial":
+                self._finetuned_list_modules += [
+                                                 "slot_attn.slot_attention.mlp.2",
+                                                 "slot_attn.slot_attention.gru",
+                                                 "ortho_loss_fn.class_centres"
+                                                ]
             if args.use_slot_attn_transformer_decoder:
                 self._finetuned_list_modules += ["slot_proj",
                                                  "out",
