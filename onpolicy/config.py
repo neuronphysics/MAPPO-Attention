@@ -463,4 +463,6 @@ def get_config():
     parser.add_argument('--ewc_lambda', type=float, default=0.01, help='EWC regularization strength')
     parser.add_argument('--ewc_beta_weight', type=float, default=0.9999, help='EMA decay rate for parameter values in EWC')
     parser.add_argument('--ewc_beta_fisher', type=float, default=0.9999, help='EMA decay rate for Fisher information in EWC')
+    #evaluation of learned slot attention representation
+    parser.add_argument('--analyze_slot_evolution',type=str2bool, default=False, help="whether to analyze the slot evolution")
     return parser

@@ -9,7 +9,7 @@ from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
 from onpolicy.algorithms.utils.util import global_step_counter
-
+from onpolicy.utils.slot_attention_analyzer import SlotEvolutionAnalyzer
 
 def _t2n(x):
     return x.detach().cpu().numpy()
@@ -18,6 +18,16 @@ def _t2n(x):
 class MeltingpotRunner(Runner):
     def __init__(self, config):
         super(MeltingpotRunner, self).__init__(config)
+        #to analyze the slot evolution
+        if self.all_args.analyze_slot_evolution and self.all_args.use_eval:
+            self.slot_analyzer = SlotEvolutionAnalyzer(
+                self.all_args, 
+                self.device, 
+                self.envs,
+                output_dir=os.path.join(self.run_dir, 'slot_analysis')
+            )
+            self.checkpoint_history = []
+
 
     def run(self):
         if self.all_args.collect_data:
@@ -31,6 +41,7 @@ class MeltingpotRunner(Runner):
         start = time.time()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
         print('num episodes to run (separated):', episodes)
+        
 
         for episode in range(episodes):
             #for fine tuning we can freeze the slot attention model and unfreeze it after certain number of episodes
@@ -121,7 +132,59 @@ class MeltingpotRunner(Runner):
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
             self.all_args.ep_counter.increment()
-
+        
+        # Final comprehensive analysis of slot attention representation
+        if self.all_args.analyze_slot_evolution and self.all_args.use_eval:
+            self.perform_slot_analysis()
+            
+    def perform_slot_analysis(self, num_samples=100):
+        """Comprehensive analysis after training completion."""
+        print("\n[Slot Analysis] Performing comprehensive post-training analysis...")
+        observations = []
+        
+        # Reset environment multiple times to get diverse states
+        for _ in range(num_samples // self.n_rollout_threads):
+            obs = self.eval_envs.reset()[0][0]
+            
+            # Extract RGB observations for all agents
+            for agent_id in range(self.num_agents):
+                player_key = f'player_{agent_id}'
+                if player_key in obs:
+                    observations.append(obs[player_key]['RGB'])
+            
+            # Take a few random steps to diversify
+            for _ in range(np.random.randint(1, 10)):
+                actions = np.array([[self.eval_envs.action_space[f'player_{i}'].sample() 
+                                   for i in range(self.num_agents)]])
+                obs, _, _, _ = self.eval_envs.step(actions)
+                obs = obs[0][0]
+                
+                # Collect some intermediate observations
+                if np.random.random() < 0.3:
+                    for agent_id in range(self.num_agents):
+                        player_key = f'player_{agent_id}'
+                        if player_key in obs:
+                            observations.append(obs[player_key]['RGB'])
+        
+        # Return unique subset
+        test_obs = observations[:num_samples]
+        
+        # Get model paths
+        pretrained_path = os.path.join(
+            self.all_args.slot_att_work_path, 
+            self.all_args.substrate_name
+        )
+        
+        # Run full analysis
+        results = self.slot_analyzer.run_complete_analysis(
+            pretrained_path=pretrained_path,
+            finetuned_path=self.save_dir,
+            test_observations=test_obs,
+            trajectory_checkpoints=self.checkpoint_history
+        )
+        
+        print(f"\nAnalysis complete! Results saved to: {self.slot_analyzer.output_dir}")
+   
     def warmup(self):
         # reset env
         # if --n_rollout_threads 6 && --substrate_name "territory__rooms"
