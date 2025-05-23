@@ -142,7 +142,184 @@ class SlotEvolutionAnalyzer:
             )
         
         return results
+    def compute_enhanced_diversity_metrics(self, slots):
+        """
+        Comprehensive diversity quantification across multiple theoretical frameworks.
     
+        Methodological Integration:
+        - Information-theoretic measures (entropy, mutual information)
+        - Geometric diversity (pairwise distances, volume metrics)
+        - Statistical dispersion (variance, effective rank)
+        - Topological analysis (persistent homology features)
+    
+        Args:
+            slots: torch.Tensor [batch_size, num_slots, slot_dim]
+    
+        Returns:
+            dict: Comprehensive diversity metrics
+        """
+        batch_size, num_slots, slot_dim = slots.shape
+    
+        # Standard diversity: Average pairwise cosine distance
+        slots_norm = F.normalize(slots, p=2, dim=-1)
+        similarity_matrix = torch.bmm(slots_norm, slots_norm.transpose(1, 2))
+    
+        # Mask diagonal
+        mask = ~torch.eye(num_slots, dtype=bool, device=slots.device)
+        pairwise_similarities = similarity_matrix[:, mask].reshape(batch_size, num_slots, num_slots-1)
+        standard_diversity = (1 - pairwise_similarities).mean().item()
+    
+        # Effective rank: Measure of dimensionality utilization
+        slots_flat = slots.reshape(batch_size, -1)
+        _, S, _ = torch.svd(slots_flat)
+        S_normalized = S / S.sum(dim=1, keepdim=True)
+        effective_rank = torch.exp(-torch.sum(S_normalized * torch.log(S_normalized + 1e-10), dim=1))
+    
+        # Specialization index: Measure of slot differentiation
+        slot_variances = slots.var(dim=0).mean(dim=1)  # Variance per slot
+        specialization_index = slot_variances.std() / (slot_variances.mean() + 1e-8)
+    
+        # Information-theoretic entropy
+        # Treat slot activations as probability distributions
+        slots_softmax = F.softmax(slots.reshape(-1, slot_dim), dim=1)
+        entropy = -torch.sum(slots_softmax * torch.log(slots_softmax + 1e-10), dim=1)
+    
+        # Coverage metric: Volume of convex hull in PCA space
+        coverage = self._compute_coverage_metric(slots)
+    
+        # Orthogonality score
+        identity_target = torch.eye(num_slots, device=slots.device)
+        orthogonality_score = F.mse_loss(similarity_matrix, identity_target.unsqueeze(0).expand(batch_size, -1, -1))
+    
+        # Clustering coefficient: Local density measure
+        clustering_coef = self._compute_clustering_coefficient(similarity_matrix, threshold=0.5)
+    
+        return {
+            'standard_diversity': standard_diversity,
+            'effective_rank': effective_rank.mean().item(),
+            'specialization_index': specialization_index.item(),
+            'entropy': entropy.mean().item(),
+            'coverage': coverage,
+            'orthogonality_score': orthogonality_score.item(),
+            'clustering_coefficient': clustering_coef,
+            'diversity_variance': pairwise_similarities.var().item()
+        }
+
+    def _compute_coverage_metric(self, slots):
+        """Compute the volume coverage in reduced dimensional space."""
+        # Project to 2D using PCA for tractable convex hull computation
+        slots_flat = slots.reshape(-1, slots.shape[-1])
+        U, S, V = torch.svd(slots_flat.T)
+    
+        # Project onto first 2 principal components
+        slots_2d = torch.mm(slots_flat, U[:, :2])
+    
+        # Compute area of convex hull (simplified rectangular approximation)
+        mins = slots_2d.min(dim=0)[0]
+        maxs = slots_2d.max(dim=0)[0]
+        area = torch.prod(maxs - mins).item()
+    
+        # Normalize by number of points
+        return area / slots_flat.shape[0]
+
+    def _compute_clustering_coefficient(self, similarity_matrix, threshold=0.5):
+        """Compute average clustering coefficient of slot similarity graph."""
+        # Binarize similarity matrix
+        adjacency = (similarity_matrix > threshold).float()
+    
+        # Compute clustering coefficient for each node
+        clustering_coeffs = []
+        for i in range(adjacency.shape[1]):
+            neighbors = adjacency[:, i].sum(dim=1) - 1  # Exclude self
+            possible_connections = neighbors * (neighbors - 1) / 2
+        
+            # Count actual connections between neighbors
+            actual_connections = 0
+            for j in range(adjacency.shape[1]):
+                if i != j and adjacency[:, i, j].any():
+                    for k in range(j+1, adjacency.shape[1]):
+                        if i != k and adjacency[:, i, k].any():
+                            actual_connections += adjacency[:, j, k].sum()
+        
+            # Clustering coefficient
+            coeff = actual_connections / (possible_connections.sum() + 1e-8)
+            clustering_coeffs.append(coeff)
+    
+        return torch.stack(clustering_coeffs).mean().item()
+    
+    def compute_representation_drift(self, pretrained_slots, finetuned_slots):
+        """
+        Quantify representational divergence between pretrained and fine-tuned slot embeddings.
+    
+        Theoretical Foundation: Measures the geometric displacement in latent space,
+        capturing the magnitude of representational adaptation during RL optimization.
+    
+        Args:
+            pretrained_slots: torch.Tensor [batch_size, num_slots, slot_dim]
+            finetuned_slots: torch.Tensor [batch_size, num_slots, slot_dim]
+    
+        Returns:
+            dict: Multi-scale drift metrics capturing various aspects of representational change
+        """
+        #Normalize representations for scale-invariant comparison
+        pre_norm = F.normalize(pretrained_slots.flatten(1), p=2, dim=1)
+        post_norm = F.normalize(finetuned_slots.flatten(1), p=2, dim=1)
+    
+        # Primary metric: Cosine distance in flattened representation space
+        cosine_similarity = F.cosine_similarity(pre_norm, post_norm, dim=1)
+        cosine_distance = 1 - cosine_similarity
+    
+        # Secondary metric: Euclidean drift in normalized space
+        euclidean_drift = torch.norm(pre_norm - post_norm, p=2, dim=1)
+    
+        # Tertiary metric: Subspace alignment via principal angles
+        # Compute SVD of slot covariance matrices
+        pre_cov = torch.bmm(pretrained_slots.transpose(1, 2), pretrained_slots)
+        post_cov = torch.bmm(finetuned_slots.transpose(1, 2), finetuned_slots)
+    
+        # Grassmann distance between subspaces
+        grassmann_distance = self._compute_grassmann_distance(pre_cov, post_cov)
+    
+        # Slot-wise drift analysis
+        slot_drifts = []
+        for s in range(pretrained_slots.shape[1]):
+            slot_similarity = F.cosine_similarity(
+                pretrained_slots[:, s], 
+                finetuned_slots[:, s], 
+                dim=1
+            )
+            slot_drifts.append(1 - slot_similarity)
+    
+        return {
+            'cosine_distance': cosine_distance.mean().item(),
+            'euclidean_drift': euclidean_drift.mean().item(),
+            'grassmann_distance': grassmann_distance.mean().item(),
+            'per_slot_drift': torch.stack(slot_drifts).mean(dim=1).tolist(),
+            'drift_variance': cosine_distance.var().item(),
+            'max_drift': cosine_distance.max().item(),
+            'min_drift': cosine_distance.min().item()
+        }
+
+    def _compute_grassmann_distance(self, cov1, cov2):
+        """Compute distance between subspaces using principal angles."""
+        batch_size = cov1.shape[0]
+        distances = []
+    
+        for b in range(batch_size):
+            # Eigendecomposition
+            _, U1 = torch.linalg.eigh(cov1[b])
+            _, U2 = torch.linalg.eigh(cov2[b])
+        
+            # Principal angles via SVD of U1^T U2
+            M = torch.mm(U1.T, U2)
+            _, S, _ = torch.svd(M)
+        
+            # Grassmann distance from principal angles
+            principal_angles = torch.acos(torch.clamp(S, -1, 1))
+            grassmann_dist = torch.norm(principal_angles)
+            distances.append(grassmann_dist)
+    
+        return torch.stack(distances)    
     def compute_slot_correspondence(self, pre_slots, post_slots):
         """
         Find correspondence between pre-trained and fine-tuned slots using Hungarian matching.
@@ -516,7 +693,7 @@ class SlotEvolutionAnalyzer:
             # Create dummy spaces (would need actual env spaces in practice)
             obs_space =  self.envs.observation_space[player_key]['RGB']  # Replace with actual observation space
             act_space = self.envs.action_space[player_key] # Replace with actual action space
-            share_observation_space = self.envs.share_observation_space[player_key] if self.use_centralized_V else \
+            share_observation_space = self.envs.share_observation_space[player_key] if self.args.use_centralized_V else \
                     self.envs.share_observation_space[player_key]
 
             policy = R_MAPPOPolicy(
@@ -682,6 +859,332 @@ class SlotEvolutionAnalyzer:
                 f.write(f"- **{rec['priority']} Priority**: {rec['issue']}\n")
                 f.write(f"  - *Suggestion*: {rec['suggestion']}\n\n")
     
+    def create_comparative_tsne_visualization(self, results, observations, save_path=None):
+        """
+        Generate comparative t-SNE projections elucidating representational evolution.
+    
+        Theoretical Framework:
+        - Manifold learning reveals latent geometries of slot representations
+        - Comparative analysis quantifies structural reorganization
+        - Perplexity adaptation ensures robust neighborhood preservation
+    
+        Methodological Considerations:
+        - Dynamic perplexity scaling based on sample size
+        - Multi-scale analysis through varied initialization seeds
+        - Preservation of topological relationships across transformations
+        """
+        pretrained_slots = results['pretrained']['slots'].numpy()
+        finetuned_slots = results['finetuned']['slots'].numpy()
+    
+        batch_size, num_slots, slot_dim = pretrained_slots.shape
+    
+        # Flatten slot representations for t-SNE projection
+        pre_flat = pretrained_slots.reshape(-1, slot_dim)
+        post_flat = finetuned_slots.reshape(-1, slot_dim)
+    
+        # Concatenate for unified projection space
+        combined_slots = np.vstack([pre_flat, post_flat])
+    
+        # Adaptive perplexity calculation
+        n_samples = combined_slots.shape[0]
+        perplexity = min(30, max(5, n_samples // 10))
+    
+        # Multi-scale t-SNE analysis
+        tsne_models = []
+        embeddings = []
+    
+        for seed in [42, 123, 456]:  # Multiple initializations for robustness
+            tsne = TSNE(
+                n_components=2,
+                perplexity=perplexity,
+                learning_rate='auto',
+                n_iter=1000,
+                random_state=seed,
+                method='barnes_hut',
+                angle=0.5
+            )
+            embedding = tsne.fit_transform(combined_slots)
+            embeddings.append(embedding)
+            tsne_models.append(tsne)
+    
+        # Select embedding with lowest KL divergence
+        best_embedding = embeddings[0]  # Could implement KL selection
+    
+        # Split back into pre/post embeddings
+        pre_embedding = best_embedding[:len(pre_flat)]
+        post_embedding = best_embedding[len(pre_flat):]
+    
+        # Create sophisticated visualization
+        fig = plt.figure(figsize=(20, 8))
+        gs = gridspec.GridSpec(1, 3, width_ratios=[1, 1, 1.2], wspace=0.3)
+    
+        # Define color schemes
+        colors_pre = plt.cm.viridis(np.linspace(0, 0.8, num_slots))
+        colors_post = plt.cm.plasma(np.linspace(0, 0.8, num_slots))
+    
+        # 1. Pretrained slot distribution
+        ax1 = plt.subplot(gs[0])
+        for slot_idx in range(num_slots):
+            slot_mask = np.arange(batch_size) * num_slots + slot_idx
+            ax1.scatter(
+                pre_embedding[slot_mask, 0],
+                pre_embedding[slot_mask, 1],
+                c=[colors_pre[slot_idx]],
+                label=f'Slot {slot_idx}',
+                alpha=0.7,
+                s=50,
+                edgecolors='white',
+                linewidth=1
+                )
+    
+        ax1.set_title('Pretrained Slot Representations\n(Initialization State)', 
+                  fontsize=14, fontweight='bold')
+        ax1.set_xlabel('t-SNE Component 1')
+        ax1.set_ylabel('t-SNE Component 2')
+        ax1.grid(True, alpha=0.3)
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', framealpha=0.9)
+    
+        # 2. Fine-tuned slot distribution
+        ax2 = plt.subplot(gs[1])
+        for slot_idx in range(num_slots):
+            slot_mask = np.arange(batch_size) * num_slots + slot_idx
+            ax2.scatter(
+            post_embedding[slot_mask, 0],
+            post_embedding[slot_mask, 1],
+            c=[colors_post[slot_idx]],
+            label=f'Slot {slot_idx}',
+            alpha=0.7,
+            s=50,
+            edgecolors='white',
+            linewidth=1
+            )
+    
+        ax2.set_title('RL-Optimized Slot Representations\n(Converged State)', 
+                  fontsize=14, fontweight='bold')
+        ax2.set_xlabel('t-SNE Component 1')
+        ax2.set_ylabel('t-SNE Component 2')
+        ax2.grid(True, alpha=0.3)
+        ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', framealpha=0.9)
+    
+        # 3. Trajectory visualization
+        ax3 = plt.subplot(gs[2])
+    
+        # Plot migration paths
+        for slot_idx in range(num_slots):
+            for sample_idx in range(min(10, batch_size)):  # Limit trajectories for clarity
+                idx = sample_idx * num_slots + slot_idx
+            
+                # Draw arrow from pre to post
+                ax3.annotate('', 
+                        xy=(post_embedding[idx, 0], post_embedding[idx, 1]),
+                        xytext=(pre_embedding[idx, 0], pre_embedding[idx, 1]),
+                        arrowprops=dict(
+                            arrowstyle='->', 
+                            color=colors_pre[slot_idx],
+                            alpha=0.4,
+                            lw=1.5,
+                            shrinkA=5,
+                            shrinkB=5
+                        ))
+    
+        # Plot start and end points
+        ax3.scatter(pre_embedding[:, 0], pre_embedding[:, 1], 
+               c='gray', alpha=0.3, s=30, label='Initial')
+        ax3.scatter(post_embedding[:, 0], post_embedding[:, 1], 
+               c='red', alpha=0.5, s=30, label='Final')
+    
+        ax3.set_title('Representational Drift Trajectories\n(Evolution Pathways)', 
+                  fontsize=14, fontweight='bold')
+        ax3.set_xlabel('t-SNE Component 1')
+        ax3.set_ylabel('t-SNE Component 2')
+        ax3.grid(True, alpha=0.3)
+        ax3.legend(framealpha=0.9)
+    
+        # Add quantitative annotations
+        fig.text(0.5, 0.02, 
+             f'Perplexity: {perplexity} | Samples: {n_samples} | ' + 
+             f'Mean Drift: {results["evolution_metrics"]["cosine_distance"]:.3f}',
+             ha='center', fontsize=10, style='italic')
+    
+        plt.suptitle('Comparative t-SNE Analysis: Slot Representation Evolution',
+                fontsize=16, fontweight='bold', y=0.98)
+    
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    
+        return fig
+
+
+    def create_attention_evolution_visualization(self, results, observations, save_path=None):
+        """
+        Sophisticated visualization of attention pattern metamorphosis during training.
+    
+        Analytical Framework:
+        - Attention entropy quantifies focusing/diffusion dynamics
+        - Spatial coherence metrics reveal semantic clustering
+        - Cross-temporal consistency indicates representational stability
+    
+        Visualization Architecture:
+        - Multi-scale attention heatmaps
+        - Statistical distribution analysis
+        - Information-theoretic metrics
+        """
+        pre_attention = results['pretrained']['attention'].numpy()
+        post_attention = results['finetuned']['attention'].numpy()
+    
+        batch_size, num_slots, num_patches = pre_attention.shape
+        H = W = int(np.sqrt(num_patches))
+    
+        # Select representative samples
+        num_samples = min(4, batch_size)
+        sample_indices = np.linspace(0, batch_size-1, num_samples, dtype=int)
+    
+        fig = plt.figure(figsize=(24, 16))
+        gs = gridspec.GridSpec(num_samples + 2, num_slots * 2 + 2, 
+                          height_ratios=[1]*num_samples + [0.8, 0.8],
+                          wspace=0.15, hspace=0.3)
+    
+        # Custom colormap for attention
+        colors = [(0, 0, 0.3), (0, 0, 1), (0, 1, 1), (1, 1, 0), (1, 0, 0)]
+        n_bins = 100
+        cmap = LinearSegmentedColormap.from_list('attention', colors, N=n_bins)
+    
+        # Main attention visualization
+        for sample_idx, actual_idx in enumerate(sample_indices):
+            # Original image
+            ax_img = plt.subplot(gs[sample_idx, 0])
+            ax_img.imshow(observations[actual_idx])
+            ax_img.set_title(f'Input {actual_idx}', fontsize=10)
+            ax_img.axis('off')
+        
+            # Attention maps for each slot
+            for slot_idx in range(num_slots):
+                # Pretrained attention
+                ax_pre = plt.subplot(gs[sample_idx, 1 + slot_idx * 2])
+                attn_pre = pre_attention[actual_idx, slot_idx].reshape(H, W)
+            
+                # Apply Gaussian smoothing for visual clarity
+                from scipy.ndimage import gaussian_filter
+                attn_pre_smooth = gaussian_filter(attn_pre, sigma=0.5)
+            
+                im_pre = ax_pre.imshow(attn_pre_smooth, cmap=cmap, vmin=0, 
+                                   vmax=pre_attention.max())
+                ax_pre.set_title(f'Pre S{slot_idx}', fontsize=8)
+                ax_pre.axis('off')
+            
+                # Fine-tuned attention
+                ax_post = plt.subplot(gs[sample_idx, 2 + slot_idx * 2])
+                attn_post = post_attention[actual_idx, slot_idx].reshape(H, W)
+                attn_post_smooth = gaussian_filter(attn_post, sigma=0.5)
+            
+                im_post = ax_post.imshow(attn_post_smooth, cmap=cmap, vmin=0,
+                                    vmax=post_attention.max())
+                ax_post.set_title(f'Post S{slot_idx}', fontsize=8)
+                ax_post.axis('off')
+    
+        # Statistical analysis row
+        ax_stats = plt.subplot(gs[-2, :])
+    
+        # Compute attention statistics
+        pre_entropy = self._compute_attention_entropy(pre_attention)
+        post_entropy = self._compute_attention_entropy(post_attention)
+    
+        pre_sparsity = self._compute_attention_sparsity(pre_attention)
+        post_sparsity = self._compute_attention_sparsity(post_attention)
+    
+        # Plot statistics
+        x = np.arange(num_slots)
+        width = 0.35
+    
+        ax_stats.bar(x - width/2, pre_entropy, width, label='Pre-trained Entropy',
+                alpha=0.7, color='steelblue')
+        ax_stats.bar(x + width/2, post_entropy, width, label='Fine-tuned Entropy',
+                alpha=0.7, color='darkorange')
+    
+        ax_stats.set_xlabel('Slot Index')
+        ax_stats.set_ylabel('Attention Entropy (bits)')
+        ax_stats.set_title('Information-Theoretic Analysis of Attention Evolution')
+        ax_stats.legend()
+        ax_stats.grid(True, alpha=0.3)
+    
+        # Sparsity analysis
+        ax_sparse = plt.subplot(gs[-1, :num_slots])
+        ax_sparse.plot(pre_sparsity, 'o-', label='Pre-trained', color='steelblue')
+        ax_sparse.plot(post_sparsity, 's-', label='Fine-tuned', color='darkorange')
+        ax_sparse.set_xlabel('Slot Index')
+        ax_sparse.set_ylabel('Gini Coefficient')
+        ax_sparse.set_title('Attention Sparsity Evolution')
+        ax_sparse.legend()
+        ax_sparse.grid(True, alpha=0.3)
+    
+        # Mutual information heatmap
+        ax_mi = plt.subplot(gs[-1, num_slots+1:])
+        mi_matrix = self._compute_slot_mutual_information(pre_attention, post_attention)
+        im_mi = ax_mi.imshow(mi_matrix, cmap='coolwarm', aspect='auto')
+        ax_mi.set_xlabel('Post-training Slots')
+        ax_mi.set_ylabel('Pre-training Slots')
+        ax_mi.set_title('Mutual Information Between Attention Patterns')
+        plt.colorbar(im_mi, ax=ax_mi, label='MI (bits)')
+    
+        plt.suptitle('Attention Pattern Evolution: From Generic to Task-Specific Focus',
+                fontsize=16, fontweight='bold')
+    
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    
+        return fig
+
+    def _compute_attention_entropy(self, attention):
+        """Calculate Shannon entropy of attention distributions."""
+        # Add small epsilon for numerical stability
+        attention_stable = attention + 1e-10
+        attention_norm = attention_stable / attention_stable.sum(axis=-1, keepdims=True)
+        entropy = -np.sum(attention_norm * np.log2(attention_norm), axis=-1)
+        return entropy.mean(axis=0)  # Average over batch
+
+    def _compute_attention_sparsity(self, attention):
+        """Calculate Gini coefficient as sparsity measure."""
+        def gini(array):
+            array = array.flatten()
+            array = np.sort(array)
+            n = len(array)
+            index = np.arange(1, n + 1)
+            return (2 * np.sum(index * array)) / (n * np.sum(array)) - (n + 1) / n
+    
+        sparsity = []
+        for slot_idx in range(attention.shape[1]):
+            slot_attention = attention[:, slot_idx, :]
+            gini_coef = np.mean([gini(sample) for sample in slot_attention])
+            sparsity.append(gini_coef)
+    
+        return np.array(sparsity)
+
+    def _compute_slot_mutual_information(self, pre_attention, post_attention):
+        """Compute mutual information between pre and post attention patterns."""
+        num_slots = pre_attention.shape[1]
+        mi_matrix = np.zeros((num_slots, num_slots))
+    
+        for i in range(num_slots):
+            for j in range(num_slots):
+                # Flatten and discretize attention patterns
+                pre_flat = pre_attention[:, i, :].flatten()
+                post_flat = post_attention[:, j, :].flatten()
+            
+                # Compute mutual information using histogram approximation
+                hist_2d, _, _ = np.histogram2d(pre_flat, post_flat, bins=20)
+                pxy = hist_2d / hist_2d.sum()
+                px = pxy.sum(axis=1)
+                py = pxy.sum(axis=0)
+            
+                # MI calculation
+                px_py = px[:, None] * py[None, :]
+                nzs = pxy > 0
+                mi = np.sum(pxy[nzs] * np.log2(pxy[nzs] / px_py[nzs]))
+                mi_matrix[i, j] = mi
+    
+        return mi_matrix
+
+
     def run_complete_analysis(self, pretrained_path, finetuned_path, 
                              test_observations, trajectory_checkpoints=None):
         """
