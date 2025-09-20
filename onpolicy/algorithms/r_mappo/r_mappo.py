@@ -1,11 +1,15 @@
 import numpy as np
 import torch
 import torch.nn as nn
+
+from onpolicy.algorithms.utils.utilities.FAMO import FAMO
 from onpolicy.utils.util import get_gard_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
 from onpolicy.algorithms.utils.util import check
 from torch.utils.checkpoint import checkpoint
 import torch.distributed as dist
+
+
 class R_MAPPO():
     """
     Trainer class for MAPPO to update policies.
@@ -29,12 +33,12 @@ class R_MAPPO():
         self.num_mini_batch = args.num_mini_batch
         self.data_chunk_length = args.data_chunk_length
         self.value_loss_coef = args.value_loss_coef
-        #entropy related terms
+        # entropy related terms
         self.entropy_coef = args.entropy_coef
         self.entropy_initial_coef = args.entropy_coef  # Store the initial value
 
         self.entropy_final_coef = args.entropy_final_coef
-        self.entropy_anneal_duration =args.entropy_anneal_duration
+        self.entropy_anneal_duration = args.entropy_anneal_duration
         self.total_updates = 0
         self.warmup_updates = args.warmup_updates
         self.cooldown_updates = args.cooldown_updates
@@ -51,14 +55,26 @@ class R_MAPPO():
         self._use_value_active_masks = args.use_value_active_masks
         self._use_policy_active_masks = args.use_policy_active_masks
         self.use_slot_att = args.use_slot_att
-        #
- 
-        if self.use_attention == True:
+
+        if self.use_attention:
             self._use_naive_recurrent_policy = False
             self._use_recurrent_policy = False
+
+            if self.args.use_slot_attn_transformer_decoder:
+                self.famo_actor = FAMO(n_tasks=5, device=self.device,
+                                       max_norm=0.0)  # let your existing clip path handle norm
+            else:
+                self.famo_actor = FAMO(n_tasks=4, device=self.device, max_norm=0.0)
+
         else:
             self._use_naive_recurrent_policy = True
             self._use_recurrent_policy = True
+
+            self.famo_actor = None
+
+        # Initialize min_losses once (or after a warmup); you can also update it online
+        if self.famo_actor is not None:
+            self.famo_actor.set_min_losses(torch.zeros(self.famo_actor.n_tasks, device=self.device))
 
         # assert (self._use_popart and self._use_valuenorm) == False, ("self._use_popart and self._use_valuenorm can not be set True simultaneously")
 
@@ -85,13 +101,13 @@ class R_MAPPO():
             return
 
         # Annealing phase
-        progress = (self.total_updates - self.warmup_updates) / (self.entropy_anneal_duration - self.warmup_updates - self.cooldown_updates)
-        
-        # Cosine annealing schedule
-        #The annealing schedule consistently moves from the initial to the final value over the specified duration.
-        self.entropy_coef = self.entropy_final_coef + 0.5 * (self.entropy_initial_coef - self.entropy_final_coef) * (1 + np.cos(np.pi * progress))
+        progress = (self.total_updates - self.warmup_updates) / (
+                self.entropy_anneal_duration - self.warmup_updates - self.cooldown_updates)
 
-    
+        # Cosine annealing schedule
+        # The annealing schedule consistently moves from the initial to the final value over the specified duration.
+        self.entropy_coef = self.entropy_final_coef + 0.5 * (self.entropy_initial_coef - self.entropy_final_coef) * (
+                1 + np.cos(np.pi * progress))
 
     def cal_value_loss(self, values, value_preds_batch, return_batch, active_masks_batch):
         """
@@ -146,8 +162,8 @@ class R_MAPPO():
         :return imp_weights: (torch.Tensor) importance sampling weights.
         """
         share_obs_batch, obs_batch, rnn_states_batch, rnn_cells_batch, rnn_states_critic_batch, rnn_cells_critic_batch, actions_batch, \
-        value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, \
-        adv_targ, available_actions_batch = sample
+            value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, \
+            adv_targ, available_actions_batch = sample
 
         old_action_log_probs_batch = check(old_action_log_probs_batch).to(**self.tpdv)
         adv_targ = check(adv_targ).to(**self.tpdv)
@@ -185,35 +201,81 @@ class R_MAPPO():
         policy_loss = policy_action_loss
 
         self.policy.actor_optimizer.zero_grad()
-        if update_actor:
-            
-            total_loss = (policy_loss - dist_entropy * self.entropy_coef)
 
+        #     if update_actor:
+        #
+        #         total_loss = (policy_loss - dist_entropy * self.entropy_coef)
+        #
+        #         if self.use_slot_att:
+        #             if self.args.use_slot_attn_transformer_decoder:
+        #                 slot_att_loss = (
+        #                                  self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss
+        #                                  + self.policy.actor.slot_consistency_loss
+        #                                  + self.policy.actor.slot_mse_loss
+        #                                  + self.policy.actor.slot_cross_entropy_loss
+        #                                 )
+        #             else:
+        #                 slot_att_loss = (
+        #                                  self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss
+        #                                  + self.policy.actor.slot_mse_loss
+        #                                  + self.policy.actor.slot_attention_entropy_loss
+        #                                 )
+        #             total_loss += self.args.slot_attn_loss_coef * slot_att_loss
+        #
+        #         total_loss.backward()
+
+        if update_actor:
+            policy_task = policy_loss - self.entropy_coef * dist_entropy  # one scalar
+
+            # Build the task vector depending on Slot-Attention setup
             if self.use_slot_att:
                 if self.args.use_slot_attn_transformer_decoder:
+                    # Tasks: [policy, orth, consistency, mse, cross_entropy]
+                    task_vec = torch.stack([
+                        policy_task,
+                        self.policy.actor.slot_orthoganility_loss,
+                        self.policy.actor.slot_consistency_loss,
+                        self.policy.actor.slot_mse_loss,
+                        self.policy.actor.slot_cross_entropy_loss,
+                    ])
+
                     slot_att_loss = (
-                                     self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss 
-                                     + self.policy.actor.slot_consistency_loss 
-                                     + self.policy.actor.slot_mse_loss 
-                                     + self.policy.actor.slot_cross_entropy_loss
-                                    )
+                            self.policy.actor.slot_orthoganility_loss
+                            + self.policy.actor.slot_consistency_loss
+                            + self.policy.actor.slot_mse_loss
+                            + self.policy.actor.slot_cross_entropy_loss
+                    )
+
                 else:
+                    # Tasks: [policy, orth, mse, attn_entropy]
+                    task_vec = torch.stack([
+                        policy_task,
+                        self.policy.actor.slot_orthoganility_loss,
+                        self.policy.actor.slot_mse_loss,
+                        self.policy.actor.slot_attention_entropy_loss,
+                    ])
                     slot_att_loss = (
-                                     self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss 
-                                     + self.policy.actor.slot_mse_loss
-                                     + self.policy.actor.slot_attention_entropy_loss 
-                                    )
-                total_loss += self.args.slot_attn_loss_coef * slot_att_loss
+                            self.policy.actor.slot_orthoganility_loss
+                            + self.policy.actor.slot_mse_loss
+                            + self.policy.actor.slot_attention_entropy_loss
+                    )
 
-            total_loss.backward()
+                famo = self.famo_actor
+                famo_loss, famo_info = famo.get_weighted_loss(
+                    losses=task_vec,
+                    shared_parameters=self.policy.actor.slot_attn.parameters()
+                )
+                # Backprop through weighted loss
+                famo_loss.backward()
 
-        actor_parameters =  self.policy.actor.parameters()
+            else:
+                policy_task.backward()
 
+        actor_parameters = self.policy.actor.parameters()
 
-       
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(actor_parameters, self.max_grad_norm)
-            
+
         else:
             actor_grad_norm = get_gard_norm(actor_parameters)
 
@@ -235,11 +297,10 @@ class R_MAPPO():
 
         self.policy.critic_optimizer.step()
         if not self.use_slot_att:
-           del actor_parameters
-           return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
+            del actor_parameters
+            return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
         else:
-           return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss
-
+            return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss
 
     def train(self, buffer, update_actor=True):
         """
@@ -250,7 +311,7 @@ class R_MAPPO():
         :return train_info: (dict) contains information regarding training update (e.g. loss, grad norms, etc).
         """
         if hasattr(torch.cuda, 'memory_reserved'):
-           torch.cuda.memory_reserved(0)  # Clear memory reserves
+            torch.cuda.memory_reserved(0)  # Clear memory reserves
 
         if self._use_popart or self._use_valuenorm:
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(buffer.value_preds[:-1])
@@ -271,7 +332,7 @@ class R_MAPPO():
         train_info['critic_grad_norm'] = 0
         train_info['ratio'] = 0
         if self.use_slot_att:
-           train_info['slot_att_loss']= 0
+            train_info['slot_att_loss'] = 0
 
         for idx in range(self.ppo_epoch):
             if self._use_recurrent_policy or self.use_attention:
@@ -285,16 +346,15 @@ class R_MAPPO():
                 if not self.use_slot_att:
                     value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
                         = self.ppo_update(idx, sample, update_actor)
-                else:   
+                else:
 
                     value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss \
                         = self.ppo_update(idx, sample, update_actor)
                     train_info['slot_att_loss'] += slot_att_loss
 
-
                 is_last_update = (idx == self.ppo_epoch - 1)
                 if is_last_update:
-                
+
                     # Apply shrink and perturb at the specified interval
                     if self.total_updates % self.args.perturb_interval == 0:
                         # Optional: clear any cached computations before perturbation 
@@ -315,8 +375,8 @@ class R_MAPPO():
 
         for k in train_info.keys():
             train_info[k] /= num_updates
-            
-        #update entropy coefficient
+
+        # update entropy coefficient
         self.update_entropy_coef()
         torch.cuda.empty_cache()
 
