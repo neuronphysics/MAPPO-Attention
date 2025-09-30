@@ -190,11 +190,11 @@ def train_qsa(args):
                     writer.add_scalar("validate_dvae_loss", mse_loss, global_step)
                     writer.add_scalar("validate_loss", cross_entropy, global_step)
 
-
-                    masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
-                    writer.add_image("validate masked image", masked_image, global_step=ep)
-                    writer.add_image("validate recon", recon_row, global_step=ep)
-                    writer.add_image("validate atten masks", combined_mask, global_step=ep)
+                    if ep % args.slot_log_fre == 0:
+                        masked_image, combined_mask, recon_row = visualize_img(out, batch_data)
+                        writer.add_image("validate masked image", masked_image, global_step=ep)
+                        writer.add_image("validate recon", recon_row, global_step=ep)
+                        writer.add_image("validate atten masks", combined_mask, global_step=ep)
 
 
 def visualize_img(out, original):
