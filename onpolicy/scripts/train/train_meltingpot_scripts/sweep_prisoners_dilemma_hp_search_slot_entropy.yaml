@@ -13,13 +13,13 @@ parameters:
 
   entropy_coef:          # initial
     distribution: uniform
-    min: 0.08
-    max: 0.25            
+    min: 0.05
+    max: 0.2            
 
-  entropy_decay_ratio:   # controls final = entropy_coef * ratio
+  entropy_final_coef:   # controls final = entropy_coef * ratio
     distribution: uniform
-    min: 0.2             # strong decay
-    max: 0.8             # almost flat
+    min: 0.25             # strong decay
+    max: 0.75             # almost flat
 
   entropy_anneal_duration:
     distribution: int_uniform

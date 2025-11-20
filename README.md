@@ -91,4 +91,5 @@ Welcome to the repository for our MAPPO (Multi-Agent Proximal Policy Optimizatio
   ./run_mappo_territory__room_training_slot_attention_and_rim.sh
   ```
 - **Hyperparameter sweeps:** 
+
    Use the YAML files in `onpolicy/scripts/train/train_meltingpot_scripts/` and from the repo root run `wandb sweep onpolicy/scripts/train/train_meltingpot_scripts/sweep_prisoners_dilemma_hp_search_slot_*.yaml` followed by `wandb agent <entity>/<project>/<sweep_id>`, editing the `hidden_size` and `slot_att_work_path` arguments in the sweep command to match your local directory structure.
