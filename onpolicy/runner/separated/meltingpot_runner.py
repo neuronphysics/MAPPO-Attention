@@ -117,6 +117,15 @@ class MeltingpotRunner(Runner):
                     print("Overall average episode reward for all agents:", overall_average_episode_reward)
 
                 self.log_train(train_infos, total_num_steps)
+                if self.all_args.use_wandb:
+                    wandb.log(
+                        {
+                            "overall_average_episode_reward": overall_average_episode_reward,
+                            "total_num_steps": total_num_steps,
+                        },
+                        step=total_num_steps,
+                    )
+
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)

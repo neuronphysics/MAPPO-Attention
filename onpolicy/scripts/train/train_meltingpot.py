@@ -197,6 +197,7 @@ def main(args):
                          job_type="training",
                          reinit=True)
         
+
         if all_args.use_sweep_wandb_hyper_search:
             all_args.lr = wandb.config.lr
             all_args.critic_lr = wandb.config.critic_lr
@@ -205,6 +206,13 @@ def main(args):
             all_args.clip_param = wandb.config.clip_param
             all_args.max_grad_norm = wandb.config.max_grad_norm
             all_args.gain = wandb.config.gain
+            all_args.warmup_updates = wandb.config.warmup_updates
+            all_args.cooldown_updates = wandb.config.cooldown_updates
+            all_args.entropy_anneal_duration = wandb.config.entropy_anneal_duration
+            all_args.value_loss_coef = wandb.config.value_loss_coef
+            all_args.gae_lambda = wandb.config.gae_lambda
+            all_args.gamma = wandb.config.gamma
+            all_args.slot_attn_loss_coef = wandb.config.slot_attn_loss_coef
             
 
     setproctitle.setproctitle(str(all_args.algorithm_name) + "-" + \
