@@ -1,0 +1,161 @@
+method: bayes
+name: "meltingpot_pd_slot_bayes"
+
+metric:
+  name: overall_average_episode_reward
+  goal: maximize
+
+# Parameters section - includes both swept and fixed values
+parameters:
+  # === SWEPT PARAMETERS ===
+  clip_param:
+    distribution: uniform
+    min: 0.15
+    max: 0.5
+
+  value_loss_coef:
+    distribution: log_uniform_values
+    min: 0.25
+    max: 1.0
+
+  gain:
+    distribution: log_uniform_values
+    min: 0.01
+    max: 0.1
+
+  # === FIXED PARAMETERS ===
+  lr:
+    value: 0.00009
+  critic_lr:
+    value: 0.000095
+  entropy_coef:
+    value: 0.16
+  entropy_final_coef:
+    value: 0.1
+  max_grad_norm:
+    value: 0.075
+  warmup_updates:
+    value: 50000
+  cooldown_updates:
+    value: 50000
+  entropy_anneal_duration:
+    value: 600000
+  gae_lambda:
+    value: 0.97
+  gamma:
+    value: 0.995
+  slot_attn_loss_coef:
+    value: 0.001
+  unfreeze_episode:
+    value: 0
+  use_orthogonal_loss:
+    value: true
+  orthogonal_loss_coef:
+    value: 2.0
+
+program: ../train/train_meltingpot.py
+
+command:
+  - python
+  - ${program}
+  - --use_valuenorm
+  - "False"
+  - --use_popart
+  - "True"
+  - --env_name
+  - "Meltingpot"
+  - --algorithm_name
+  - "mappo"
+  - --experiment_name
+  - "prisoners_dilemma_rim_gru_slot_nu_6"
+  - --substrate_name
+  - "prisoners_dilemma_in_the_matrix__arena"
+  - --num_agents
+  - "8"
+  - --seed
+  - "123"
+  - --n_rollout_threads
+  - "25"
+  - --use_wandb
+  - "True"
+  - --user_name
+  - "zsheikhb"
+  - --wandb_name
+  - "zsheikhb"
+  - --share_policy
+  - "False"
+  - --use_centralized_V
+  - "False"
+  - --use_attention
+  - "True"
+  - --attention_module
+  - "RIM"
+  - --rnn_attention_module
+  - "GRU"
+  - --rim_num_units
+  - "6"
+  - --rim_topk
+  - "5"
+  - --hidden_size
+  - "270"
+  - --num_env_steps
+  - "3000000"
+  - --log_interval
+  - "1"
+  - --episode_length
+  - "1000"
+  - --downsample
+  - "True"
+  - --img_scale_factor
+  - "1"
+  - --world_img_scale_factor
+  - "8"
+  - --pretrain_slot_att
+  - "False"
+  - --slot_train_ep
+  - "200"
+  - --slot_pretrain_batch_size
+  - "1000"
+  - --slot_att_work_path
+  - ./onpolicy/scripts/results/slot_att/
+  - --slot_att_load_model
+  - "True"
+  - --use_slot_att
+  - "True"
+  - --use_pos_encoding
+  - "True"
+  - --use_input_att
+  - "False"
+  - --use_com_att
+  - "True"
+  - --use_x_reshape
+  - "True"
+  - --slot_att_crop_repeat
+  - "8"
+  - --slot_log_fre
+  - "50"
+  - --collect_data
+  - "False"
+  - --no_train
+  - "False"
+  - --huber_delta
+  - "10"
+  - --use_orthogonal
+  - "True"
+  - --use_gae
+  - "True"
+  - --drop_out
+  - "0.2"
+  - --fine_tuning_type
+  - "Partial"
+  - --lr_main
+  - "0.00008"
+  - --use_slot_attn_transformer_decoder
+  - "False"
+  - --crop_size
+  - "88"
+  - --weight_clip_beta
+  - "0.5"
+  - --use_sweep_wandb_hyper_search
+  - "True"
+  - ${args}
