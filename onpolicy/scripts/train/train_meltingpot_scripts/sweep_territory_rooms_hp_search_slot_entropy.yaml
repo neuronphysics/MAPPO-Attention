@@ -1,5 +1,5 @@
 method: bayes
-name: "meltingpot_pd_slot_bayes"
+name: "meltingpot_territory_rooms_rim_gru_bayes"
 
 metric:
   name: overall_average_episode_reward
@@ -8,48 +8,51 @@ metric:
 # Parameters section - includes both swept and fixed values
 parameters:
   # === SWEPT PARAMETERS ===
-  clip_param:
+  max_grad_norm:
     distribution: uniform
-    min: 0.15
-    max: 0.5
+    min: 0.02
+    max: 0.50
 
-  value_loss_coef:
-    distribution: log_uniform_values
-    min: 0.25
-    max: 1.0
+  entropy_coef:
+    distribution: uniform
+    min: 0.005
+    max: 0.01
 
-  gain:
-    distribution: log_uniform_values
-    min: 0.01
-    max: 0.1
+  entropy_final_coef:
+    distribution: uniform
+    min: 0.007
+    max: 0.05
+
+  entropy_anneal_duration:
+    distribution: int_uniform
+    min: 500000
+    max: 1000000
 
   # === FIXED PARAMETERS ===
   lr:
-    value: 0.00009
+    value: 0.00002
   critic_lr:
-    value: 0.000095
-  entropy_coef:
-    value: 0.16
-  entropy_final_coef:
+    value: 0.00005
+  clip_param:
     value: 0.1
-  max_grad_norm:
-    value: 0.075
+  gain:
+    value: 0.01
   warmup_updates:
-    value: 50000
+    value: 100000
   cooldown_updates:
-    value: 50000
-  entropy_anneal_duration:
-    value: 600000
+    value: 100000
+  value_loss_coef:
+    value: 0.75
   gae_lambda:
-    value: 0.97
+    value: 0.95
   gamma:
     value: 0.995
   slot_attn_loss_coef:
-    value: 0.001
+    value: 0.005
   unfreeze_episode:
     value: 0
   use_orthogonal_loss:
-    value: true
+    value: True
   orthogonal_loss_coef:
     value: 2.0
 
@@ -62,20 +65,22 @@ command:
   - "False"
   - --use_popart
   - "True"
+  - --use_gae
+  - "True"
   - --env_name
   - "Meltingpot"
   - --algorithm_name
   - "mappo"
   - --experiment_name
-  - "prisoners_dilemma_rim_gru_slot_nu_6"
+  - "territory_rooms_nu6_RIM_GRU"
   - --substrate_name
-  - "prisoners_dilemma_in_the_matrix__arena"
+  - "territory__rooms"
   - --num_agents
-  - "8"
+  - "9"
   - --seed
   - "123"
   - --n_rollout_threads
-  - "25"
+  - "26"
   - --use_wandb
   - "True"
   - --user_name
@@ -85,6 +90,8 @@ command:
   - --share_policy
   - "False"
   - --use_centralized_V
+  - "False"
+  - --load_model
   - "False"
   - --use_attention
   - "True"
@@ -97,9 +104,9 @@ command:
   - --rim_topk
   - "5"
   - --hidden_size
-  - "270"
+  - "360"
   - --num_env_steps
-  - "3000000"
+  - "2500000"
   - --log_interval
   - "1"
   - --episode_length
@@ -117,7 +124,7 @@ command:
   - --slot_pretrain_batch_size
   - "1000"
   - --slot_att_work_path
-  - ./onpolicy/scripts/results/slot_att/
+  - "./onpolicy/scripts/results/slot_att/"
   - --slot_att_load_model
   - "True"
   - --use_slot_att
@@ -131,31 +138,37 @@ command:
   - --use_x_reshape
   - "True"
   - --slot_att_crop_repeat
-  - "8"
+  - "9"
   - --slot_log_fre
-  - "50"
+  - "10"
   - --collect_data
   - "False"
+  - --collect_agent
+  - "False"
+  - --collect_world
+  - "False"
+  - --collect_data_ep_num
+  - "20"
   - --no_train
   - "False"
+  - --crop_size
+  - "88"
+  - --weight_decay
+  - "0.01"
+  - --grad_clip
+  - "0.2"
   - --huber_delta
-  - "10"
+  - "5.0"
   - --use_orthogonal
-  - "True"
-  - --use_gae
   - "True"
   - --drop_out
   - "0.2"
   - --fine_tuning_type
   - "Partial"
-  - --lr_main
-  - "0.00008"
   - --use_slot_attn_transformer_decoder
   - "False"
-  - --crop_size
-  - "88"
   - --weight_clip_beta
-  - "0.5"
+  - "1.0"
   - --use_sweep_wandb_hyper_search
   - "True"
   - ${args}
