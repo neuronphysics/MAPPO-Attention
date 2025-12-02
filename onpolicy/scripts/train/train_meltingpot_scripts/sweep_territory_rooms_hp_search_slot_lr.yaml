@@ -18,7 +18,7 @@ parameters:
     min: 5e-5
     max: 1e-4
 
-  # === FIXED PARAMETERS (from your territory-rooms CLI) ===
+  # === FIXED PARAMETERS ===
   entropy_coef:
     value: 0.008
   entropy_final_coef:
@@ -42,7 +42,7 @@ parameters:
   gamma:
     value: 0.995
   slot_attn_loss_coef:
-    value: 0.001
+    value: 0.0001
   unfreeze_episode:
     value: 0
   use_orthogonal_loss:
