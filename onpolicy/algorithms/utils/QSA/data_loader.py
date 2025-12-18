@@ -5,7 +5,7 @@ import random
 from PIL import Image, ImageFile
 from torchvision import transforms
 from torch.utils.data import Dataset
-
+from onpolicy.algorithms.utils.QSA.utils import rescale 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
@@ -38,7 +38,7 @@ class GlobDataset(Dataset):
                 image_paths = sorted(glob.glob(os.path.join(dir, img_glob)))
                 for path in image_paths:
                     data_tmp = torch.load(path).permute(0, 3, 1, 2)
-                    self.episodes.extend(data_tmp / 255.0)
+                    self.episodes.extend(data_tmp.float() / 255.0)
 
         if world_root is not None and world_root != "":
             train_split = int(len(self.world_total_dirs) * train_split_percent)
@@ -62,7 +62,7 @@ class GlobDataset(Dataset):
                     for t in data_tmp:
                         for i in range(self.crop_repeat):
                             cropped_img = self.random_crop_img(t)
-                            self.episodes.append(cropped_img / 255.0)
+                            self.episodes.append(cropped_img.float() / 255.0) #images in [0, 1]
 
         self.episodes = torch.stack(self.episodes, dim=0)
 

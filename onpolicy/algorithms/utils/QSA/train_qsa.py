@@ -112,6 +112,7 @@ def train_qsa(args):
     model.train()
     for ep in tqdm(range(args.slot_train_ep)):
         for idx, batch_data in enumerate(train_loader):
+            
             # batch, channel, height, width
             global_step = ep * len(train_loader) + idx
             tau = cosine_anneal(global_step, args.tau_steps, start_value=args.tau_start,

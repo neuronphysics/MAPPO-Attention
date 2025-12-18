@@ -7,6 +7,7 @@
 __pycache__/
 **/results/Meltingpot
 **/results/slot_att
+onpolicy/scripts/results/
 # Ignore .DS_Store (macOS folder metadata)
 .DS_Store
 core.*

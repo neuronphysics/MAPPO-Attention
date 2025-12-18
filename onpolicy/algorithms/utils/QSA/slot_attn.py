@@ -37,7 +37,7 @@ class SlotAttention(nn.Module):
         )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0 else nn.Identity()
-        print(self.truncate)
+        print(f"SlotAttention truncate method: {self.truncate}")
         assert self.truncate in ['bi-level', 'fixed-point', 'none']
 
     def forward(self, features, slots_init, num_iter=3):

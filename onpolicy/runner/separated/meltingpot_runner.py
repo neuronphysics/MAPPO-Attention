@@ -466,6 +466,7 @@ class MeltingpotRunner(Runner):
                     player = f"player_{agent_id}"
                     self.trainer[agent_id].prep_rollout()
                     rgb_data = obs[0][player]['RGB'] if isinstance(obs, np.ndarray) else obs[player]['RGB']
+                    
                     action, rnn_state, rnn_cell = self.trainer[agent_id].policy.act(
                                                                                    np.array(list(np.expand_dims(rgb_data, axis=0))),
                                                                                    rnn_states[:, agent_id],

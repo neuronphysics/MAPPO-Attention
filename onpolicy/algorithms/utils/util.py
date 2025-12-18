@@ -11,6 +11,12 @@ from torch.utils.data import Dataset
 import torch.distributed as dist
 import json
 from collections import defaultdict
+def _normalize_slot_obs( x: torch.Tensor) -> torch.Tensor:
+    x = x.float()
+    # if it's uint8-like or 0..255 floats
+    if x.max() > 1.5:
+        x = x / 255.0
+    return x.clamp(0.0, 1.0)
 
 
 def get_optimizer_groups(model, args):

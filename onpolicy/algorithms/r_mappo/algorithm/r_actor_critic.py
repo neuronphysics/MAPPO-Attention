@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from onpolicy.algorithms.utils.lstm import LSTMLayer
-from onpolicy.algorithms.utils.util import print_trainable_parameters, init, check, ObsDataset, selectively_unfreeze_layers
+from onpolicy.algorithms.utils.util import print_trainable_parameters, init, check, ObsDataset, selectively_unfreeze_layers, _normalize_slot_obs
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
 from onpolicy.algorithms.utils.modularity import SCOFF
 from onpolicy.algorithms.utils.mlp import MLPBase
@@ -181,6 +181,8 @@ class R_Actor(nn.Module):
             # slot att model takes (batch, 3, H, W) and returns a dict
             torch.cuda.empty_cache()
             batch, _, _, _ = obs.shape
+            # normalize the obs to [0, 1]
+            obs= _normalize_slot_obs(obs)
 
             # your slot attention or other GPU-intensive tasks
             slot_outputs = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train= True,
@@ -259,7 +261,8 @@ class R_Actor(nn.Module):
             torch.cuda.empty_cache()  # Free up GPU memory
             with torch.no_grad():
                 batch, _, _, _ = obs.shape
-            
+                # normalize the obs to [0, 1]
+                obs= _normalize_slot_obs(obs)
                 features = torch.cat([
                        self.slot_attn(
                            obs_minibatch.permute(0, 3, 1, 2),
