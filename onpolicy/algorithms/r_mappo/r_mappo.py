@@ -158,16 +158,33 @@ class R_MAPPO():
 
         torch.cuda.empty_cache()
         # Reshape to do in a single forward pass for all steps
-        values, action_log_probs, dist_entropy = self.policy.evaluate_actions(share_obs_batch,
-                                                                              obs_batch,
-                                                                              rnn_states_batch,
-                                                                              rnn_cells_batch,
-                                                                              rnn_states_critic_batch,
-                                                                              rnn_cells_critic_batch,
-                                                                              actions_batch,
-                                                                              masks_batch,
-                                                                              available_actions_batch,
-                                                                              active_masks_batch)
+        if self.use_slot_att: 
+            slot_trainable = any(p.requires_grad for p in self.policy.actor.slot_attn.parameters())
+        else:
+            slot_trainable = False
+
+        if self.use_slot_att and slot_trainable and self.args.use_orthogonal_loss:       
+            values, action_log_probs, dist_entropy, slot_aux_loss = self.policy.evaluate_actions(share_obs_batch,
+                                                                                            obs_batch,
+                                                                                            rnn_states_batch,
+                                                                                            rnn_cells_batch,
+                                                                                            rnn_states_critic_batch,
+                                                                                            rnn_cells_critic_batch,
+                                                                                            actions_batch,
+                                                                                            masks_batch,
+                                                                                            available_actions_batch,
+                                                                                            active_masks_batch)
+        else:
+            values, action_log_probs, dist_entropy = self.policy.evaluate_actions(share_obs_batch,
+                                                                                obs_batch,
+                                                                                rnn_states_batch,
+                                                                                rnn_cells_batch,
+                                                                                rnn_states_critic_batch,
+                                                                                rnn_cells_critic_batch,
+                                                                                actions_batch,
+                                                                                masks_batch,
+                                                                                available_actions_batch,
+                                                                                active_masks_batch)
         torch.cuda.empty_cache()
         # actor update
         imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
@@ -189,21 +206,9 @@ class R_MAPPO():
             
             total_loss = (policy_loss - dist_entropy * self.entropy_coef)
 
-            if self.use_slot_att:
-                if self.args.use_slot_attn_transformer_decoder:
-                    slot_att_loss = (
-                                     self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss 
-                                     + self.policy.actor.slot_consistency_loss 
-                                     + self.policy.actor.slot_mse_loss 
-                                     + self.policy.actor.slot_cross_entropy_loss
-                                    )
-                else:
-                    slot_att_loss = (
-                                     self.args.orthogonal_loss_coef * self.policy.actor.slot_orthoganility_loss 
-                                     + self.policy.actor.slot_mse_loss
-                                     + self.policy.actor.slot_attention_entropy_loss 
-                                    )
-                total_loss += self.args.slot_attn_loss_coef * slot_att_loss
+            if self.use_slot_att and slot_trainable and self.args.use_orthogonal_loss:
+                
+                total_loss += slot_aux_loss
 
             total_loss.backward()
 
@@ -234,11 +239,11 @@ class R_MAPPO():
             critic_grad_norm = get_gard_norm(self.policy.critic.parameters())
 
         self.policy.critic_optimizer.step()
-        if not self.use_slot_att:
+        if self.use_slot_att and slot_trainable and self.args.use_orthogonal_loss:
+           return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_aux_loss
+        else:
            del actor_parameters
            return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights
-        else:
-           return value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss
 
 
     def train(self, buffer, update_actor=True):
@@ -282,21 +287,25 @@ class R_MAPPO():
                 data_generator = buffer.feed_forward_generator(advantages, self.num_mini_batch)
 
             for sample in data_generator:
-                if not self.use_slot_att:
-                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights \
-                        = self.ppo_update(idx, sample, update_actor)
-                else:   
+                if self.use_slot_att:
+                    slot_trainable = any(p.requires_grad for p in self.policy.actor.slot_attn.parameters())
+                else:
+                    slot_trainable = False
 
-                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss \
-                        = self.ppo_update(idx, sample, update_actor)
-                    train_info['slot_att_loss'] += slot_att_loss
+                if self.use_slot_att and slot_trainable and self.args.use_orthogonal_loss:
+                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights, slot_att_loss = \
+                        self.ppo_update(idx, sample, update_actor)
 
+                    train_info['slot_att_loss'] += slot_att_loss.item()
+                else:
+                    value_loss, critic_grad_norm, policy_loss, dist_entropy, actor_grad_norm, imp_weights = \
+                        self.ppo_update(idx, sample, update_actor)
 
                 is_last_update = (idx == self.ppo_epoch - 1)
                 if is_last_update:
                 
                     # Apply shrink and perturb at the specified interval
-                    if self.total_updates % self.args.perturb_interval == 0:
+                    if self.total_updates > 0 and self.total_updates % self.args.perturb_interval == 0:
                         # Optional: clear any cached computations before perturbation 
                         torch.cuda.empty_cache()
                         self.policy.perturb_layers(
@@ -307,9 +316,9 @@ class R_MAPPO():
                 train_info['value_loss'] += value_loss.item()
                 train_info['policy_loss'] += policy_loss.item()
                 train_info['dist_entropy'] += dist_entropy.item()
-                train_info['actor_grad_norm'] += actor_grad_norm
-                train_info['critic_grad_norm'] += critic_grad_norm
-                train_info['ratio'] += imp_weights.mean()
+                train_info['actor_grad_norm'] += actor_grad_norm.item() if hasattr(actor_grad_norm, "item") else actor_grad_norm
+                train_info['critic_grad_norm'] += critic_grad_norm.item() if hasattr(critic_grad_norm, "item") else critic_grad_norm
+                train_info['ratio'] += imp_weights.mean().item()
 
         num_updates = self.ppo_epoch * self.num_mini_batch
 

@@ -389,7 +389,7 @@ def get_config():
     parser.add_argument("--slot_clip_grade_norm", type=float, default=0.25)
     parser.add_argument("--slot_save_fre", type=int, default=5, )
     parser.add_argument("--slot_log_fre", type=int, default=3, )
-    parser.add_argument("--use_slot_attn_transformer_decoder", type=str2bool, default=True, help="use transformer decoder for fine-tuning during RL training")
+    parser.add_argument("--use_slot_attn_transformer_decoder", type=str2bool, default=False, help="use transformer decoder for fine-tuning during RL training")
 
     parser.add_argument("--use_consistency_loss", type=str2bool, default=True)
     parser.add_argument("--use_orthogonal_loss", type=str2bool, default=False, )
@@ -447,7 +447,6 @@ def get_config():
     parser.add_argument('--lambda_c', type=float, default=0.1)
     parser.add_argument('--lr_main', type=float, default=1e-4)
     parser.add_argument('--lr_dvae', type=float, default=3e-4)
-    parser.add_argument('--slot_attn_loss_coef', type=float, default= 0.05, help='Slot Attention Loss Coefficient')
     parser.add_argument('--slot_lambda_entropy', type=float, default= 0.01, help='Attention Entropy Loss Coefficient')
     parser.add_argument('--collect_data_mi', type=int, default=50000)
     parser.add_argument('--fine_tuning_type', type=str, default="Lora", help="options are [Lora, Slowly_Unfreeze, Partial]")

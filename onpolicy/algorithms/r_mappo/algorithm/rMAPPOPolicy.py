@@ -85,10 +85,6 @@ class R_MAPPOPolicy:
         if not self.unfrozen and current_episode >= self.unfreeze_episode and self.use_slot_att:
             print(f"Episode {current_episode}: Unfreezing slot attention layers")
         
-            # Store the current optimizer state before unfreezing
-            old_state = None
-            if hasattr(self.actor_optimizer, 'optimizer'):
-               old_state = self.actor_optimizer.optimizer.state_dict()
         
             # Unfreeze the layers
             #selectively_unfreeze_layers(self.actor.slot_attn, self.actor._finetuned_list_modules)
@@ -110,7 +106,9 @@ class R_MAPPOPolicy:
                                                   lora_config
                                                   ).to(self.device)
         
-        
+            for name, param in self.actor.slot_attn.named_parameters():
+                if ('norm_' in name) or ('layernorm' in name.lower()) or ('.mlp.1.' in name):
+                    param.requires_grad = True        
             # Create new optimizer
             if self.args.use_EWC:
                 self.actor_optimizer = EWCWeightClipping(
@@ -133,19 +131,7 @@ class R_MAPPOPolicy:
                                                      weight_decay=self.weight_decay
                                                     )
         
-            # If we had an old state, try to restore compatible parts
-            if old_state is not None:
-               # Create a new state dict for the new optimizer
-               new_state = self.actor_optimizer.optimizer.state_dict()
-            
-               # Transfer parameter states for parameters that existed in both optimizers
-               for param_id in old_state['state']:
-                   if param_id in new_state['state']:
-                      new_state['state'][param_id] = old_state['state'][param_id]
-            
-               # Load the merged state back into the optimizer
-               self.actor_optimizer.optimizer.load_state_dict(new_state)
-               print("Transferred optimizer state for previously trainable parameters")
+            self._store_initial_weights()
         
             # Print information about newly trainable parameters
             trainable_params = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
@@ -268,16 +254,33 @@ class R_MAPPOPolicy:
         :return action_log_probs: (torch.Tensor) log probabilities of the input actions.
         :return dist_entropy: (torch.Tensor) action distribution entropy for the given inputs.
         """
-        action_log_probs, dist_entropy = self.actor.evaluate_actions(obs,
-                                                                     rnn_states_actor,
-                                                                     rnn_cells_actor,
-                                                                     action,
-                                                                     masks,
-                                                                     available_actions,
-                                                                     active_masks)
+        if self.use_slot_att:
+            slot_trainable = any(p.requires_grad for p in self.actor.slot_attn.parameters())
+        else:
+            slot_trainable = False
+
+        if self.use_slot_att and slot_trainable and self.args.use_orthogonal_loss:
+            action_log_probs, dist_entropy, slot_aux_loss = self.actor.evaluate_actions(obs,
+                                                                                       rnn_states_actor,
+                                                                                       rnn_cells_actor,
+                                                                                       action,
+                                                                                       masks,
+                                                                                       available_actions,
+                                                                                       active_masks)
+        else:
+            action_log_probs, dist_entropy = self.actor.evaluate_actions(obs,
+                                                                        rnn_states_actor,
+                                                                        rnn_cells_actor,
+                                                                        action,
+                                                                        masks,
+                                                                        available_actions,
+                                                                        active_masks)
 
         values, _, _ = self.critic(cent_obs, rnn_states_critic, rnn_cells_critic, masks)
-        return values, action_log_probs, dist_entropy
+        if self.use_slot_att and slot_trainable and self.args.use_orthogonal_loss:
+           return values, action_log_probs, dist_entropy, slot_aux_loss
+        else:
+            return values, action_log_probs, dist_entropy
 
     def act(self, obs, rnn_states_actor, rnn_cells_actor, masks, available_actions=None, deterministic=False):
         """

@@ -182,23 +182,30 @@ class R_Actor(nn.Module):
             torch.cuda.empty_cache()
             batch, _, _, _ = obs.shape
             # normalize the obs to [0, 1]
-            obs= _normalize_slot_obs(obs)
-
-            # your slot attention or other GPU-intensive tasks
-            slot_outputs = self.slot_attn(obs.permute(0, 3, 1, 2), tau=self.tau, sigma=self.sigma, is_Train= True,
-                                            visualize=False)
-            if self.args.use_slot_attn_transformer_decoder:
-                self.slot_consistency_loss = slot_outputs['loss']['compositional_consistency_loss']
-                self.slot_cross_entropy_loss = slot_outputs['loss']['cross_entropy']
+            obs= _normalize_slot_obs(obs).permute(0, 3, 1, 2)
+            self.slot_attn.eval()
+            if hasattr(self.slot_attn, "get_base_model"):
+                slot_core = self.slot_attn.get_base_model()
+            elif hasattr(self.slot_attn, "model"):
+                slot_core = self.slot_attn.model
             else:
-                self.slot_attention_entropy_loss = slot_outputs["attn_entropy"]
-
-            self.slot_orthoganility_loss = slot_outputs['sim_loss']
-            self.slot_mse_loss = slot_outputs['loss']['mse']
+                slot_core = self.slot_attn
+            f = slot_core.backbone(obs)
+            f_norm = f
+            if hasattr(slot_core, "norm_backbone"):
+               f_flat = torch.flatten(f, start_dim=2, end_dim=3).permute(0, 2, 1)
+        
+               f_norm = slot_core.norm_backbone(f_flat).permute(0, 2, 1).reshape_as(f)
+            if slot_core.use_post_cluster:
+               slots_init = slot_core.post_cluster.repeat(batch, 1, 1)
+               slot_attn_out = slot_core.slot_attn(f_norm, sigma=self.sigma, slots_init=slots_init)
+            else:
+                slot_attn_out = slot_core.slot_attn(f_norm, sigma=self.sigma)
+                
             
-            
-            actor_features =slot_outputs['slots'].reshape(batch, -1)
+            actor_features = slot_attn_out['slots'].reshape(batch, -1)
             actor_features = self.slot_att_layer_norm(actor_features)
+            self.slot_attn.eval()
 
         else:
             actor_features = self.base(obs)
@@ -254,32 +261,46 @@ class R_Actor(nn.Module):
 
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
-
+        slot_trainable = False
         if self.use_slot_att:
+            batch, _, _, _ = obs.shape
+            # normalize the obs to [0, 1]
+            obs= _normalize_slot_obs(obs).permute(0, 3, 1, 2)
             # Process in chunks to avoid OOM
             # slot att model takes (batch, 3, H, W) and returns a dict
             torch.cuda.empty_cache()  # Free up GPU memory
-            with torch.no_grad():
-                batch, _, _, _ = obs.shape
-                # normalize the obs to [0, 1]
-                obs= _normalize_slot_obs(obs)
-                features = torch.cat([
-                       self.slot_attn(
-                           obs_minibatch.permute(0, 3, 1, 2),
-                           tau=self.tau, sigma=self.sigma,
-                           is_Train=False, visualize=False
-                       )["slots"]
-                       for obs_minibatch in obs.split(self.args.slot_pretrain_batch_size)
-                ])
-                # flatten
-                # "features" shape: [1000, 6, 50]
-                actor_features = features.flatten(start_dim=1)
-
-                # "actor_features" shape [1000, 300]
-                actor_features = actor_features.reshape(batch, -1)
-                actor_features = self.slot_att_layer_norm(actor_features)
-                torch.cuda.empty_cache()
-                del features  # Add this
+            slot_trainable = any(p.requires_grad for p in self.slot_attn.parameters())
+            slot_was_training = self.slot_attn.training
+            self.slot_attn.eval()
+            if hasattr(self.slot_attn, "get_base_model"):
+                slot_core = self.slot_attn.get_base_model()
+            elif hasattr(self.slot_attn, "model"):
+                slot_core = self.slot_attn.model
+            else:
+                slot_core = self.slot_attn
+            grad_ctx = torch.enable_grad() if slot_trainable else torch.no_grad()
+            with grad_ctx:
+                
+                f = slot_core.backbone(obs)
+                f_norm = f
+                if hasattr(slot_core, "norm_backbone"):
+                   f_flat = torch.flatten(f, start_dim=2, end_dim=3).permute(0, 2, 1)
+            
+                   f_norm = slot_core.norm_backbone(f_flat).permute(0, 2, 1).reshape_as(f)
+                if slot_core.use_post_cluster:
+                   slots_init = slot_core.post_cluster.repeat(batch, 1, 1)
+                   slot_attn_out = slot_core.slot_attn(f_norm, sigma=self.sigma, slots_init=slots_init)
+                else:
+                    slot_attn_out = slot_core.slot_attn(f_norm, sigma=self.sigma)
+                    
+                
+            actor_features = slot_attn_out['slots'].reshape(batch, -1)
+            actor_features = self.slot_att_layer_norm(actor_features)
+            if slot_trainable and self.args.use_orthogonal_loss:
+                labels = torch.arange(slot_core.num_slots).unsqueeze(0).repeat(slot_attn_out['slots'].shape[0], 1).reshape(-1).to(slot_attn_out['slots'].device)
+                slot_aux_loss = self.args.orthogonal_loss_coef * slot_core.ortho_loss_fn(slot_attn_out['slots'].reshape(-1, slot_core.slot_size), labels)
+            if slot_was_training:
+                self.slot_attn.train()
         else:
             actor_features = self.base(obs)
 
@@ -314,7 +335,10 @@ class R_Actor(nn.Module):
                                                                        else None)
         del actor_features, output
         torch.cuda.empty_cache()
-        return action_log_probs, dist_entropy
+        if slot_trainable and self.args.use_orthogonal_loss:
+            return action_log_probs, dist_entropy, slot_aux_loss
+        else:
+            return action_log_probs, dist_entropy
 
     def train_slot_att(self, obs, cur_ppo_idx, optimizer, scheduler):
         """
@@ -355,24 +379,23 @@ class R_Actor(nn.Module):
             optimizer.zero_grad()
             # Forward pass through the slot attention model
             out_tmp = self.slot_attn(obs_minibatch, tau=self.tau, sigma=self.sigma, is_Train=True, visualize=False)
-            accum_adjustment = len(obs_minibatch) / len(dataloader.dataset)
-            accum_consistency_encoder_loss = (
-                    out_tmp['loss']['compositional_consistency_loss'].item() * accum_adjustment
-            )
-            # Compute the loss
-            minibatch_loss = out_tmp['loss']['mse'] +  out_tmp['loss']['cross_entropy']
-            if self.args.use_orthogonal_loss:
-                minibatch_loss += out_tmp['sim_loss'] 
-            if self.args.use_consistency_loss:
-                minibatch_loss += accum_consistency_encoder_loss
-            # Normalize the loss to account for accumulation
-            minibatch_loss.backward()
-            # Perform optimizer step
-            optimizer.step()
+            minibatch_loss = out_tmp['loss']['mse'] + out_tmp['loss']['cross_entropy']
 
-            # Clip gradients 
-            nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, self.slot_attn.parameters()),
-                                     self.args.slot_clip_grade_norm)
+            if self.args.use_orthogonal_loss:
+                minibatch_loss += out_tmp['sim_loss']
+
+            if self.args.use_consistency_loss:
+                accum_adjustment = len(obs_minibatch) / len(dataloader.dataset)
+                minibatch_loss += out_tmp['loss']['compositional_consistency_loss'] * accum_adjustment
+
+            minibatch_loss.backward()
+
+            nn.utils.clip_grad_norm_(
+                filter(lambda p: p.requires_grad, self.slot_attn.parameters()),
+                self.args.slot_clip_grade_norm
+            )
+
+            optimizer.step()      
 
             # Step the scheduler
             scheduler.step(self.global_step)
