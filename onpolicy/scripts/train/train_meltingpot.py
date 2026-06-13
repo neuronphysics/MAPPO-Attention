@@ -211,7 +211,6 @@ def main(args):
             all_args.value_loss_coef = wandb.config.value_loss_coef
             all_args.gae_lambda = wandb.config.gae_lambda
             all_args.gamma = wandb.config.gamma
-            all_args.slot_attn_loss_coef = wandb.config.slot_attn_loss_coef
             all_args.unfreeze_episode = wandb.config.unfreeze_episode
             all_args.use_orthogonal_loss = wandb.config.use_orthogonal_loss
             all_args.orthogonal_loss_coef = wandb.config.orthogonal_loss_coef
