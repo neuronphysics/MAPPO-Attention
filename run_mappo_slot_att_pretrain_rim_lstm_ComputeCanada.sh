@@ -54,7 +54,7 @@ pip install --no-index --upgrade pip
 #wget https://files.pythonhosted.org/packages/b5/78/2da909eb0fa3d4973d5d47343afe726dd802314b6aef69ab41f6610b3638/mkl_random-1.2.4-92-cp311-cp311-manylinux2014_x86_64.whl
 #mv mkl_random-1.2.4-92-cp311-cp311-manylinux2014_x86_64.whl mkl_random-1.2.4-92-cp311-cp311-linux_x86_64.whl
 #pip install mkl_random-1.2.4-92-cp311-cp311-linux_x86_64.whl 
-
+#MAX_JOBS=6 FLASH_ATTENTION_FORCE_BUILD=TRUE python -m pip install --no-build-isolation --no-cache-dir flash-attn
 # install this package first
 # install on-policy package
 

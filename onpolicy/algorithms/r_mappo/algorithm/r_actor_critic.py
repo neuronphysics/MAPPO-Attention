@@ -60,8 +60,14 @@ class R_Actor(nn.Module):
         self._obs_shape = obs_shape
         self.global_step = 0
 
-        base = CNNBase if len(obs_shape) == 3 else MLPBase
-        self.base = base(args, obs_shape)
+        if not args.use_slot_att:
+            base = CNNBase if len(obs_shape) == 3 else MLPBase
+            self.base = base(args, obs_shape)
+        else:
+            self.base = None
+
+        #base = CNNBase if len(obs_shape) == 3 else MLPBase
+        #self.base = base(args, obs_shape)
 
         if self.use_slot_att:
             self.slot_att_layer_norm = nn.LayerNorm(self.hidden_size)
@@ -179,7 +185,7 @@ class R_Actor(nn.Module):
 
         if self.use_slot_att:
             # slot att model takes (batch, 3, H, W) and returns a dict
-            torch.cuda.empty_cache()
+            #torch.cuda.empty_cache()
             batch, _, _, _ = obs.shape
             # normalize the obs to [0, 1]
             obs= _normalize_slot_obs(obs).permute(0, 3, 1, 2)
@@ -205,7 +211,7 @@ class R_Actor(nn.Module):
             
             actor_features = slot_attn_out['slots'].reshape(batch, -1)
             actor_features = self.slot_att_layer_norm(actor_features)
-            self.slot_attn.eval()
+            
 
         else:
             actor_features = self.base(obs)
@@ -268,7 +274,7 @@ class R_Actor(nn.Module):
             obs= _normalize_slot_obs(obs).permute(0, 3, 1, 2)
             # Process in chunks to avoid OOM
             # slot att model takes (batch, 3, H, W) and returns a dict
-            torch.cuda.empty_cache()  # Free up GPU memory
+            #torch.cuda.empty_cache()  # Free up GPU memory
             slot_trainable = any(p.requires_grad for p in self.slot_attn.parameters())
             slot_was_training = self.slot_attn.training
             self.slot_attn.eval()
@@ -334,7 +340,7 @@ class R_Actor(nn.Module):
                                                                        active_masks if self._use_policy_active_masks
                                                                        else None)
         del actor_features, output
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         if slot_trainable and self.args.use_orthogonal_loss:
             return action_log_probs, dist_entropy, slot_aux_loss
         else:
@@ -401,7 +407,7 @@ class R_Actor(nn.Module):
             scheduler.step(self.global_step)
             slot_att_total_loss += minibatch_loss.detach().item()
             # Accumulate the loss            
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         return slot_att_total_loss  # Scale the loss back up for reporting
 
 
@@ -454,7 +460,7 @@ class R_Critic(nn.Module):
             args.use_input_att = True
 
         self._obs_shape = cent_obs_shape
-
+        
         base = CNNBase if len(self._obs_shape) == 3 else MLPBase
         self.base = base(args, self._obs_shape)
 

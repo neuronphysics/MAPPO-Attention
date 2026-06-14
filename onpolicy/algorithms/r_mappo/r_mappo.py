@@ -156,7 +156,7 @@ class R_MAPPO():
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
         obs_batch = check(obs_batch).to(**self.tpdv)
 
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         # Reshape to do in a single forward pass for all steps
         if self.use_slot_att: 
             slot_trainable = any(p.requires_grad for p in self.policy.actor.slot_attn.parameters())
@@ -185,7 +185,7 @@ class R_MAPPO():
                                                                                 masks_batch,
                                                                                 available_actions_batch,
                                                                                 active_masks_batch)
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         # actor update
         imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
 
@@ -225,7 +225,7 @@ class R_MAPPO():
         self.policy.actor_optimizer.step()
 
         # critic update
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         value_loss = self.cal_value_loss(values, value_preds_batch, return_batch, active_masks_batch)
 
         self.policy.critic_optimizer.zero_grad()
@@ -327,7 +327,7 @@ class R_MAPPO():
             
         #update entropy coefficient
         self.update_entropy_coef()
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
 
         self.total_updates += self.args.episode_length * self.args.n_rollout_threads
         return train_info
