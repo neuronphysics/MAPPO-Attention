@@ -289,13 +289,18 @@ class R_Actor(nn.Module):
             else:
                 slot_core = self.slot_attn
             use_slot_aux_loss = slot_trainable and self.args.use_orthogonal_loss
+            def _slot_train(mini_obs):
+                return self.slot_features_extract(mini_obs, slot_core,slot_trainable=slot_trainable)
+                
             if use_slot_aux_loss:
-               slot_results = [self.slot_features_extract(mini_obs, slot_core, slot_trainable=slot_trainable) for mini_obs in obs.split(self.args.slot_pretrain_batch_size)]
+               slot_results = [checkpoint(_slot_train, mini_obs, use_reentrant=False) for mini_obs in obs.split(self.args.slot_pretrain_batch_size)]
                actor_features = torch.cat([x[0] for x in slot_results], dim=0)
                slot_aux_loss  = torch.stack([x[1] for x in slot_results]).mean()
+               del slot_results
             else:
                slot_results = [self.slot_features_extract(mini_obs, slot_core, slot_trainable=slot_trainable) for mini_obs in obs.split(self.args.slot_pretrain_batch_size)]
                actor_features = torch.cat(slot_results, dim=0)
+               del slot_results
             self.slot_attn.train(slot_was_training)
         else:
             actor_features = self.base(obs)
@@ -337,24 +342,15 @@ class R_Actor(nn.Module):
             return action_log_probs, dist_entropy
 
     def slot_features_extract(self, obs, slot_core, slot_trainable=False):
-        """
-        Process observation minibatches through the slot feature extractor.
-
-        Args:
-            obs: Tensor [B, 3, H, W], already normalized and permuted.
-            slot_core: SLATEExtractor or base slot model.
-            slot_trainable: whether gradients should flow through slot modules.
-        Returns:
-            actor_features: Tensor [B, hidden_size]
-            slot_aux_loss: scalar tensor or None
-        """
         b = obs.shape[0]
+        obs = obs.detach()
 
         grad_ctx = torch.enable_grad() if slot_trainable else torch.no_grad()
 
         with grad_ctx:
-            # If backbone is frozen, avoid storing backbone activations.
-            backbone_trainable = any(p.requires_grad for p in slot_core.backbone.parameters())
+            backbone_trainable = any(
+                p.requires_grad for p in slot_core.backbone.parameters()
+            )
 
             if backbone_trainable and slot_trainable:
                 f = slot_core.backbone(obs)
@@ -363,29 +359,51 @@ class R_Actor(nn.Module):
                     f = slot_core.backbone(obs)
                 f = f.detach()
 
-            f_norm = f
             if hasattr(slot_core, "norm_backbone"):
                 f_flat = torch.flatten(f, start_dim=2, end_dim=3).permute(0, 2, 1)
                 f_norm = slot_core.norm_backbone(f_flat).permute(0, 2, 1).reshape_as(f)
+                del f_flat
+            else:
+                f_norm = f
 
             if slot_core.use_post_cluster:
                 slots_init = slot_core.post_cluster.repeat(b, 1, 1)
-                slot_attn_out = slot_core.slot_attn(f_norm, sigma=self.sigma, slots_init=slots_init)
+                slot_attn_out = slot_core.slot_attn(
+                    f_norm,
+                    sigma=self.sigma,
+                    slots_init=slots_init,
+                )
+                del slots_init
             else:
-                slot_attn_out = slot_core.slot_attn(f_norm, sigma=self.sigma)
+                slot_attn_out = slot_core.slot_attn(
+                    f_norm,
+                    sigma=self.sigma,
+                )
 
             slots = slot_attn_out["slots"]
-
             actor_features = slots.reshape(b, -1)
             actor_features = self.slot_att_layer_norm(actor_features)
 
             if slot_trainable and self.args.use_orthogonal_loss:
-                labels = torch.arange(slot_core.num_slots, device=slots.device).unsqueeze(0).repeat(slots.shape[0], 1).reshape(-1)
+                labels = (
+                    torch.arange(slot_core.num_slots, device=slots.device)
+                    .unsqueeze(0)
+                    .repeat(slots.shape[0], 1)
+                    .reshape(-1)
+                )
 
-                slot_aux_loss = self.args.orthogonal_loss_coef * slot_core.ortho_loss_fn(slots.reshape(-1, slot_core.slot_size),labels)
+                slot_aux_loss = (
+                    self.args.orthogonal_loss_coef
+                    * slot_core.ortho_loss_fn(
+                        slots.reshape(-1, slot_core.slot_size),
+                        labels,
+                    )
+                )
 
+                del slot_attn_out, f, f_norm, labels
                 return actor_features, slot_aux_loss
-            
+
+            del slot_attn_out, f, f_norm, slots
             return actor_features
 
     def train_slot_att(self, obs, cur_ppo_idx, optimizer, scheduler):
