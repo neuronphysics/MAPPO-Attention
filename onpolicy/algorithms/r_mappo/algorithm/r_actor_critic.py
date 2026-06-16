@@ -75,17 +75,17 @@ class R_Actor(nn.Module):
             
             print(model.state_dict().keys())
             
-            self._finetuned_list_modules = ["slot_attn.slot_attention.project_q", 
-                                            "slot_attn.slot_attention.project_k", 
-                                            "slot_attn.slot_attention.project_v",
-                                            "slot_attn.slot_attention.mlp.0", 
-                                            "slot_attn.slot_attention.mlp.3",
-                                            "slot_attn.pos_emb.dense",
+            self._finetuned_list_modules = [
+                                            "slot_attn.mlp.1",
+                                            "slot_attn.mlp.3",
                                            ]
             if args.fine_tuning_type == "Partial":
+
                 self._finetuned_list_modules += [
-                                                 "slot_attn.slot_attention.mlp.2",
-                                                 "slot_attn.slot_attention.gru",
+                                                 "norm_backbone",
+                                                 "slot_attn.mlp.0",
+                                                 "slot_attn.slots_init",
+                                                 "slot_attn.mlp.2",
                                                  "ortho_loss_fn.class_centres"
                                                 ]
             if args.use_slot_attn_transformer_decoder:
@@ -95,7 +95,7 @@ class R_Actor(nn.Module):
             #store the pretrained weights of the model
             self.pretrained_weights = {}
             for name, param in model.named_parameters():
-                if ('norm' in name.lower()) or ('.mlp.1.' in name) or any(module in name for module in self._finetuned_list_modules):
+                if any(module in name for module in self._finetuned_list_modules):
                     self.pretrained_weights[name] = param.data.clone().detach().requires_grad_(False)
 
             if args.fine_tuning_type =='Lora':
@@ -290,11 +290,11 @@ class R_Actor(nn.Module):
                 slot_core = self.slot_attn
             use_slot_aux_loss = slot_trainable and self.args.use_orthogonal_loss
             if use_slot_aux_loss:
-               slot_results = [self.slot_features_extract(mini_obs, slot_core, slot_trainable=slot_trainable) for mini_obs in obs.split(self.args.slot_pretrain_batch_size, dim=0)]
+               slot_results = [self.slot_features_extract(mini_obs, slot_core, slot_trainable=slot_trainable) for mini_obs in obs.split(self.args.slot_pretrain_batch_size)]
                actor_features = torch.cat([x[0] for x in slot_results], dim=0)
                slot_aux_loss  = torch.stack([x[1] for x in slot_results]).mean()
             else:
-               slot_results = [self.slot_features_extract(mini_obs, slot_core, slot_trainable=slot_trainable) for mini_obs in obs.split(self.args.slot_pretrain_batch_size, dim=0)]
+               slot_results = [self.slot_features_extract(mini_obs, slot_core, slot_trainable=slot_trainable) for mini_obs in obs.split(self.args.slot_pretrain_batch_size)]
                actor_features = torch.cat(slot_results, dim=0)
             self.slot_attn.train(slot_was_training)
         else:
