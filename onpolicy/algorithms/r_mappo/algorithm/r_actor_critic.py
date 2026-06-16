@@ -2,7 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
-
+from torch.utils.checkpoint import checkpoint
 from onpolicy.algorithms.utils.lstm import LSTMLayer
 from onpolicy.algorithms.utils.util import print_trainable_parameters, init, check, ObsDataset, selectively_unfreeze_layers, _normalize_slot_obs
 from onpolicy.algorithms.utils.cnn import CNNBase, Encoder
