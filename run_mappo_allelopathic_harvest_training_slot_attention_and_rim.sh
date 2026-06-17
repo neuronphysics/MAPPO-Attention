@@ -37,15 +37,15 @@ CUDA_VISIBLE_DEVICES=0 python -c "import torch; print(torch.cuda.get_device_capa
 # for QSA
 echo "PPO with slot attention QSA and RIM"
 CUDA_VISIBLE_DEVICES=0 python3 -m onpolicy.scripts.train.train_meltingpot --use_valuenorm True --use_popart True --use_gae True --env_name "Meltingpot" --algorithm_name "mappo" \
-     --experiment_name "allelopathic_harvest_mila_nu8_slot_attention_QSA_RIM_LSTM" --substrate_name "allelopathic_harvest__open" --num_agents 16 --seed 999 --lr 0.00006 --critic_lr 0.00007 --n_rollout_threads 12 \
+     --experiment_name "allelopathic_harvest_mila_nu8_slot_attention_QSA_RIM_LSTM" --substrate_name "allelopathic_harvest__open" --num_agents 16 --seed 999 --lr 0.00006 --critic_lr 0.00007 --n_rollout_threads 24 \
 	 --max_grad_norm 0.05 --use_wandb True --user_name "irina-rish" --wandb_name "irina-rish" --share_policy False --use_centralized_V False --load_model False --use_attention True --entropy_coef 0.1 \
 	 --entropy_final_coef 0.005 --warmup_updates 50000 --cooldown_updates 50000 --entropy_anneal_duration 500000 --attention_module "RIM" --rnn_attention_module "LSTM" --rim_num_units 8 --rim_topk 4 \
 	 --hidden_size 192 --num_env_steps 4000000 --log_interval 1 --episode_length 2000 --downsample True --img_scale_factor 1 --world_img_scale_factor 8 \
 	 --slot_att_work_path "/home/mila/z/zahra.sheikhbahaee/scratch/main/onpolicy/scripts/results/slot_att/" --slot_att_load_model True --pretrain_slot_att False \
-	 --slot_train_ep 200 --slot_pretrain_batch_size 56 --use_slot_att True --use_pos_encoding True --use_input_att False --use_com_att True --use_x_reshape True \
+	 --slot_train_ep 200 --slot_pretrain_batch_size 384 --use_slot_att True --use_pos_encoding True --use_input_att False --use_com_att True --use_x_reshape True \
 	 --slot_att_crop_repeat 9 --slot_log_fre 10 --no_train False --collect_data False --collect_agent False --collect_world False --collect_data_ep_num 20 \
 	 --crop_size 88 --value_loss_coef 0.75 --gain 0.05 --grad_clip 0.2 --clip_param 0.1 --use_orthogonal True --fine_tuning_type "Partial" --weight_decay 0.0001 \
-	 --lr_main 0.00009 --use_orthogonal_loss True --orthogonal_loss_coef 0.1 --use_EWC False --perturb_interval 1456000 --num_iter 2 --ppo_epoch 5 --num_mini_batch 4
+	 --lr_main 0.00009 --use_orthogonal_loss True --orthogonal_loss_coef 0.1 --use_EWC False --perturb_interval 1456000 --num_iter 2 --ppo_epoch 10 
 
 
 
