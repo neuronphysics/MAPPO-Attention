@@ -83,7 +83,9 @@ class R_MAPPO():
             # During cool-down, keep final entropy coefficient
             self.entropy_coef = self.entropy_final_coef
             return
-
+        if (self.entropy_anneal_duration - self.warmup_updates - self.cooldown_updates) <= 0:
+            self.entropy_coef = self.entropy_final_coef
+            return
         # Annealing phase
         progress = (self.total_updates - self.warmup_updates) / (self.entropy_anneal_duration - self.warmup_updates - self.cooldown_updates)
         
