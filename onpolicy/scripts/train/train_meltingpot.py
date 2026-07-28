@@ -31,8 +31,8 @@ def make_train_env(all_args):
                 else:
                     rgb_scale_factor = 1
                     world_scale_factor = 1
-                env_config = {"substrate": all_args.substrate_name, "roles": player_roles, "agent_scale": rgb_scale_factor,
-                              "world_scale": world_scale_factor}
+                env_config = {"substrate": all_args.substrate_name, "roles": player_roles,"agent_scale": rgb_scale_factor, 
+                "world_scale": world_scale_factor, "max_cycles": all_args.episode_length}
                 env = env_creator(env_config)
             else:
                 print("Can not support the " +

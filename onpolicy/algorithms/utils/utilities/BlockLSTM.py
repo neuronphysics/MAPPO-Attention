@@ -1,4 +1,3 @@
-
 '''
 Goal1: an LSTM where the weight matrices have a block structure so that information flow is constrained
 
@@ -72,9 +71,10 @@ class BlockLSTM(nn.Module):
     def forward(self, input, h, c):
 
         #self.blockify_params()
-        input=input.to(self.device)
-        h = h.to(self.device)
-        c = c.to(self.device)
+        device = next(self.lstm.parameters()).device
+        input=input.to(device)
+        h = h.to(device)
+        c = c.to(device)
 
         hnext, cnext = self.lstm(input, (h, c))
 
@@ -92,7 +92,7 @@ class SharedBlockLSTM(nn.Module):
         self.k = k
         self.m = nhid // self.k
         self.n_templates = n_templates
-        self.templates = nn.ModuleList([nn.LSTMCell(ninp,self.m).to(self.device) for _ in range(0,self.n_templates)])
+        self.templates = nn.ModuleList([nn.LSTMCell(ninp // self.k,self.m).to(self.device) for _ in range(0,self.n_templates)])
         self.nhid = nhid
 
         self.ninp = ninp
@@ -124,14 +124,12 @@ class SharedBlockLSTM(nn.Module):
     def forward(self, input, h, c):
 
         #self.blockify_params()
+        device = next(self.templates[0].parameters()).device
         bs = h.shape[0]
-        h = h.reshape((h.shape[0], self.k, self.m)).reshape((h.shape[0]*self.k, self.m)).to(self.device)
-        c = c.reshape((c.shape[0], self.k, self.m)).reshape((c.shape[0]*self.k, self.m)).to(self.device)
+        h = h.reshape((h.shape[0], self.k, self.m)).reshape((h.shape[0]*self.k, self.m)).to(device)
+        c = c.reshape((c.shape[0], self.k, self.m)).reshape((c.shape[0]*self.k, self.m)).to(device)
 
-
-        input = input.reshape(input.shape[0], 1, input.shape[1])
-        input = input.repeat(1,self.k,1)
-        input = input.reshape(input.shape[0]*self.k, input.shape[2])
+        input = input.reshape(input.shape[0] * self.k, self.ninp // self.k).to(device)
 
         h_read = self.gll_read((h*1.0).reshape((h.shape[0], 1, h.shape[1])))
 
@@ -155,8 +153,11 @@ class SharedBlockLSTM(nn.Module):
 
         write_key = self.gll_write(hnext)
 
-        sm = nn.Softmax(2)
-        att = sm(torch.bmm(h_read, write_key.permute(0, 2, 1)))
+        logits = torch.bmm(h_read, write_key.permute(0, 2, 1))
+        y_soft = torch.softmax(logits, dim=-1)
+        index = y_soft.argmax(dim=-1, keepdim=True)
+        y_hard = torch.zeros_like(y_soft).scatter_(-1, index, 1.0)
+        att = y_hard - y_soft.detach() + y_soft
 
         #att = att*0.0 + 0.25
 
@@ -172,7 +173,7 @@ class SharedBlockLSTM(nn.Module):
 
         
 
-        return hnext, cnext, att.data.reshape(bs,self.k,self.n_templates)
+        return hnext, cnext, att.detach().reshape(bs,self.k,self.n_templates)
 
 
 

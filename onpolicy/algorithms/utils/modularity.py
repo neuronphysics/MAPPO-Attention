@@ -23,7 +23,11 @@ class SCOFF(nn.Module):
                  hidden_size,
                  num_units,
                  k,
-                 args
+                 args,
+                 out_dim: int = 85,
+                 token_dim=None,
+                 token_grid=None,
+                 token_count=None,
                  ):
         super().__init__()
         """
@@ -44,13 +48,18 @@ class SCOFF(nn.Module):
             num_rules: number of rules (default = 0)
             rule_time_steps: Number of times to apply rules per time step (default = 0)
         """
-        if input_size % num_units != 0:
-            print('ERROR: input_size should be evenly divisible by num_units')
-            exit()
-        if device == 'cuda':
-            self.device = torch.device('cuda')
-        else:
-            self.device = torch.device('cpu')
+        version = int(getattr(args, "use_version_scoff", 1))
+        if version == 2:
+            # token input: geometry is decoupled from the number of object files
+            if token_dim is None:
+                raise ValueError("use_version_scoff=2 requires token_dim")
+        elif input_size % num_units != 0:
+            raise ValueError(
+                f"input_size ({input_size}) must be divisible by num_units ({num_units})"
+            )
+        if not 0 <= k <= num_units:
+            raise ValueError(f"k must be in [0, {num_units}], got {k}")
+        self.device = torch.device(device)
         self.n_layers = 1
         self.num_templates = args.scoff_num_schemas
         self.rnn_cell = args.rnn_attention_module
@@ -60,7 +69,10 @@ class SCOFF(nn.Module):
         self.do_rel = args.scoff_do_relational_memory
         self.version = args.use_version_scoff
         self.drop_out = args.drop_out
-        self.attention_out = 85
+        # Version 0 concatenates one 85-d value from each input-attention head.
+        # The old total of 85 with four heads truncated to 4 * 21 = 84 and then
+        # failed LayerNorm(85). Version 1 ignores this setting.
+        self.attention_out = out_dim * args.scoff_inp_heads
 
         self.scoff_cell = RNNModelScoff(self.rnn_cell, input_size, hidden_size, hidden_size, nlayers=1,
                                         n_templates=self.num_templates, tie_weights=False, num_blocks=num_units,
@@ -68,7 +80,10 @@ class SCOFF(nn.Module):
                                         attention_out=self.attention_out,
                                         use_cudnn_version=False, use_adaptive_softmax=False, discrete_input=False,
                                         use_gru=self.rnn_cell=='GRU', version=self.version,
-                                        do_rel=self.do_rel, args=args).to(self.device)
+                                        do_rel=self.do_rel, args=args,
+                                        token_dim=token_dim, token_grid=token_grid,
+                                        token_count=token_count,
+                                        device=self.device).to(self.device)
 
     def forward(self, x, h, c=None, masks=None):
         """
@@ -80,7 +95,9 @@ class SCOFF(nn.Module):
 
         batch_num = h.size(0)
         if self.rnn_cell == "LSTM":
-            cs = torch.zeros(self.n_layers, batch_num, self.hidden_size * self.num_units).to(self.device) if c is None else c
+            # Caller layout is (batch, layers, hidden); zeros_like also preserves
+            # h's dtype and actual runtime device.
+            cs = torch.zeros_like(h) if c is None else c
         else:
             cs = None
 
@@ -92,7 +109,8 @@ class SCOFF(nn.Module):
                 cs = (cs.transpose(0, 1) * masks.unsqueeze(0)).unsqueeze(0)
 
             # scoff cell take x (ep_len, batch, input_size) h take (num_layer, 1, batch, hidden_size)
-            x_fw, hs, cs, _, _, _ = self.scoff_cell(x, hs, cs, masks=masks)
+            x_fw, hs, cs, _, _, _ = self.scoff_cell(x, hs, cs, masks=masks.reshape(1, -1))
+
             hs = hs.squeeze(0)
             if cs is not None:
                 cs = cs.squeeze(0)
@@ -137,7 +155,7 @@ class SCOFF(nn.Module):
                     temp_c = None
 
                 # scoff cell take x (ep_len, batch, input_size) h take (num_layer, 1, batch, hidden_size)
-                x_fw, h, cs, _, _, _ = self.scoff_cell(x[start_idx:end_idx], temp, temp_c, masks=masks)
+                x_fw, h, cs, _, _, _ = self.scoff_cell(x[start_idx:end_idx], temp, temp_c, masks=masks[start_idx:end_idx])
                 # x_fw size (batch, input_size), hs (num_layer, 1, batch, hidden_size)
                 h = h.squeeze(0)
                 if cs is not None:

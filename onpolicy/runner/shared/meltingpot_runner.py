@@ -118,10 +118,16 @@ class MeltingpotRunner(Runner):
         new_share_obs = stacked_share_data[np.newaxis, ...]
         new_share_obs = np.transpose(new_share_obs, (0, 1, 3, 2, 4))
 
-        if self.use_centralized_V:
-            new_share_obs = new_share_obs.reshape(self.n_rollout_threads, -1)
-            new_share_obs = np.expand_dims(new_share_obs, 1).repeat(self.num_agents, axis=1)
+        if not self.use_centralized_V:
+            new_share_obs = new_obs.copy()
 
+        self.buffer.rnn_states[0] = 0
+        self.buffer.rnn_cells[0] = 0
+        self.buffer.rnn_states_critic[0] = 0
+        self.buffer.rnn_cells_critic[0] = 0
+        self.buffer.masks[0] = 0
+        self.buffer.bad_masks[0] = 1
+        self.buffer.active_masks[0] = 1
         self.buffer.share_obs[0] = new_share_obs.copy()
         self.buffer.obs[0] = new_obs.copy()
 
@@ -183,9 +189,8 @@ class MeltingpotRunner(Runner):
         if (dones == True).sum() > 0:
             masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
 
-        if self.use_centralized_V:
-            new_share_obs = new_share_obs.reshape(self.n_rollout_threads, -1)
-            new_share_obs = np.expand_dims(new_share_obs, 1).repeat(self.num_agents, axis=1)
+        if not self.use_centralized_V:
+            new_share_obs = new_obs.copy()
 
         action_log_probs = np.expand_dims(action_log_probs, axis=-1)
         rnn_cells = np.expand_dims(rnn_cells, axis=-2)

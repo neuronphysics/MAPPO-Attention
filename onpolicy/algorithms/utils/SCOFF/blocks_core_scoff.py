@@ -52,6 +52,8 @@ class BlocksCore(nn.Module):
                  attention_out=340,
                  version=0,
                  device=None,
+                 token_dim=None,
+                 token_count=None,
                  ):
         super(BlocksCore, self).__init__()
         self.args = args
@@ -60,9 +62,17 @@ class BlocksCore(nn.Module):
         self.num_units = num_blocks_out
         self.block_size_in = nhid // num_blocks_in
         self.block_size_out = nhid // num_blocks_out
+        if not 0 <= topkval <= num_blocks_out:
+            raise ValueError(
+                f"topkval must be in [0, {num_blocks_out}], got {topkval}"
+            )
         self.topkval = topkval
         self.memorytopk = memorytopk
         self.step_att = args.use_com_att
+        # Keep construction-time policy settings. Actor and critic used to mutate
+        # the same argparse namespace, which could change an already-built actor.
+        self.use_input_att = args.use_input_att
+        self.attention_dropout = float(args.drop_out)
         self.do_gru = do_gru
         self.do_rel = do_rel
         self.device = device
@@ -73,16 +83,53 @@ class BlocksCore(nn.Module):
         self.mha = MultiHeadAttention(n_head=4, d_model_read=self.block_size_out, d_model_write=self.block_size_out,
                                       d_model_out=self.block_size_out, d_k=32, d_v=32,
                                       num_blocks_read=self.num_units, num_blocks_write=self.num_units,
-                                      dropout=0.1, topk=self.num_units, n_templates=1, share_comm=share_comm,
+                                      dropout=self.attention_dropout, topk=self.num_units, n_templates=1,
+                                      share_comm=share_comm,
                                       share_inp=False, grad_sparse=False)
 
         self.version = version
-        if self.version:
+        if self.version == 2:
+            if token_dim is None:
+                raise ValueError("version 2 requires token_dim (per-token feature size)")
+            if not self.use_input_att:
+                raise ValueError("version 2 requires use_input_att=True: per-OF attention "
+                                 "over the token set IS the input path")
+            if self.block_size_out % self.inp_heads != 0:
+                raise ValueError(
+                    f"hidden per object file ({self.block_size_out}) must be divisible by "
+                    f"scoff_inp_heads ({self.inp_heads}); pick heads that divide it")
+            if token_count is None:
+                raise ValueError("version 2 requires token_count (P): the sparse-attention "
+                                 "top-k inside MultiHeadAttention is sized to the candidate set")
+            self.token_dim = token_dim
+            self.token_count = token_count
+            self.att_out = self.block_size_out
+            # SCOFF paper Step 2 via the existing MultiHeadAttention. share_comm=True with
+            # n_templates=1 routes q/k/v through SharedGroupLinearLayer, which with a single
+            # template is exactly ONE shared projection each -- shared across object files
+            # (exchangeability) and across tokens (permutation equivariance; location enters
+            # only through the positional encoding). num_blocks_read/write are unused in this
+            # branch. skip_write=True => output = LayerNorm(concat heads), which is why
+            # att_out must be divisible by inp_heads (validated above). topk = P + 1 keeps
+            # the always-on Sparse_attention dense over the full candidate set.
+            self.inp_att = MultiHeadAttention(n_head=self.inp_heads,
+                                              d_model_read=self.block_size_out,
+                                              d_model_write=token_dim,
+                                              d_model_out=self.att_out,
+                                              d_k=64, d_v=self.att_out // self.inp_heads,
+                                              num_blocks_read=self.num_units,
+                                              num_blocks_write=token_count + 1,
+                                              topk=token_count + 1,
+                                              n_templates=1, share_comm=True, share_inp=False,
+                                              residual=False, dropout=self.attention_dropout,
+                                              skip_write=True, grad_sparse=False)
+        elif self.version == 1:
             self.att_out = self.block_size_out
             self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out,
                                               d_model_write=int(self.nhid / self.num_units),
                                               d_model_out=self.att_out, d_k=64, d_v=self.att_out, num_blocks_read=1,
                                               num_blocks_write=num_blocks_in + 1, residual=False,
+                                              dropout=self.attention_dropout,
                                               topk=self.num_blocks_in + 1, n_templates=1, share_comm=False,
                                               share_inp=share_inp, grad_sparse=False, skip_write=True)
 
@@ -93,7 +140,8 @@ class BlocksCore(nn.Module):
                                               d_model_write=self.block_size_in, d_model_out=self.att_out,
                                               d_k=64, d_v=d_v, num_blocks_read=num_blocks_out,
                                               num_blocks_write=self.num_modules_read_input, residual=False,
-                                              dropout=0.1, topk=self.num_blocks_in + 1, n_templates=1, share_comm=False,
+                                              dropout=self.attention_dropout, topk=self.num_blocks_in + 1,
+                                              n_templates=1, share_comm=False,
                                               share_inp=share_inp, grad_sparse=False, skip_write=True)
 
         if do_gru:
@@ -141,6 +189,7 @@ class BlocksCore(nn.Module):
                 n_templates=n_templates,
                 share_comm=share_comm,
                 share_inp=share_inp,
+                dropout=self.attention_dropout,
             )
 
         self.memory = None
@@ -161,8 +210,19 @@ class BlocksCore(nn.Module):
                 [_input, torch.zeros_like(_input[:, 0:1, :])], dim=1
             )
 
-        if self.version:
-            if self.args.use_input_att:
+        if self.version == 2:
+            # inp: (batch, P, token_dim). Null token FIRST (v0 ordering), so the shared
+            # gating below reads real-input affinity as 1 - attention(null).
+            null_tok = inp.new_zeros(batch_size, 1, inp.shape[2])
+            candidates = torch.cat([null_tok, inp], dim=1)
+            inp_use, iatt, _ = self.inp_att(
+                hx.reshape(batch_size, self.num_units, self.block_size_out),
+                candidates, candidates)
+            iatt = iatt.reshape((self.inp_heads, batch_size,
+                                 iatt.shape[1], iatt.shape[2])).mean(0)
+            inp_use = inp_use.reshape(batch_size, self.att_out * self.num_units)
+        elif self.version == 1:
+            if self.use_input_att:
                 input_to_attention = [_process_input(_input) for _input in
                                       torch.chunk(inp_use, chunks=self.num_units, dim=1)]
 
@@ -185,25 +245,34 @@ class BlocksCore(nn.Module):
             inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.block_size_in))
             inp_use = inp_use.repeat(1, self.num_modules_read_input - 1, 1)
             inp_use = torch.cat([torch.zeros_like(inp_use[:, 0:1, :]), inp_use], dim=1)
-            inp_use, iatt, _ = self.inp_att(hx.reshape((hx.shape[0], self.num_units, self.block_size_out)),
+            # v0 fix: hx arrives as (layers=1, batch, nhid) -- reshape by the true batch size.
+            inp_use, iatt, _ = self.inp_att(hx.reshape((batch_size, self.num_units, self.block_size_out)),
                                             inp_use, inp_use)
             iatt = iatt.reshape((self.inp_heads, batch_size, iatt.shape[1], iatt.shape[2]))
             iatt = iatt.mean(0)
 
             inp_use = inp_use.reshape((inp_use.shape[0], self.att_out * self.num_units))
 
-        if self.args.use_input_att:
-            new_mask = torch.ones_like(iatt[:, :, 0])
-
-            if (self.num_units - self.topkval) > 0:
-                bottomk_indices = torch.topk(iatt[:, :, 0], dim=1,
-                                             sorted=True, largest=True,
-                                             k=self.num_units - self.topkval)[1]
-
-                new_mask.index_put_((torch.arange(bottomk_indices.size(0)).unsqueeze(1), bottomk_indices),
-                                    torch.zeros_like(bottomk_indices[0], dtype=new_mask.dtype))
+        if self.use_input_att:
+            # Version 1 orders candidates [real, null], whereas version 0 orders [null, real, ...]. 
+            # Rank every OF by real-input affinity and activate the top-k. The previous version-1 path disabled those exact OFs.
+            real_att = (
+                iatt[:, :, 0]
+                if self.version == 1
+                else iatt[:, :, 1:].sum(dim=-1)
+            )
+            if self.topkval == self.num_units:
+                new_mask = torch.ones_like(real_att)
+            elif self.topkval == 0:
+                new_mask = torch.zeros_like(real_att)
+            else:
+                new_mask = torch.zeros_like(real_att)
+                topk_indices = torch.topk(
+                    real_att, dim=1, largest=True, sorted=False, k=self.topkval
+                ).indices
+                new_mask.scatter_(1, topk_indices, 1.0)
         else:
-            new_mask = torch.ones(batch_size, self.num_units).to(inp.device)
+            new_mask = inp.new_ones(batch_size, self.num_units)
 
         # mask shape (batch, num_unit), inp_use shape (batch, num_unit * hidden)
         mask = new_mask
@@ -249,7 +318,7 @@ class BlocksCore(nn.Module):
             # information gets written to memory modulated by the input.
             _, _, self.memory = self.relational_memory(
                 inputs=memory_inp.view(batch_size, -1).unsqueeze(1),
-                memory=self.memory.cuda(),
+                memory=self.memory.to(hx.device),
             )
 
             # Information gets read from memory, state dependent information reading from blocks.

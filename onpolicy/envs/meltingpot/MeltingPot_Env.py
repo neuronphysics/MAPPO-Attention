@@ -210,7 +210,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
                 agent_observation[player]['RGB'].append(obs[player]['RGB'])
                 agent_observation[player]['WORLD.RGB'].append(obs[player]['WORLD.RGB'])
                 # Check if the maximum number of cycles is reached
-                truncation = self.num_cycles >= self.max_cycles
+                truncation = (self.num_cycles + 1) >= self.max_cycles
                 agent_dones[player][-1] = agent_dones[player][-1] or truncation
 
         # Extract the final rewards and done flags for each agent
@@ -384,6 +384,6 @@ def env_creator(env_config):
 
     env = DownSamplingSubstrateWrapper(env, env_config)
 
-    env = MeltingPotEnv(env)
+    env = MeltingPotEnv(env, max_cycles=env_config.get('max_cycles', MAX_CYCLES))
 
     return env

@@ -25,7 +25,7 @@ class GroupLinearLayer(nn.Module):
 
     def forward(self,x):
         # Move x to the correct device
-        x = x.to(self.device)
+        x = x.to(self.weight.device)
         
         ts,bs,m = x.shape
         x = x.permute(1,0,2)

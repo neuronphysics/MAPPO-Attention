@@ -54,11 +54,9 @@ class R_MAPPO():
         #
  
         if self.use_attention == True:
-            self._use_naive_recurrent_policy = False
+            self._use_naive_recurrent = False
             self._use_recurrent_policy = False
-        else:
-            self._use_naive_recurrent_policy = True
-            self._use_recurrent_policy = True
+
 
         # assert (self._use_popart and self._use_valuenorm) == False, ("self._use_popart and self._use_valuenorm can not be set True simultaneously")
 

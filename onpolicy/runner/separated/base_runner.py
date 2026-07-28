@@ -105,9 +105,9 @@ class Runner(object):
                 rgb_shape = self.envs.observation_space[player_key]["RGB"].shape
                 sprite_x = rgb_shape[0]
                 sprite_y = rgb_shape[1]
-
                 share_observation_space = self.envs.share_observation_space[player_key] if self.use_centralized_V else \
-                    self.envs.share_observation_space[player_key]
+                    self.envs.observation_space[player_key]['RGB']
+                
 
                 po = Policy(self.all_args,
                             self.envs.observation_space[player_key]['RGB'],
@@ -120,10 +120,8 @@ class Runner(object):
 
         ##count total number of parameters
         print(f"total number of parameters of this model is {self.count_parameters()}")
-        if self.model_dir is None:
+        if self.model_dir is None and self.all_args.load_model:
             self.model_dir = self._find_model_dir(self.job_id)
-            if self.model_dir is not None and self.all_args.load_model:
-                self.restore()
 
         self.trainer = []
         self.buffer = []
@@ -141,7 +139,8 @@ class Runner(object):
             else:
                 player_key = f"player_{agent_id}"
                 share_observation_space = self.envs.share_observation_space[player_key] if self.use_centralized_V else \
-                    self.envs.share_observation_space[player_key]
+                    self.envs.observation_space[player_key]['RGB']
+                
                 bu = SeparatedReplayBuffer(self.all_args,
                                            self.envs.observation_space[player_key]['RGB'],
                                            share_observation_space,
@@ -149,6 +148,8 @@ class Runner(object):
 
             self.buffer.append(bu)
             self.trainer.append(tr)
+        if self.model_dir is not None:
+            self.restore()
 
     def _find_model_dir(self, slurm_job_id):
         if self.all_args.use_wandb:

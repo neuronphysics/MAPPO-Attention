@@ -163,8 +163,9 @@ def get_config():
         description='onpolicy', formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # prepare parameters
+    
     parser.add_argument("--algorithm_name", type=str,
-                        default='ippo', choices=["rmappo", "mappo", "happo", "hatrpo", "mat", "mat_dec"])
+                        default='ippo', choices=["ippo", "rmappo", "mappo", "happo", "hatrpo", "mat", "mat_dec"])
 
     parser.add_argument("--experiment_name", type=str, default="check",
                         help="an identifier to distinguish different experiment.")
@@ -347,7 +348,7 @@ def get_config():
 
     # additional modular attention parameters
     parser.add_argument("--drop_out", type=float,
-                        default=0.5, help="specify the drop out rate inside the rim module")
+                        default=0.0, help="specify the drop out rate inside the rim module")
     parser.add_argument("--rnn_attention_module", type=str,
                         default='GRU', help='specify the rnn module to use')
     parser.add_argument("--use_bidirectional", type=str2bool, default=False,

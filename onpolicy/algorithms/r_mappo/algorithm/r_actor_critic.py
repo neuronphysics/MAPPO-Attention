@@ -1,5 +1,5 @@
+import copy
 import math
-
 import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
@@ -51,7 +51,7 @@ class R_Actor(nn.Module):
 
         obs_shape = get_shape_from_obs_space(obs_space)
         # improve the speed
-        self.accumulation_steps = 4  # Adjust this based on your needs
+        self.accumulation_steps = 4  # Adjust this 
 
         self.use_attention = args.use_attention
         self._attention_module = args.attention_module
@@ -59,6 +59,9 @@ class R_Actor(nn.Module):
         self.pretrained_weights = None
         self._obs_shape = obs_shape
         self.global_step = 0
+        # Actor- and critic-specific attention settings must not mutate the
+        # shared argparse namespace.
+        attention_args = copy.copy(args)
 
         if not args.use_slot_att:
             base = CNNBase if len(obs_shape) == 3 else MLPBase
@@ -138,16 +141,41 @@ class R_Actor(nn.Module):
 
             self.tau = args.tau_start
             self.sigma = args.sigma_start
-            args.use_input_att = False
-            args.use_x_reshape = True
+            attention_args.use_input_att = False
+            attention_args.use_x_reshape = True
 
         if self.use_attention and len(self._obs_shape) >= 3:
             if self._attention_module == "RIM":
-                self.rnn = RIM(device, self.hidden_size, self.hidden_size // args.rim_num_units, args.rim_num_units,
-                               args.rim_topk, args)
+                self.rnn = RIM(
+                    device,
+                    self.hidden_size,
+                    self.hidden_size // attention_args.rim_num_units,
+                    attention_args.rim_num_units,
+                    attention_args.rim_topk,
+                    attention_args,
+                )
             elif self._attention_module == "SCOFF":
-                self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
-                                 args)
+                scoff_token_kwargs = {}
+                if int(getattr(attention_args, "use_version_scoff", 1)) == 2:
+                    if getattr(attention_args, "use_slot_att", False):
+                        raise ValueError(
+                            "use_version_scoff=2 currently supports the CNN token path "
+                            "only; set use_slot_att False (slot tokens are the next step)")
+                    if not getattr(self.base, "output_tokens", False):
+                        raise ValueError(
+                            "use_version_scoff=2 needs image observations (CNN base "
+                            "token output); got a base without tokens")
+                    scoff_token_kwargs = dict(token_dim=self.base.token_dim,
+                                              token_grid=self.base.token_grid)
+                self.rnn = SCOFF(
+                    device,
+                    self.hidden_size,
+                    self.hidden_size,
+                    attention_args.scoff_num_units,
+                    attention_args.scoff_topk,
+                    attention_args,
+                    **scoff_token_kwargs,
+                )
         elif not self.use_attention:
             if len(obs_shape) == 3:
                 logging.info('Not using any attention module, input width: %d ', obs_shape[1])
@@ -501,7 +529,6 @@ class R_Critic(nn.Module):
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
 
-        ## Zahra added
         self._use_version_scoff = args.use_version_scoff
         self.use_attention = args.use_attention
         self._attention_module = args.attention_module
@@ -516,8 +543,9 @@ class R_Critic(nn.Module):
         self.scoff_num_memory_heads = args.scoff_num_memory_heads
         self.scoff_num_memory_topk = args.scoff_memory_topk
 
-        if args.use_slot_att and not args.use_input_att:
-            args.use_input_att = True
+        attention_args = copy.copy(args)
+        if attention_args.use_slot_att and not attention_args.use_input_att:
+            attention_args.use_input_att = True
 
         self._obs_shape = cent_obs_shape
         
@@ -527,12 +555,37 @@ class R_Critic(nn.Module):
         if self.use_attention and len(self._obs_shape) >= 3:
 
             if self._attention_module == "RIM":
-                self.rnn = RIM(device, self.hidden_size, self.hidden_size // args.rim_num_units, args.rim_num_units,
-                               args.rim_topk, args)
+                self.rnn = RIM(
+                    device,
+                    self.hidden_size,
+                    self.hidden_size // attention_args.rim_num_units,
+                    attention_args.rim_num_units,
+                    attention_args.rim_topk,
+                    attention_args,
+                )
 
             elif self._attention_module == "SCOFF":
-                self.rnn = SCOFF(device, self.hidden_size, self.hidden_size, args.scoff_num_units, args.scoff_topk,
-                                 args)
+                scoff_token_kwargs = {}
+                if int(getattr(attention_args, "use_version_scoff", 1)) == 2:
+                    if getattr(attention_args, "use_slot_att", False):
+                        raise ValueError(
+                            "use_version_scoff=2 currently supports the CNN token path "
+                            "only; set use_slot_att False (slot tokens are the next step)")
+                    if not getattr(self.base, "output_tokens", False):
+                        raise ValueError(
+                            "use_version_scoff=2 needs image observations (CNN base "
+                            "token output); got a base without tokens")
+                    scoff_token_kwargs = dict(token_dim=self.base.token_dim,
+                                              token_grid=self.base.token_grid)
+                self.rnn = SCOFF(
+                    device,
+                    self.hidden_size,
+                    self.hidden_size,
+                    attention_args.scoff_num_units,
+                    attention_args.scoff_topk,
+                    attention_args,
+                    **scoff_token_kwargs,
+                )
         elif not self.use_attention:
             if self._use_naive_recurrent_policy or self._use_recurrent_policy:
                 if self.rnn_attention_module == "GRU":

@@ -1,7 +1,23 @@
+import math
 import time
 import torch
 from torch import nn
 from onpolicy.algorithms.utils.SCOFF.blocks_core_scoff import BlocksCore
+
+
+def build_2d_sincos_pos_enc(grid, dim):
+    """Fixed 2D sine/cosine positional encoding for a (H, W) token grid -> (H*W, dim).
+    Row-major order, matching CNNLayer's flatten(2).transpose(1, 2)."""
+    h, w = grid
+    yy, xx = torch.meshgrid(torch.arange(h, dtype=torch.float32),
+                            torch.arange(w, dtype=torch.float32), indexing="ij")
+    coords = torch.stack([yy.reshape(-1), xx.reshape(-1)], dim=1)          # (P, 2)
+    n_freq = (dim + 3) // 4                                                # sin+cos per axis
+    freqs = torch.exp(torch.arange(n_freq, dtype=torch.float32)
+                      * (-math.log(10000.0) / max(n_freq - 1, 1)))
+    ang = coords.unsqueeze(-1) * freqs                                     # (P, 2, F)
+    pe = torch.cat([torch.sin(ang), torch.cos(ang)], dim=-1).reshape(coords.shape[0], -1)
+    return pe[:, :dim].contiguous()
 
 
 class RNNModel(nn.Module):
@@ -10,7 +26,8 @@ class RNNModel(nn.Module):
     def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, args, dropout=0.5,
                  tie_weights=False, use_cudnn_version=False, use_adaptive_softmax=False, cutoffs=None,
                  discrete_input=False, n_templates=0, num_blocks=6, update_topk=4, use_gru=False, do_rel=False,
-                 device=None, attention_out=340, version=1):
+                 device=None, attention_out=340, version=1, token_dim=None, token_grid=None,
+                 token_count=None):
 
         super(RNNModel, self).__init__()
         self.args = args
@@ -27,6 +44,12 @@ class RNNModel(nn.Module):
         self.topk = update_topk
         self.memorytopk = args.scoff_memory_topk
         self.use_cudnn_version = use_cudnn_version
+        self.version = version
+        self.token_dim = token_dim
+        self.token_grid = token_grid
+        if token_count is None and token_grid is not None:
+            token_count = token_grid[0] * token_grid[1]
+        self.token_count = token_count
         self.drop = nn.Dropout(dropout)
         self.n_templates = n_templates
         self.do_rel = do_rel
@@ -75,17 +98,17 @@ class RNNModel(nn.Module):
 
     def init_weights(self):
         initrange = 0.1
-        self.encoder.weight.data.uniform_(-initrange, initrange)
-        # self.rule_emb.weight.data.uniform_(-initrange, initrange)
-        if not self.use_adaptive_softmax:
+        if self.encoder is not None:
+            self.encoder.weight.data.uniform_(-initrange, initrange)
+        if not self.use_adaptive_softmax and self.decoder is not None:
             self.decoder.bias.data.zero_()
             self.decoder.weight.data.uniform_(-initrange, initrange)
 
     def init_blocks_weights(self):
         initrange = 0.1
-        self.encoder.weight.data.uniform_(-initrange, initrange)
-        # self.rule_emb.weight.data.uniform_(-initrange, initrange)
-        if not self.use_adaptive_softmax:
+        if self.encoder is not None:
+            self.encoder.weight.data.uniform_(-initrange, initrange)
+        if not self.use_adaptive_softmax and self.decoder is not None:
             self.decoder.bias.data.zero_()
             self.decoder.weight.data.uniform_(-initrange, initrange)
 
@@ -112,7 +135,21 @@ class RNNModel(nn.Module):
         inp_heads = self.args_to_init_blocks["inp_heads"]
         nhid = self.args_to_init_blocks["nhid"]
 
-        if self.discrete_input:
+        if self.version == 2:
+            # Token input path: no dense encoder -- a Linear over the concatenation
+            # would mix tokens and destroy entity structure before the object files
+            # ever compete for it. Location information comes from a fixed 2D
+            # sinusoidal positional encoding instead.
+            self.encoder = None
+            if self.token_dim is None:
+                raise ValueError("version 2 requires token_dim")
+            if self.token_grid is not None:
+                self.register_buffer(
+                    "pos_enc", build_2d_sincos_pos_enc(self.token_grid, self.token_dim),
+                    persistent=False)
+            else:
+                self.pos_enc = None
+        elif self.discrete_input:
             self.encoder = nn.Embedding(ntoken, ninp)
         else:
             self.encoder = nn.Linear(ntoken, ninp)
@@ -126,11 +163,15 @@ class RNNModel(nn.Module):
                        share_inp=share_inp, share_comm=share_comm, memory_mlp=memory_mlp,
                        memory_slots=memory_slots, num_memory_heads=num_memory_heads,
                        memory_head_size=memory_head_size, attention_out=attention_out,
-                       version=version, args=self.args))
+                       version=version, args=self.args, token_dim=self.token_dim,
+                       token_count=self.token_count))
         self.bc_lst = nn.ModuleList(bc_lst)
 
-        self.decoder = nn.Linear(self.nhid, ntoken)
-        if tie_weights:
+        if self.version == 2:
+            self.decoder = None   # version 2 returns the object-file states directly
+        else:
+            self.decoder = nn.Linear(self.nhid, ntoken)
+        if tie_weights and self.decoder is not None:
             if self.nhid != ninp:
                 raise ValueError('When using the tied flag, '
                                  'nhid must be equal to emsize')
@@ -150,7 +191,17 @@ class RNNModel(nn.Module):
         extra_loss = 0.0
         timesteps, batch_size, _ = input.shape
 
-        emb = self.encoder(input)
+        if self.version == 2:
+            tokens = input.view(timesteps, batch_size, -1, self.token_dim)
+            if self.pos_enc is not None:
+                if tokens.shape[2] != self.pos_enc.shape[0]:
+                    raise ValueError(
+                        f"got {tokens.shape[2]} tokens but the positional encoding was "
+                        f"built for {self.pos_enc.shape[0]} grid positions")
+                tokens = tokens + self.pos_enc
+            emb = tokens
+        else:
+            emb = self.encoder(input)
 
         if True:
             # for loop implementation with RNNCell
@@ -200,9 +251,12 @@ class RNNModel(nn.Module):
         block_mask = bmask.squeeze(0)
 
         output = self.drop(output)
-        dec = output.view(output.size(0) * output.size(1), self.nhid)
-        dec = self.decoder(dec)
-        return dec.view(output.size(0), output.size(1), dec.size(1)), new_hidden, new_c, extra_loss, block_mask, template_attn
+        if self.decoder is None:
+            dec = output
+        else:
+            dec = self.decoder(output.view(output.size(0) * output.size(1), self.nhid))
+            dec = dec.view(output.size(0), output.size(1), dec.size(1))
+        return dec, new_hidden, new_c, extra_loss, block_mask, template_attn
 
     def init_hidden(self, bsz):
         weight = next(self.bc_lst[0].block_lstm.parameters())

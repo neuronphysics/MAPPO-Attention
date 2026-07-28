@@ -127,14 +127,13 @@ class SharedBlockGRU(nn.Module):
         bs = h.shape[0]
         h = h.reshape(bs * self.k, self.m)
 
-        x = x.reshape(x.shape[0] * self.k, self.m)
+        x = x.reshape(x.shape[0] * self.k, self.ninp // self.k)
 
         h = h.unsqueeze(1)
         h_read = self.gll_read(h)
 
         hnext_stack = []
 
-        h_masks = masks.repeat(self.k, 1)
         for template in self.templates:
             # x shape (batch * num_unit, input_size) h is (batch * num_unit, 1, per_unit_hidden_size)
             hnext_l = template(x, h.squeeze(1))
@@ -152,12 +151,18 @@ class SharedBlockGRU(nn.Module):
         att = self.sa(att).unsqueeze(1)
         '''
 
-        att = torch.nn.functional.gumbel_softmax(torch.bmm(h_read, write_key.permute(0, 2, 1)), tau=1, hard=True)
+        #att = torch.nn.functional.gumbel_softmax(torch.bmm(h_read, write_key.permute(0, 2, 1)), tau=1, hard=True)
         # att = att*0.0 + 0.25
+        logits = torch.bmm(h_read, write_key.permute(0, 2, 1))  # (bs·k, 1, n_templates): OF-state query vs. hypothetical-update keys — unchanged, paper's Step 3 match
+        y_soft = torch.softmax(logits, dim=-1)                  # soft schema affinities (this is the backward path)
+        index  = y_soft.argmax(dim=-1, keepdim=True)            # deterministic winner (argmax of y_soft == argmax of logits)
+        y_hard = torch.zeros_like(y_soft).scatter_(-1, index, 1.0)  # exact one-hot: forward still uses ONE schema per OF
+        att    = y_hard - y_soft.detach() + y_soft              # value == y_hard; gradient == ∂y_soft
+
 
         hnext = torch.bmm(att, hnext)
 
         hnext = hnext.mean(dim=1)
         hnext = hnext.reshape((bs, self.k, self.m)).reshape((bs, self.k * self.m))
 
-        return (None, hnext), att.data.reshape(bs, self.k, self.n_templates)
+        return (None, hnext), att.detach().reshape(bs, self.k, self.n_templates)

@@ -6,12 +6,12 @@ from .GroupLinearLayer import GroupLinearLayer
 class SharedGroupLinearLayer(nn.Module):
     """All the parameters are shared using soft attention this layer is used for sharing Q,K,V parameters of MHA"""
 
-    def __init__(self, din, dout, n_templates):
+    def __init__(self, din, dout, n_templates, hiden_dim=16):
         super(SharedGroupLinearLayer, self).__init__()
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.w = nn.ModuleList([nn.Linear(din, dout, bias=False).to(self.device) for _ in range(0, n_templates)])
-        self.gll_write = GroupLinearLayer(dout, 16, n_templates, device=self.device)
-        self.gll_read = GroupLinearLayer(din, 16, 1, device=self.device)
+        self.gll_write = GroupLinearLayer(dout, hiden_dim, n_templates, device=self.device)
+        self.gll_read = GroupLinearLayer(din, hiden_dim, 1, device=self.device)
         self.to(self.device)
         for layer in self.w:
             if isinstance(layer, nn.Linear):
@@ -21,13 +21,14 @@ class SharedGroupLinearLayer(nn.Module):
 
     def forward(self, x):
         # input size (bs,num_blocks,din), required matching num_blocks vs n_templates
+        device = next(self.parameters()).device
         bs_size = x.shape[0]
         k = x.shape[1]
         x = x.reshape(k * bs_size, -1)
         x_read = self.gll_read((x * 1.0).reshape((x.shape[0], 1, x.shape[1])))
         x_next = []
         for mod in self.w:
-            x_next_l = mod(x.to(self.device))
+            x_next_l = mod(x.to(device))
             x_next.append(x_next_l)
         x_next = torch.stack(x_next, 1)  # (k*bs,n_templates,dout)
 

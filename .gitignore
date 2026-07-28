@@ -20,5 +20,7 @@ eggs/
 wheels/ 
 *.egg-info
 *.egg
+*.whl
 .vscode/settings.json
+.logs
 

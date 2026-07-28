@@ -25,8 +25,9 @@ def calculate_layer_size(input_size, kernel_size, stride, padding=0):
 
 
 class CNNLayer(nn.Module):
-    def __init__(self, obs_shape, hidden_size, use_orthogonal, use_ReLU):
+    def __init__(self, obs_shape, hidden_size, use_orthogonal, use_ReLU, output_tokens=False):
         super(CNNLayer, self).__init__()
+        self.output_tokens = output_tokens
 
         active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
@@ -45,13 +46,17 @@ class CNNLayer(nn.Module):
             input_height = obs_shape[1]
 
         kernel_size, stride, padding = calculate_conv_params((input_width, input_height, input_channel))
+        # token geometry of the conv map (used by SCOFF version 2); the Conv2d below
+        # is built without padding, so each side shrinks by (kernel - stride)
+        self.token_dim = hidden_size // 2
+        self.token_grid = (calculate_layer_size(input_height, kernel_size, stride),
+                           calculate_layer_size(input_width, kernel_size, stride))
 
         self.cnn = nn.Sequential(
             init_(nn.Conv2d(in_channels=input_channel,
                             out_channels=hidden_size // 2,
                             kernel_size=kernel_size,
                             stride=stride)),
-            nn.BatchNorm2d(hidden_size // 2),
             active_func,
             Flatten(),
             init_(nn.Linear(
@@ -66,6 +71,12 @@ class CNNLayer(nn.Module):
     def forward(self, x):
         x = x / 255.0
         x = x.permute(0, 3, 1, 2)  # Rearrange the dimensions
+        if self.output_tokens:
+            # SCOFF version 2: stop after conv + activation, return the spatial
+            # positions as a token set, flattened row-major to (B, P * C) so every
+            # downstream interface (buffers, wrappers, masking) still sees a vector.
+            x = self.cnn[1](self.cnn[0](x))
+            return x.flatten(2).transpose(1, 2).reshape(x.size(0), -1)
         x = self.cnn(x)
         return x
 
@@ -78,7 +89,15 @@ class CNNBase(nn.Module):
         self._use_ReLU = args.use_ReLU
         self.hidden_size = args.hidden_size
 
-        self.cnn = CNNLayer(obs_shape, self.hidden_size, self._use_orthogonal, self._use_ReLU)
+        self.output_tokens = bool(
+            getattr(args, "use_attention", False)
+            and getattr(args, "attention_module", "") == "SCOFF"
+            and int(getattr(args, "use_version_scoff", 1)) == 2
+            and not getattr(args, "use_slot_att", False))
+        self.cnn = CNNLayer(obs_shape, self.hidden_size, self._use_orthogonal, self._use_ReLU,
+                            output_tokens=self.output_tokens)
+        self.token_dim = self.cnn.token_dim
+        self.token_grid = self.cnn.token_grid
 
     def forward(self, x):
         x = self.cnn(x)

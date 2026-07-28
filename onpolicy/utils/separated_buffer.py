@@ -429,18 +429,18 @@ class SeparatedReplayBuffer(object):
             L, N = data_chunk_length, mini_batch_size
 
             # These are all from_numpys of size (N, L, Dim)
-            share_obs_batch = np.stack(share_obs_batch)
-            obs_batch = np.stack(obs_batch)
+            share_obs_batch = np.stack(share_obs_batch, 1)
+            obs_batch = np.stack(obs_batch, 1)
 
-            actions_batch = np.stack(actions_batch)
+            actions_batch = np.stack(actions_batch, 1)
             if self.available_actions is not None:
-                available_actions_batch = np.stack(available_actions_batch)
-            value_preds_batch = np.stack(value_preds_batch)
-            return_batch = np.stack(return_batch)
-            masks_batch = np.stack(masks_batch)
-            active_masks_batch = np.stack(active_masks_batch)
-            old_action_log_probs_batch = np.stack(old_action_log_probs_batch)
-            adv_targ = np.stack(adv_targ)
+                available_actions_batch = np.stack(available_actions_batch, 1)
+            value_preds_batch = np.stack(value_preds_batch, 1)
+            return_batch = np.stack(return_batch, 1)
+            masks_batch = np.stack(masks_batch, 1)
+            active_masks_batch = np.stack(active_masks_batch, 1)
+            old_action_log_probs_batch = np.stack(old_action_log_probs_batch, 1)
+            adv_targ = np.stack(adv_targ, 1)
 
             # States is just a (N, -1) from_numpy
             batch_dim = N
