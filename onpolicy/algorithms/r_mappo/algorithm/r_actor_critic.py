@@ -73,7 +73,9 @@ class R_Actor(nn.Module):
         #self.base = base(args, obs_shape)
 
         if self.use_slot_att:
-            self.slot_att_layer_norm = nn.LayerNorm(self.hidden_size)
+            self.num_slots = (args.rim_num_units if args.attention_module == "RIM" else args.scoff_num_units)
+            self.slot_dim = self.hidden_size // self.num_slots
+            self.slot_att_layer_norm = nn.LayerNorm(self.slot_dim)        # = D
             model = generate_model(args)
             
             print(model.state_dict().keys())
@@ -236,10 +238,10 @@ class R_Actor(nn.Module):
             else:
                 slot_attn_out = slot_core.slot_attn(f_norm, sigma=self.sigma)
                 
-            
-            actor_features = slot_attn_out['slots'].reshape(batch, -1)
-            actor_features = self.slot_att_layer_norm(actor_features)
-            
+            slots = slot_attn_out['slots']                    # [B, num_slots, slot_dim]
+            assert slots.shape[1:] == (self.num_slots, self.slot_dim), slots.shape
+            slots = self.slot_att_layer_norm(slots)           # per-slot; shared affine
+            actor_features = slots.reshape(batch, -1)         # RIMCell:270 inverts this            
 
         else:
             actor_features = self.base(obs)
@@ -409,8 +411,8 @@ class R_Actor(nn.Module):
                 )
 
             slots = slot_attn_out["slots"]
-            actor_features = slots.reshape(b, -1)
-            actor_features = self.slot_att_layer_norm(actor_features)
+            normed_slots = self.slot_att_layer_norm(slots)    # keep `slots` raw for ortho loss
+            actor_features = normed_slots.reshape(b, -1)
 
             if slot_trainable and self.args.use_orthogonal_loss:
                 labels = (

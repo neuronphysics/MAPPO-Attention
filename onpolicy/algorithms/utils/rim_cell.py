@@ -326,8 +326,6 @@ class RIM(nn.Module):
         self.use_pos_encoding = args.use_pos_encoding
         self.pos_encoder = SinusoidalPosition(input_size, device)
 
-        self.x_layer_norm = nn.LayerNorm(self.hidden_size * self.num_units)
-
         self.rimcell = nn.ModuleList([RIMCell(self.device, input_size, hidden_size, num_units, k,
                                               args).to(self.device) if i == 0 else
                                       RIMCell(self.device, hidden_size * self.num_units, hidden_size, num_units,
